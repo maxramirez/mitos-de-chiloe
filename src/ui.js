@@ -44,6 +44,7 @@ function openModal(overlay, btn, onPrimary) {
     if (onPrimary) onPrimary()
   })
   root.appendChild(overlay)
+  btn.focus() // Enter/Space can dismiss even without a working pointer
 }
 
 export const ui = {
@@ -143,8 +144,12 @@ export const ui = {
     card.appendChild(el('div', 'win-charms', '✦ 6/6'))
     card.appendChild(el('div', 'rule'))
     card.appendChild(el('p', 'intro', STRINGS.winText))
+    const btn = el('button', 'btn', STRINGS.replayLabel)
+    btn.addEventListener('click', () => window.location.reload())
+    card.appendChild(btn)
     overlay.appendChild(card)
     root.appendChild(overlay)
+    btn.focus()
   },
 
   closeModal() {

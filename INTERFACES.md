@@ -51,7 +51,7 @@ Global conventions
   (recipe above) so each is findable in fog. Gentle idle motion in `update(t)`
   (sway/bob/light flicker). Optional small `THREE.Points` particles (≤ 60).
 - Character notes (faithful to Chilote mythology):
-  - **Pincoya** — beautiful dancer, long dark hair, seaweed dress, arms raised
+  - **Pincoya** — beautiful dancer, long golden hair, seaweed dress, arms raised
     toward the sea, warm golden glow.
   - **Trauco** — ugly ~0.9 m forest dwarf, conical hat, ragged poncho, stone
     hatchet, sickly green glow.

@@ -7,7 +7,7 @@ export const LORE = {
     title: 'Dancer of the Tides',
     lore:
       'You crest the dune and there she is — La Pincoya, dancing barefoot where ' +
-      'the foam unravels, dark hair heavy with salt, her dress woven of sargazo ' +
+      'the foam unravels, golden hair heavy with salt, her dress woven of sargazo ' +
       'and moonlight. Daughter of el Millalobo and the woman Huenchula, she alone ' +
       'decides what the sea will give. Watch the turn of her body: when she dances ' +
       'facing the open water, the boats come home low with mariscos and silver ' +
@@ -28,7 +28,7 @@ export const LORE = {
       'with which he can fell any tree in three blows. His face is hideous, but ' +
       'his eyes are the true danger — a single fixed gaze bewitches, bends the ' +
       'will, and can leave the strongest islander twisted like old wood. He ' +
-      'studies you for a long, cold moment... then, strangely, lowers his eyes ' +
+      'studies you for a long, cold moment… then, strangely, lowers his eyes ' +
       'and steps aside.',
     blessing:
       'El Trauco turns his gaze away — the forests of the island are open to you.',
@@ -112,10 +112,13 @@ export const STRINGS = {
   beginLabel: 'Step Into the Fog',
   continueLabel: 'Continue',
   hudLabel: 'Favores',
-  hint: 'Algo se mueve cerca…',
+  hint: '✦ Algo se mueve cerca… something stirs nearby',
   banner:
     'El Caleuche ha aparecido… the ghost ship makes for the old dock on the ' +
     'eastern shore. Board it!',
+  sailHint: '✦ El Caleuche se acerca al muelle del este… the ghost ship nears the old dock',
+  boardHint: '✦ El Caleuche espera en el muelle — ¡súbete! Board the ghost ship!',
+  replayLabel: 'Walk the Island Again',
   winTitle: 'Aboard el Caleuche',
   winText:
     'Six favores glimmer in your hand as a gangplank of pale light comes down. ' +

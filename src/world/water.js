@@ -11,6 +11,7 @@ export function createWater() {
   geo.rotateX(-Math.PI / 2)
 
   const pos = geo.attributes.position
+  pos.setUsage(THREE.DynamicDrawUsage) // re-uploaded every frame by update()
   const count = pos.count
   const arr = pos.array
   // cache base coordinates once — zero allocations in update()

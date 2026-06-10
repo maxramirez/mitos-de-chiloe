@@ -6,6 +6,7 @@ import { BEINGS } from './beings/registry.js'
 import { createCaleuche } from './caleuche.js'
 import { createPlayer } from './player.js'
 import { ui } from './ui.js'
+import { STRINGS } from './lore.js'
 
 const app = document.getElementById('app')
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
@@ -71,10 +72,20 @@ function buildDock(x0) {
 scene.add(buildDock(shoreX))
 
 function onDock(x, z) {
-  return Math.abs(z) < 2.4 && x > shoreX - 8 && x < shoreX + DOCK_LEN + 2
+  // must match the deck mesh footprint: x in [shoreX-6, shoreX+DOCK_LEN+4], |z| <= 2.2
+  return Math.abs(z) < 2.2 && x > shoreX - 6 && x < shoreX + DOCK_LEN + 4
 }
 const groundHeight = (x, z) => (onDock(x, z) ? Math.max(terrainHeight(x, z), 1.0) : terrainHeight(x, z))
-const isWalkable = (x, z) => onDock(x, z) || terrainHeight(x, z) > -1.1
+const isWalkable = (x, z) => {
+  if (onDock(x, z)) return true
+  if (terrainHeight(x, z) <= -0.9) return false // swell crests reach ~0.5 m; keep the camera above them
+  for (const b of BEINGS) {
+    const dx = x - b.position.x
+    const dz = z - b.position.z
+    if (dx * dx + dz * dz < 1.44) return false // don't walk through the beings themselves
+  }
+  return true
+}
 
 // the fisher's lantern — warm near-field light that follows the camera
 scene.add(camera)
@@ -87,7 +98,10 @@ player.setPosition(0, -150, Math.PI)
 player.enabled = false
 
 const caleuche = createCaleuche()
-caleuche.group.visible = false
+// Parked beyond the fog instead of visible=false: keeps the scene's point-light
+// count constant from boot, so summoning never triggers a shader-recompile hitch.
+const caleucheParked = new THREE.Vector3(shoreX + 650, 0, 520)
+caleuche.group.position.copy(caleucheParked)
 scene.add(caleuche.group)
 const CALEUCHE_SAIL_SECONDS = 50
 const caleucheStart = new THREE.Vector3(shoreX + 330, 0, 190)
@@ -118,6 +132,9 @@ function checkEncounters() {
       b.found = true
       state.modal = true
       player.enabled = false
+      try {
+        document.exitPointerLock?.() // otherwise the locked pointer can't click Continue
+      } catch {}
       ui.showEncounter(b.entry, () => {
         state.modal = false
         if (!state.won) {
@@ -133,9 +150,8 @@ function checkEncounters() {
 
 function summonCaleuche() {
   caleucheProgress = 0
-  caleuche.group.visible = true
   caleuche.group.position.copy(caleucheStart)
-  ui.showBanner('El Caleuche ha aparecido… The ghost ship makes for the old dock on the eastern shore. Board it!')
+  ui.showBanner(STRINGS.banner)
 }
 
 const _dir = new THREE.Vector3()
@@ -184,13 +200,19 @@ function updateHUD() {
   // signed angle (around +Y) from camera forward to target; positive = left
   const ang = Math.atan2(_fwd.z * dx - _fwd.x * dz, _fwd.x * dx + _fwd.z * dz)
   const compassDeg = -THREE.MathUtils.radToDeg(ang)
-  const hint = bestD2 < 28 * 28 && bestD2 !== Infinity ? '✦ Algo se mueve cerca… something stirs nearby' : ''
+  let hint = ''
+  if (caleucheProgress >= 0 && !state.won) {
+    hint = caleucheProgress >= 0.95 ? STRINGS.boardHint : STRINGS.sailHint
+  } else if (bestD2 < 28 * 28) {
+    hint = STRINGS.hint
+  }
   ui.updateHUD(foundCount(), beings.length, compassDeg, hint)
 }
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // DPR changes when dragged across displays
   renderer.setSize(window.innerWidth, window.innerHeight)
 })
 
@@ -206,7 +228,12 @@ function frame(dt) {
   lantern.intensity = 26 + Math.sin(t * 7.3) * 1.6 + Math.sin(t * 13.1) * 1.1
   water.update(t)
   sky.update(t)
-  for (const b of beings) b.inst.update(t)
+  for (const b of beings) {
+    // fog hides everything past ~350 m; skip idle animation for far-off beings
+    const dx = b.entry.position.x - player.position.x
+    const dz = b.entry.position.z - player.position.z
+    if (dx * dx + dz * dz < 300 * 300) b.inst.update(t)
+  }
   updateCaleuche(dt, t)
   if (state.started) updateHUD()
   renderer.render(scene, camera)
@@ -221,7 +248,7 @@ renderer.setAnimationLoop(() => {
 window.__game = {
   get started() { return state.started },
   get won() { return state.won },
-  get modalOpen() { return state.modal },
+  get modalOpen() { return state.modal || ui.isModalOpen() },
   get found() { return foundCount() },
   get total() { return beings.length },
   get caleucheProgress() { return caleucheProgress },

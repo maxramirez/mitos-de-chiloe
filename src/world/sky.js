@@ -94,15 +94,20 @@ export function createSky(scene) {
   const starMat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    uniforms: { uTime: { value: 0 } },
+    uniforms: {
+      uTime: { value: 0 },
+      // gl_PointSize is in device pixels — match the renderer's pixel ratio
+      uPixelRatio: { value: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2) },
+    },
     vertexShader: /* glsl */ `
       attribute float aPhase;
       attribute float aSize;
       uniform float uTime;
+      uniform float uPixelRatio;
       varying float vA;
       void main() {
         vA = 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * (0.6 + aPhase * 1.7) + aPhase * 43.0));
-        gl_PointSize = aSize;
+        gl_PointSize = aSize * uPixelRatio;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: /* glsl */ `

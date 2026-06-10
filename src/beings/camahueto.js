@@ -126,14 +126,14 @@ export function createCamahueto() {
   tail.rotation.x = 0.35;
   root.add(tail);
 
-  // ---------- lights: pale blue body glow + pulsing gold at the horn ----------
+  // ---------- one light: pale blue body glow that blushes gold with the horn pulse
+  // (a second PointLight here would raise the scene's light count and the cost
+  // of every lit fragment — the pulse lives in this light's color instead)
+  const C_BLUE = new THREE.Color(0x9fd4ff);
+  const C_GOLD = new THREE.Color(0xffbe3a);
   const light = new THREE.PointLight(0x9fd4ff, 26, 34, 1.8);
-  light.position.set(0, 1.7, 0.1);
+  light.position.set(0, 1.85, 0.4);
   group.add(light);
-
-  const hornLight = new THREE.PointLight(0xffbe3a, 22, 25, 1.8);
-  hornLight.position.set(0, 2.0, 0.95);
-  group.add(hornLight);
 
   // ---------- river-mist motes, pale blue ----------
   const MOTES = 36;
@@ -183,8 +183,8 @@ export function createCamahueto() {
     // the golden horn pulses like a slow heartbeat
     const pulse = Math.sin(t * 2.3) * 0.5 + Math.sin(t * 5.9) * 0.18;
     hornMat.emissiveIntensity = 2.3 + pulse * 1.6;
-    hornLight.intensity = 22 + pulse * 9;
-    light.intensity = 26 + Math.sin(t * 1.7 + 0.4) * 2.2;
+    light.color.lerpColors(C_BLUE, C_GOLD, Math.max(0, pulse) * 0.55);
+    light.intensity = 26 + Math.sin(t * 1.7 + 0.4) * 2.2 + Math.max(0, pulse) * 6;
 
     // mist drifts in a slow ring
     motes.rotation.y = t * 0.16;

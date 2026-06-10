@@ -12,7 +12,8 @@ export function createPincoya() {
     color: 0xd9a273, roughness: 0.75, flatShading: true,
   });
   const hairMat = new THREE.MeshStandardMaterial({
-    color: 0x16110d, roughness: 0.95, flatShading: true,
+    // golden, per the myth — muted for the moonlit palette
+    color: 0x9a7430, roughness: 0.9, flatShading: true,
   });
   const dressMat = new THREE.MeshStandardMaterial({
     color: 0x1d4a35, roughness: 0.85, flatShading: true,
