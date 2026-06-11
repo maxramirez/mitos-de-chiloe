@@ -1,45 +1,45 @@
-# CALEUCHE — Mitos de Chiloé
+# MITOS DE CHILOÉ — Diez juegos del archipiélago
 
-A first-person 3D night-exploration web game built on the mythology of the
-Chiloé archipelago (Chile). You are a fisher whose nets have come up empty for
-a month. Walk the foggy island in the dark, earn the favor of its six hidden
-beings, and El Caleuche — the ghost ship of the brujos — will come for you at
-the old dock.
-
-## The beings
-
-| Being | Where to look |
-|---|---|
-| **La Pincoya** | dancing on the southern beach |
-| **El Trauco** | the eastern forest |
-| **El Camahueto** | the northern tree line |
-| **El Invunche** | a cave near the summit |
-| **El Millalobo** | the north-eastern waterline |
-| **La Sirena Chilota** | a rock above the western shore |
-
-Walk close to a being to receive its lore and its favor (✦). The HUD compass
-always points to the nearest being you have not yet found — and, once all six
-favors are yours, to the dock where the Caleuche will berth.
-
-## Run it
+Ten small web games built on the mythology of the Chiloé archipelago
+(Chile). One hub, ten myths, no assets — everything is procedural
+(three.js, canvas2d, WebAudio).
 
 ```bash
 npm install
-npm run dev      # vite, http://localhost:5173
+npm run dev      # vite → http://localhost:5173
 ```
 
-## Controls
+The hub at `/` tracks your señas: each game sets a completion badge
+(`localStorage`) when you win it.
 
-- **WASD** — move (hold **Shift** to run)
-- **Mouse** — look (click once to capture the pointer)
-- **Arrow keys** — look, when pointer lock is unavailable
-- Walk into a glow to meet a being; click **Continue** to keep exploring
+## The games
 
-## Tech
+| # | Game | Myth | Genre |
+|---|---|---|---|
+| 1 | **CALEUCHE** *(flagship)* | the ghost ship of the brujos | horror exploration |
+| 2 | **LA PINCOYA** | her dance fills or empties the nets | fishing / timing |
+| 3 | **EL TRAUCO** | the forest dwarf whose gaze bends will | stealth |
+| 4 | **EL CAMAHUETO** | the one-horned calf that tears gullies to the sea | downhill runner |
+| 5 | **LA SIRENA** | herder of the drowned | melody memory |
+| 6 | **EL INVUNCHE** | guardian of the cave of Quicaví | candle-lit maze horror |
+| 7 | **EL BASILISCO** | the rooster-serpent that drinks sleepers' breath | top-down defense |
+| 8 | **TENTEN Y CAICAI** | the flood serpents of the great myth | turn-based puzzle |
+| 9 | **EL VUELO DEL BRUJO** | night flight on the macuñ | checkpoint flying |
+| 10 | **EL CUCHIVILU** | the pig-snake that ruins fish corrals | arcade herding |
 
-- [Three.js](https://threejs.org/) + Vite, plain ES modules, zero other
-  runtime dependencies — every model is procedural three.js primitives.
-- Deterministic seeded terrain (`terrainHeight(x, z)` is pure), so physics and
-  visuals sample the same island.
-- `window.__game` exposes a small test API (teleport, deterministic `step(dt,
-  n)` simulation, state inspection) used by the automated end-to-end tests.
+The flagship is a full horror game: six beings to find on a foggy island,
+a stalker (El Brujo) that hunts you when unobserved, a dread system that
+bleeds into the lantern, the audio and the lens, and the Caleuche itself
+at the end of it. WASD + mouse, Tab for the bestiary, M for sound.
+
+## Tech notes
+
+- Vite multi-page: the hub plus each game is its own entry
+  (`games/<id>.html` + `src/games/<id>/`).
+- Zero runtime deps beyond `three`; no textures, models, fonts or audio
+  files anywhere — geometry, paint and sound are all generated.
+- Every game exposes a deterministic test API on `window.__game`
+  (`step(dt, n)` drives the sim with rAF throttled; `getState()`,
+  `forceWin()`/`forceLose()`, plus per-game hooks documented in each
+  `main.js` header). The whole collection is end-to-end tested through it.
+- The flagship's module contracts live in `INTERFACES.md`.

@@ -36,7 +36,7 @@
    ============================================================ */
 
 import * as THREE from 'three'
-import { buildWorld, createBrujo, heightAt, RINGS } from './world.js'
+import { buildWorld, createBrujo, heightAt, RINGS, COLLIDERS } from './world.js'
 import { createRings, createBurst, createGustStreak, RING_RADIUS } from './rings.js'
 import { createAudio } from './audio.js'
 import { createUI } from './ui.js'
@@ -65,6 +65,7 @@ const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerH
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.setSize(window.innerWidth, window.innerHeight)
 })
 
@@ -96,6 +97,9 @@ const pos = new THREE.Vector3(0, 30, -740)
 let yaw = 0 // facing +z
 let pitch = 0
 let roll = 0
+let clearT = 1 /* seconds genuinely clear of the terrain — re-arms crashes */
+let boostArmed = true /* hysteresis: false at 0 stamina until back to 0.25 */
+let visT = 0 /* visual clock — keeps running after the sim stops */
 
 /* gusts */
 const gust = { phase: 'idle', timer: 16, dir: 1, shove: 0 }
@@ -104,20 +108,25 @@ const gust = { phase: 'idle', timer: 16, dir: 1, shove: 0 }
 const keys = Object.create(null)
 let mouseX = 0
 let mouseY = 0
+let mouseArmed = false /* ignore where the Begin click left the cursor */
 window.addEventListener('pointermove', (e) => {
   mouseX = (e.clientX / window.innerWidth) * 2 - 1
   mouseY = (e.clientY / window.innerHeight) * 2 - 1
+  if (state.phase === 'playing') mouseArmed = true
 })
 window.addEventListener('keydown', (e) => {
   keys[e.code] = true
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault()
   if (e.code === 'KeyM') {
     const muted = audio.toggleMute()
-    document.getElementById('hud-mute').textContent = muted ? 'm · silencio' : 'm · sound'
+    document.getElementById('hud-mute').textContent = muted ? 'M · silencio' : 'M · sonido'
   }
 })
 window.addEventListener('keyup', (e) => {
   keys[e.code] = false
+})
+window.addEventListener('blur', () => {
+  for (const k in keys) keys[k] = false
 })
 
 /* preallocated temps — no allocations in the frame loop */
@@ -128,6 +137,9 @@ const TMP = new THREE.Vector3()
 function begin() {
   if (state.phase !== 'title') return
   audio.unlock()
+  mouseArmed = false
+  mouseX = 0
+  mouseY = 0
   state.phase = 'playing'
   ui.closeOverlay() /* no-op if the Begin button already closed it */
   ui.showHUD()
@@ -211,7 +223,7 @@ function sim(dt) {
   if (keys.ArrowRight) steerX += 1
   if (keys.ArrowUp) steerY -= 1
   if (keys.ArrowDown) steerY += 1
-  if (steerX === 0 && steerY === 0) {
+  if (steerX === 0 && steerY === 0 && mouseArmed) {
     steerX = Math.abs(mouseX) > 0.06 ? clamp(mouseX * 1.4, -1, 1) : 0
     steerY = Math.abs(mouseY) > 0.06 ? clamp(mouseY * 1.4, -1, 1) : 0
   }
@@ -225,17 +237,22 @@ function sim(dt) {
   /* banking roll follows yaw input */
   roll += (steerX * -0.55 - roll) * 4 * dt
 
-  /* --- speed: W boost (stamina) / S brake --- */
+  /* --- speed: W boost (stamina, with hysteresis) / S brake --- */
   let target = SPEED_BASE
   if (keys.KeyS) target = SPEED_BRAKE
-  else if (keys.KeyW && state.stamina > 0) {
+  else if (keys.KeyW && boostArmed && state.stamina > 0) {
     target = SPEED_BOOST
     state.stamina = Math.max(0, state.stamina - 0.22 * dt)
+    if (state.stamina <= 0) boostArmed = false
   }
-  if (!keys.KeyW) state.stamina = Math.min(1, state.stamina + 0.09 * dt)
+  /* regen whenever not actually boosting; re-arm at a quarter bar */
+  if (target !== SPEED_BOOST) {
+    state.stamina = Math.min(1, state.stamina + 0.09 * dt)
+    if (state.stamina >= 0.25) boostArmed = true
+  }
   if (wet) target *= 0.62
   state.speed += (target - state.speed) * 2.2 * dt
-  ui.setStamina(state.stamina)
+  ui.setStamina(state.stamina, !!keys.KeyW && !boostArmed)
 
   /* --- wet wings tick --- */
   if (state.wetT > 0) state.wetT = Math.max(0, state.wetT - dt)
@@ -278,11 +295,38 @@ function sim(dt) {
 
   /* --- terrain / water collision --- */
   const floor = Math.max(heightAt(pos.x, pos.z) + 1.2, 0.9)
-  if (pos.y < floor && state.crashCooldown <= 0) {
-    doCrash()
-    if (state.phase !== 'playing') return
-  } else if (pos.y < floor) {
-    pos.y = floor /* invulnerable skim during cooldown */
+  if (pos.y < floor) {
+    if (state.crashCooldown <= 0 && clearT > 0.35) {
+      doCrash()
+      if (state.phase !== 'playing') return
+    } else {
+      pos.y = floor /* invulnerable skim until genuinely clear again */
+      clearT = 0 /* re-arm only after 0.35 s back in clear air */
+    }
+  } else if (pos.y > floor + 0.5) {
+    clearT += dt /* hugging within 0.5 m of the surface does not re-arm */
+  }
+
+  /* --- arch legs / lintels + ring-8 flank trees: analytic capsules --- */
+  if (state.crashCooldown <= 0) {
+    for (let i = 0; i < COLLIDERS.length; i++) {
+      const c = COLLIDERS[i]
+      const dx = c.bx - c.ax
+      const dy = c.by - c.ay
+      const dz = c.bz - c.az
+      const tt = clamp(
+        ((pos.x - c.ax) * dx + (pos.y - c.ay) * dy + (pos.z - c.az) * dz) / (dx * dx + dy * dy + dz * dz),
+        0, 1
+      )
+      const qx = pos.x - (c.ax + dx * tt)
+      const qy = pos.y - (c.ay + dy * tt)
+      const qz = pos.z - (c.az + dz * tt)
+      if (qx * qx + qy * qy + qz * qz < c.r * c.r) {
+        doCrash()
+        if (state.phase !== 'playing') return
+        break
+      }
+    }
   }
 
   /* --- ring pass: generous 8 m sphere --- */
@@ -291,14 +335,6 @@ function sim(dt) {
     TMP.set(r.x, r.y, r.z)
     if (pos.distanceToSquared(TMP) < RING_RADIUS * RING_RADIUS) passRing(state.ringIdx)
   }
-
-  /* --- visuals tied to sim time --- */
-  world.update(state.simT, dt)
-  ringSys.update(state.simT)
-  burst.update(dt)
-  gustStreak.update(dt, yaw)
-  brujo.update(state.simT, (state.speed - SPEED_BRAKE) / (SPEED_BOOST - SPEED_BRAKE))
-  if (state.shakeT > 0) state.shakeT = Math.max(0, state.shakeT - dt)
 }
 
 /* ---------------- camera + render ---------------- */
@@ -330,6 +366,14 @@ function render() {
 /* ---------------- frame: pure, drives rAF AND manual steps ---------------- */
 function frame(dt) {
   if (state.phase === 'playing') sim(dt)
+  /* visuals run every frame — the world keeps breathing behind cards */
+  visT += dt
+  world.update(visT, dt)
+  ringSys.update(visT)
+  burst.update(dt)
+  gustStreak.update(dt, yaw)
+  brujo.update(visT, (state.speed - SPEED_BRAKE) / (SPEED_BOOST - SPEED_BRAKE))
+  if (state.shakeT > 0) state.shakeT = Math.max(0, state.shakeT - dt)
   audio.update(
     dt,
     (state.speed - SPEED_BRAKE) / (SPEED_BOOST - SPEED_BRAKE),

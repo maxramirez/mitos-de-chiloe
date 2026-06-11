@@ -345,11 +345,12 @@ export function buildWorld(scene, rng) {
     const dz = z1 - z0
     const len2 = dx * dx + dz * dz
     if (len2 < 1e-6) return false
+    const eps = 0.6 / Math.sqrt(len2) // absolute 0.6 m end clip — a hugged trunk blocks at all ranges
     for (let i = 0; i < nCol; i++) {
       const cx = treeX[i] - x0
       const cz = treeZ[i] - z0
       let t = (cx * dx + cz * dz) / len2
-      if (t < 0.04 || t > 0.96) continue
+      if (t < eps || t > 1 - eps) continue
       const ox = cx - dx * t
       const oz = cz - dz * t
       const r = treeR[i] + 0.33
@@ -362,12 +363,24 @@ export function buildWorld(scene, rng) {
     if (vineGroups[i]) vineGroups[i].visible = false
   }
 
+  let denyT = 0
+  let lastT = 0
+  function denyFlicker() {
+    denyT = 0.6
+  }
+
   function update(t, gateExcited) {
+    const dtW = t - lastT > 0 ? t - lastT : 0
+    lastT = t
     vineMat.emissiveIntensity = 1.5 + Math.sin(t * 2.3) * 0.5
     vineSpriteMat.opacity = 0.4 + 0.15 * Math.sin(t * 2.3 + 1)
     const base = gateExcited ? 30 : 13
-    wispLight.intensity =
-      base + Math.sin(t * 8.7) * 2.5 + Math.sin(t * 23.7 + 1) * (gateExcited ? 4 : 1.2)
+    let wi = base + Math.sin(t * 8.7) * 2.5 + Math.sin(t * 23.7 + 1) * (gateExcited ? 4 : 1.2)
+    if (denyT > 0) {
+      denyT -= dtW
+      wi *= 0.2 + 0.5 * Math.abs(Math.sin(t * 42)) // the wisp gutters — denied
+    }
+    wispLight.intensity = wi
     const s = (gateExcited ? 5.4 : 3.2) + Math.sin(t * 3.1) * 0.3
     wispSprite.scale.set(s, s, 1)
     wispGrp.position.y = 5.2 + Math.sin(t * 1.3) * 0.25
@@ -382,6 +395,7 @@ export function buildWorld(scene, rng) {
     collide,
     losBlocked,
     collectVine,
+    denyFlicker,
     update,
   }
 }

@@ -75,6 +75,41 @@ for (let i = 0; i < RINGS.length; i++) {
   RINGS[i].dirz = dz / l
 }
 
+/* ---- analytic crash capsules: arch legs + lintels (rings 4 & 9)
+   and the two ring-8 flank trees. Segment (ax,ay,az)→(bx,by,bz),
+   radius r — matches the meshes buildWorld places. ---- */
+export const COLLIDERS = []
+for (const r of RINGS) {
+  if (!r.arch) continue
+  const yawA = Math.atan2(r.dirx, r.dirz)
+  const cy = Math.cos(yawA)
+  const sy = Math.sin(yawA)
+  /* local (lx, ly, 0) → world, matching grp.rotation.y = yawA */
+  const add = (lx1, ly1, lx2, ly2, rad) =>
+    COLLIDERS.push({
+      ax: r.x + lx1 * cy, ay: r.y + ly1, az: r.z - lx1 * sy,
+      bx: r.x + lx2 * cy, by: r.y + ly2, bz: r.z - lx2 * sy,
+      r: rad,
+    })
+  for (const side of [-1, 1]) {
+    /* leg: center (side*13, 1), half-height 12, tilted z by side*0.1 */
+    const tx = 12 * Math.sin(side * 0.1)
+    const ty = 12 * Math.cos(side * 0.1)
+    add(side * 13 + tx, 1 - ty, side * 13 - tx, 1 + ty, 3.0)
+  }
+  add(-15.5, 12.5, 15.5, 12.5, 2.65) /* lintel */
+}
+{
+  /* ring-8 flank trees — same spots buildWorld plants them at */
+  const r8 = RINGS[7]
+  for (const side of [-1, 1]) {
+    const fx = r8.x - r8.dirz * side * 13
+    const fz = r8.z + r8.dirx * side * 13
+    const fy = heightAt(fx, fz) - 0.3
+    COLLIDERS.push({ ax: fx, ay: fy + 1, az: fz, bx: fx, by: fy + 13, bz: fz, r: 2.4 })
+  }
+}
+
 /* ---- procedural radial-glow texture (shared by sprites/particles) ---- */
 export function glowTexture(inner, outer) {
   const c = document.createElement('canvas')
@@ -230,6 +265,7 @@ export function buildWorld(scene) {
   /* ---- water ---- */
   const waterGeo = new THREE.PlaneGeometry(2400, 2400, 48, 48)
   waterGeo.rotateX(-Math.PI / 2)
+  waterGeo.attributes.position.setUsage(THREE.DynamicDrawUsage)
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x0a2226,
     roughness: 0.55,
@@ -290,9 +326,13 @@ export function buildWorld(scene) {
   }
   setMoonProgress(1)
 
-  let waterT = 0
+  let waterAcc = 1 /* force a first ripple pass */
   function update(t, dt) {
-    waterT = t
+    stars.rotation.y = t * 0.0024
+    /* throttle the CPU ripple pass — the slow shimmer reads the same at ~25 Hz */
+    waterAcc += dt
+    if (waterAcc < 0.04) return
+    waterAcc = 0
     /* cheap shimmer: scroll a couple of low rows — touch few verts */
     for (let i = 0; i < wPos.count; i += 7) {
       const x = wPos.getX(i)
@@ -300,7 +340,6 @@ export function buildWorld(scene) {
       wPos.setY(i, Math.sin(x * 0.02 + t * 0.7) * Math.cos(z * 0.017 + t * 0.5) * 0.55)
     }
     wPos.needsUpdate = true
-    stars.rotation.y = t * 0.0024
   }
 
   return { update, setMoonProgress, moonPos: moonGroup.position }

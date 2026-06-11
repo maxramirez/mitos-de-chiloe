@@ -92,6 +92,7 @@ body {
 
 .card {
   position: relative;
+  pointer-events: auto;
   max-width: 580px;
   max-height: 88vh;
   overflow-y: auto;

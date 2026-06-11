@@ -87,6 +87,10 @@ export function createRenderer(canvas) {
   function setLevel(sim) {
     simRef = sim;
     for (let i = 0; i < N; i++) cacheTile(i);
+    // a restart starts visually clean
+    shakeAmp = 0;
+    surgeT = 0;
+    for (let i = 0; i < PN; i++) parts[i].on = false;
   }
 
   function onHeightChanged(x, y) {
@@ -217,6 +221,10 @@ export function createRenderer(canvas) {
       const dx = Math.abs(vx - BX[i]) / HW;
       const dy = Math.abs(vy - ty) / HH;
       if (dx + dy <= 1) return i;
+      // wall silhouette: between the top diamond's lower edge and the base
+      // diamond's lower edge — so clicking a tall tile's visible side never
+      // falls through to the occluded tile behind it
+      if (simRef.heights[i] > 0 && dx <= 1 && vy > ty && vy <= BY[i] + HH * (1 - dx)) return i;
     }
     return -1;
   }
@@ -326,6 +334,9 @@ export function createRenderer(canvas) {
       const marchP = game.sub === 'march' ? Math.min(1, game.t / STEP_T) : 0;
 
       ctx.lineWidth = 1;
+      ctx.font = '8px Georgia'; // set once — per-tile font sets are expensive
+      ctx.textAlign = 'center';
+      const warn = game.phase === 'playing' && game.sub === 'raise' && sim.turnsUntilRise === 1;
       for (let o = 0; o < N; o++) {
         const i = ORDER[o];
         const x = i % SIZE;
@@ -386,9 +397,15 @@ export function createRenderer(canvas) {
         } else if (hh > 0) {
           // height digit, very faint — puzzle readability
           ctx.fillStyle = DIGIT_COLOR;
-          ctx.font = '8px Georgia';
-          ctx.textAlign = 'center';
           ctx.fillText(DIGITS[hh], bx, ty + 2.6);
+          // flood telegraph: this tile goes under when Caicai rises this turn
+          if (warn && hh === sim.water + 1) {
+            ctx.strokeStyle = BAD;
+            ctx.globalAlpha = 0.25 + 0.2 * Math.sin(animT * 4);
+            diamond(bx, ty);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
         }
       }
 

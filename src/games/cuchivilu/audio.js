@@ -185,6 +185,10 @@ export function createAudio() {
           tone('sine', 95, t, 0.4, 0.2, { slideTo: 50, slideT: 0.15 })
           hit(t, 0.45, 0.07, 'bandpass', 900, 300, 1)
           break
+        case 'shove': // too slow — he shoulders the hull aside
+          tone('sine', 70, t, 0.25, 0.09, { slideTo: 45, slideT: 0.12 })
+          hit(t, 0.2, 0.03, 'lowpass', 500, 150, 1)
+          break
         case 'dive': // he sinks
           hit(t, 0.5, 0.08, 'bandpass', 1600, 350, 1)
           tone('sine', 180, t, 0.8, 0.05, { slideTo: 60, slideT: 0.6 })

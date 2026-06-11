@@ -73,7 +73,7 @@ function init() {
   toastEl.id = 'toast'
   ui.appendChild(toastEl)
 
-  muteChip = el('div', '', 'm · sonido')
+  muteChip = el('div', '', 'M · sonido')
   muteChip.id = 'mute-chip'
   ui.appendChild(muteChip)
 }
@@ -99,9 +99,13 @@ function showTitle(onBegin) {
   card.appendChild(el('p', 'help', STR.help))
   const btn = el('button', 'btn', STR.begin)
   let used = false
+  const onKey = (e) => {
+    if (e.code === 'Enter' || e.code === 'NumpadEnter') btn.click()
+  }
   btn.addEventListener('click', () => {
     if (used) return
     used = true
+    window.removeEventListener('keydown', onKey)
     removeOverlay()
     onBegin()
   })
@@ -109,12 +113,6 @@ function showTitle(onBegin) {
   overlayEl.appendChild(card)
   ui.appendChild(overlayEl)
   primaryBtn = btn
-  const onKey = (e) => {
-    if (e.code === 'Enter' || e.code === 'NumpadEnter') {
-      window.removeEventListener('keydown', onKey)
-      btn.click()
-    }
-  }
   window.addEventListener('keydown', onKey)
 }
 
@@ -143,6 +141,10 @@ function showEnd({ won, title, charms, body }) {
   overlayEl.appendChild(card)
   ui.appendChild(overlayEl)
   primaryBtn = btn
+  const onKey = (e) => {
+    if (e.code === 'Enter' || e.code === 'NumpadEnter') btn.click()
+  }
+  window.addEventListener('keydown', onKey)
 }
 
 function isOverlayOpen() {
@@ -215,7 +217,7 @@ function toast(text, mood, dur) {
 }
 
 function setMuted(m) {
-  muteChip.textContent = m ? 'm · sonido apagado' : 'm · sonido'
+  muteChip.textContent = m ? 'M · silencio' : 'M · sonido'
 }
 
 export const ui = {

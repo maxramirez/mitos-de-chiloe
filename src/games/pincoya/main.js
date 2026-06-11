@@ -17,7 +17,9 @@
 //   step(dt=1/60, steps=1)  — advance sim + render deterministically
 //   getState()              — { phase:'title'|'playing'|'won'|'lost', fish, goal,
 //                              timer, streak, facing:'sea'|'land', telegraph,
-//                              casting, castT, boatU (-1..1), inRange (spot idx
+//                              casting, castT, castSea (displayed mood snapshot
+//                              the active cast will be judged by), boatU (-1..1),
+//                              inRange (spot idx
 //                              or -1), spots:[{u,deep,scared}], muted }
 //   forceWin()              — real win handler (overlay + localStorage flag)
 //   forceLose(reason?)      — real lose handler; reason 'alba' (dawn, default)
@@ -61,6 +63,7 @@ const S = {
   casting: false,
   castT: 0,
   castSpot: -1,
+  castSea: false,
   inRange: -1,
   shake: 0,
   spots: [
@@ -77,7 +80,6 @@ ui.init()
 
 // ---- renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ antialias: true })
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.2
 document.getElementById('app').appendChild(renderer.domElement)
@@ -91,6 +93,7 @@ function resize() {
   world.camera.aspect = aspect
   world.camera.fov = aspect > 1.4 ? 54 : aspect > 1 ? 62 : 70
   world.camera.updateProjectionMatrix()
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.setSize(w, h)
 }
 window.addEventListener('resize', resize)
@@ -116,6 +119,17 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false
   else if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false
+})
+// focus loss eats the keyup — release held keys so the lancha doesn't self-slide
+window.addEventListener('blur', () => {
+  keys.left = false
+  keys.right = false
+})
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    keys.left = false
+    keys.right = false
+  }
 })
 
 // ---- game flow -----------------------------------------------------------------
@@ -195,25 +209,28 @@ function castAttempt() {
   updateInRange() // fresh — SPACE and the cast() hook can fire between frames
   if (S.inRange < 0) {
     ui.toast('Ningún farol marca esta agua — acércate a una boya', 'bad')
-    audio.cue('shift')
+    audio.cue('deny')
     return
   }
   const spot = S.spots[S.inRange]
   if (spot.scaredT > 0) {
     ui.toast('Aguas espantadas — el farol volverá a encenderse', 'bad')
-    audio.cue('landward')
+    audio.cue('deny')
     return
   }
   S.casting = true
   S.castT = 0
   S.castSpot = S.inRange
+  // judge by the displayed mood at commit: during the telegraph the aura
+  // already shows the upcoming facing, so what the player sees is what lands
+  S.castSea = S.telegraph ? S.facing !== 'sea' : S.facing === 'sea'
   audio.cue('cast')
 }
 
 function resolveCast() {
   S.casting = false
   const spot = S.spots[S.castSpot]
-  if (S.facing === 'sea') {
+  if (S.castSea) {
     const n = spot.deep ? 5 + Math.floor(Math.random() * 4) : 3 + Math.floor(Math.random() * 4)
     S.fish += n
     S.streak = 0
@@ -232,7 +249,7 @@ function resolveCast() {
       lose('redes')
     } else if (S.streak === 2) {
       audio.cue('warn')
-      ui.toast('¡Una red más contra su espalda y se rompen!', 'bad', 3000)
+      ui.toast('¡Otra contra su espalda y las redes se rompen!', 'bad', 3000)
     } else {
       ui.toast('Nada. Ella miraba a la tierra…', 'bad')
     }
@@ -314,7 +331,6 @@ function simUpdate(dt) {
 // ---- frame: pure, driven by rAF AND by manual stepping ---------------------------
 let tVis = 0
 function frame(dt) {
-  dt = Math.min(dt, 0.05)
   tVis += dt
   if (S.phase === 'playing') {
     simUpdate(dt)
@@ -350,6 +366,7 @@ window.__game = {
     telegraph: S.telegraph,
     casting: S.casting,
     castT: S.castT,
+    castSea: S.castSea,
     boatU: S.boatA / A_MAX,
     inRange: S.inRange,
     spots: S.spots.map((s) => ({ u: s.a / A_MAX, deep: s.deep, scared: s.scaredT > 0 })),

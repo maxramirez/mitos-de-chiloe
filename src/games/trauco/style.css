@@ -324,6 +324,24 @@ body::after {
   will-change: transform;
 }
 
+/* --- mute chip --- */
+#mute-tag {
+  right: 20px;
+  bottom: 22px;
+  pointer-events: none;
+  user-select: none;
+  font-size: 10.5px;
+  font-variant: small-caps;
+  letter-spacing: 0.25em;
+  text-transform: lowercase;
+  color: var(--ink-dim);
+  opacity: 0.55;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+#mute-tag.off {
+  color: rgba(255, 160, 130, 0.85);
+}
+
 /* --- the gaze closing in (opacity driven per frame) --- */
 #gaze-vig {
   inset: 0;

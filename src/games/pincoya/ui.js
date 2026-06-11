@@ -71,9 +71,14 @@ function init() {
   toastEl.id = 'toast'
   ui.appendChild(toastEl)
 
-  muteChip = el('div', '', 'm · sonido')
+  muteChip = el('div', '', 'M · sonido')
   muteChip.id = 'mute-chip'
   ui.appendChild(muteChip)
+
+  // Enter activates whichever card is up (title BEGIN, end-card replay)
+  window.addEventListener('keydown', (e) => {
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && primaryBtn) primaryBtn.click()
+  })
 }
 
 function removeOverlay() {
@@ -107,13 +112,6 @@ function showTitle(onBegin) {
   overlayEl.appendChild(card)
   ui.appendChild(overlayEl)
   primaryBtn = btn
-  const onKey = (e) => {
-    if (e.code === 'Enter' || e.code === 'NumpadEnter') {
-      window.removeEventListener('keydown', onKey)
-      btn.click()
-    }
-  }
-  window.addEventListener('keydown', onKey)
 }
 
 function showEnd({ won, title, charms, body }) {
@@ -161,6 +159,7 @@ let _fish = -1
 let _streak = -1
 let _castPct = -1
 let _dawnOn = false
+let popTimer = 0
 
 function hud(fish, goal, timerK, streak, castK) {
   const px = Math.round(timerK * 277)
@@ -176,8 +175,11 @@ function hud(fish, goal, timerK, streak, castK) {
   if (fish !== _fish) {
     _fish = fish
     fishN.textContent = String(fish)
+    clearTimeout(popTimer)
+    fishLine.classList.remove('pop')
+    void fishLine.offsetWidth // restart the animation even on back-to-back hauls
     fishLine.classList.add('pop')
-    setTimeout(() => fishLine.classList.remove('pop'), 400)
+    popTimer = setTimeout(() => fishLine.classList.remove('pop'), 400)
   }
   if (streak !== _streak) {
     _streak = streak
@@ -206,7 +208,7 @@ function toast(text, mood, dur) {
 }
 
 function setMuted(m) {
-  muteChip.textContent = m ? 'm · sonido apagado' : 'm · sonido'
+  muteChip.textContent = m ? 'M · silencio' : 'M · sonido'
 }
 
 export const ui = {

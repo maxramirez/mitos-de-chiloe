@@ -26,6 +26,9 @@ export function segAt(a) {
   return i < SEGN ? i : SEGN - 1
 }
 
+// El Cuchivilu's telegraph duration (s) — shared by the sim and the renderer
+export const TELE_T = 2.2
+
 export function clamp(v, lo, hi) {
   return v < lo ? lo : v > hi ? hi : v
 }

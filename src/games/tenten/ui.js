@@ -196,7 +196,8 @@ export function createUI(root, handlers) {
       row.appendChild(next);
     }
     const replay = el('button', 'btn' + (isFinal ? '' : ' btn-resume'), isFinal ? 'JUGAR DE NUEVO' : 'repetir');
-    replay.addEventListener('click', () => location.reload());
+    // final win returns to the title (reload); mid-run replay restarts in place
+    replay.addEventListener('click', () => (isFinal ? location.reload() : handlers.onReplay()));
     row.appendChild(replay);
     endCard.append(row);
     endOv.style.display = 'flex';
@@ -212,7 +213,7 @@ export function createUI(root, handlers) {
       el('p', 'intro', LOSE_TEXT[reason] || LOSE_TEXT.gente),
     );
     const replay = el('button', 'btn', 'REINTENTAR');
-    replay.addEventListener('click', () => location.reload());
+    replay.addEventListener('click', () => handlers.onReplay());
     endCard.append(replay);
     endOv.style.display = 'flex';
   }

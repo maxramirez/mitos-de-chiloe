@@ -27,8 +27,10 @@
 //   forceLose()          run the real lose handler (shows lose card)
 //   getSequence()        copy of the current round's expected shell
 //                        indices (0-4)
-//   playInput(i)         play shell i as the player; only registers
-//                        while sub === 'input'; returns true if correct
+//   playInput(i)         play shell i as the player; registers while
+//                        sub === 'input' (or in the brief tail after her
+//                        last sung note, which opens input); returns
+//                        true if correct
 //   setMistakes(n)       set mistake count 0-3 (n >= 3 while playing
 //                        triggers the real lose handler)
 //   skipToRound(n)       jump to round n (1-6): souls = n-1, starts the
@@ -51,6 +53,7 @@ import * as audio from './audio.js';
 const TOTAL_ROUNDS = 6;
 const MAX_MISTAKES = 3;
 const NOTE_GAP = 0.6; // s between her notes
+const SING_TAIL = 0.2; // s after her last note before input opens
 const INTRO_DUR = 1.15;
 const CHURN_DUR = 1.6;
 const SOUL_DUR = 2.6;
@@ -83,7 +86,7 @@ for (let s = 0; s <= TOTAL_ROUNDS; s++) SOULS_LABELS.push('ÁNIMAS ✦ ' + s + '
 const PROMPTS = {
   intro: 'ella canta — escucha',
   singing: 'ella canta — escucha',
-  input: 'repite el canto — conchas o teclas 1-5',
+  input: 'repite el canto — caracolas o teclas 1-5',
   churn: 'el agua se agita — el canto vuelve, escucha',
   soul: 'un ánima cruza el canal',
   done: '',
@@ -148,7 +151,7 @@ function begin() {
 }
 
 function win() {
-  if (state.phase === 'won') return;
+  if (state.phase === 'won' || state.phase === 'lost') return;
   state.phase = 'won';
   state.sub = 'done';
   try {
@@ -176,6 +179,7 @@ function wrong() {
   state.mistakes++;
   audio.churnSplash();
   scene.churnWater();
+  scene.snuffCandle(3 - state.mistakes); // the candle gutters before the smoke
   if (state.mistakes >= MAX_MISTAKES) {
     lose();
     return;
@@ -193,8 +197,20 @@ function roundComplete() {
   soulT = 0;
 }
 
+// input is open once her last note has sounded — an eager echo must never be eaten
+function inputOpen() {
+  return (
+    state.sub === 'input' ||
+    (state.sub === 'singing' && singIdx >= state.sequence.length)
+  );
+}
+
 function playInput(i) {
-  if (state.phase !== 'playing' || state.sub !== 'input') return false;
+  if (state.phase !== 'playing' || !inputOpen()) return false;
+  if (state.sub !== 'input') {
+    state.sub = 'input';
+    state.inputPos = 0;
+  }
   i |= 0;
   if (i < 0 || i > 4) return false;
   audio.shellTone(i, false);
@@ -225,16 +241,17 @@ function update(dt) {
       break;
     case 'singing':
       noteT += dt;
-      if (noteT >= NOTE_GAP) {
-        noteT -= NOTE_GAP;
-        if (singIdx < state.sequence.length) {
-          const n = state.sequence[singIdx++];
-          audio.shellTone(n, true);
-          scene.sirenSing(n);
-        } else {
+      if (singIdx >= state.sequence.length) {
+        // her last note has sounded — open input after a short tail
+        if (noteT >= SING_TAIL) {
           state.sub = 'input';
           state.inputPos = 0;
         }
+      } else if (noteT >= NOTE_GAP) {
+        noteT -= NOTE_GAP;
+        const n = state.sequence[singIdx++];
+        audio.shellTone(n, true);
+        scene.sirenSing(n);
       }
       break;
     case 'churn':
@@ -250,6 +267,7 @@ function update(dt) {
       soulT += dt / SOUL_DUR;
       if (soulT >= 1) {
         soulT = 1;
+        scene.soulArrive(state.souls); // flare where the lantern settles
         if (state.souls >= TOTAL_ROUNDS) win();
         else startRound(state.round + 1);
       }
@@ -277,6 +295,10 @@ function frame(dt) {
 
 let last = performance.now();
 requestAnimationFrame(function loop(now) {
+  if (resizeDirty) {
+    resizeDirty = false;
+    scene.resize();
+  }
   frame(Math.min((now - last) / 1000, DT_CLAMP));
   last = now;
   requestAnimationFrame(loop);
@@ -294,7 +316,9 @@ document.getElementById('replay-lose').addEventListener('click', () => location.
 canvas.addEventListener('pointerdown', (e) => {
   if (state.phase !== 'playing') return;
   const i = scene.shellIndexAt(e.clientX, e.clientY);
-  if (i >= 0) playInput(i);
+  if (i < 0) return;
+  if (inputOpen()) playInput(i);
+  else scene.denyShell(i); // not your turn yet — dim pulse, not silence
 });
 
 canvas.addEventListener('pointermove', (e) => {
@@ -309,17 +333,22 @@ canvas.addEventListener('pointermove', (e) => {
 
 function toggleMute() {
   const m = audio.toggleMute();
-  muteHint.textContent = m ? 'm — silenciado' : '1–5 · m — silencio';
+  muteHint.textContent = m ? 'M · silencio' : '1–5 · M · sonido';
   muteHint.classList.toggle('muted', m);
   return m;
 }
 
 window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
   if (e.key >= '1' && e.key <= '5') playInput(e.key.charCodeAt(0) - 49);
   else if (e.key === 'm' || e.key === 'M') toggleMute();
 });
 
-window.addEventListener('resize', () => scene.resize());
+// coalesce resize storms to one relayout per frame (resize() repaints the bg)
+let resizeDirty = false;
+window.addEventListener('resize', () => {
+  resizeDirty = true;
+});
 
 // ---------------- test api ----------------
 

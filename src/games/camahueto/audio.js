@@ -136,6 +136,15 @@ export function createAudio() {
       windGain.gain.setTargetAtTime(0.012 + speedNorm * 0.055 + (airborne ? 0.025 : 0), t, 0.08);
       windBP.frequency.setTargetAtTime(650 + speedNorm * 700, t, 0.1);
     },
+    // fade the speed bed out (win/lose — update() stops being called)
+    bedOff() {
+      if (!ready) return;
+      const t = ctx.currentTime;
+      rumbleGain.gain.setTargetAtTime(0, t, 0.25);
+      subGain.gain.setTargetAtTime(0, t, 0.25);
+      windGain.gain.setTargetAtTime(0, t, 0.25);
+      lastSpd = -1; // a future update() re-applies levels
+    },
     chime(n) {
       const f = CHIME[n % CHIME.length];
       blip('sine', f, 0.16, 0.004, 0.12);

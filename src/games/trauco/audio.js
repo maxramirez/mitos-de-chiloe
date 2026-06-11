@@ -329,6 +329,9 @@ export function createAudio() {
       // his eyes find you — thin cold ping
       blip('sine', 1244.51, t, 0.045, 0.012, 0.8)
       hiss(t, 0.035, 0.3, 0.8, 'highpass', 2600, 0.8, 3)
+    } else if (name === 'denied') {
+      // the gate refuses — a single low blip
+      blip('sine', 58, t, 0.18, 0.01, 0.2, 40)
     } else if (name === 'win') {
       // resolved warm chord — the forest lets you go
       blip('triangle', 146.83, t, 0.13, 0.25, 2.4)

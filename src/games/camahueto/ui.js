@@ -38,15 +38,16 @@ export function createUI(root) {
   function showTitle(onBegin) {
     card.innerHTML = `
       <div class="charm">✦</div>
-      <h1>EL CAMAHUETO</h1>
-      <div class="epithet">La bajada</div>
-      <p class="myth">For twenty-five years the one-horned calf grew under the hill, and tonight
+      <h1 class="game-title">EL CAMAHUETO</h1>
+      <div class="game-subtitle">La bajada</div>
+      <div class="rule"></div>
+      <p class="intro">For twenty-five years the one-horned calf grew under the hill, and tonight
       it breaks for the sea, tearing a gully — <i>la quebrada</i> — through soil and stone.
       Where its golden horn scrapes rock it leaves <i>virutas</i>, shavings the machis grind
       into remedies worth a winter's wages. Ride the torn earth behind it, gather what
       gold you can, and do not let the gully throw you.</p>
-      <div class="controls">A / D&nbsp;o&nbsp;← → — moverse &nbsp;·&nbsp; espacio — saltar &nbsp;·&nbsp; M — sonido</div>
-      <button id="begin-btn">COMENZAR LA BAJADA</button>`;
+      <div class="help">A / D&nbsp;o&nbsp;← → — moverse &nbsp;·&nbsp; espacio — saltar &nbsp;·&nbsp; M — sonido</div>
+      <button id="begin-btn" class="btn">COMENZAR LA BAJADA</button>`;
     overlay.classList.add('open');
     hud.classList.remove('on');
     card.querySelector('#begin-btn').addEventListener('click', onBegin);
@@ -55,13 +56,14 @@ export function createUI(root) {
   function showWin(shavingCount) {
     card.innerHTML = `
       <div class="charm">✦</div>
-      <h1>EL MAR</h1>
-      <div class="epithet">Seña reunida</div>
-      <p class="myth">The gully opens and the calf hits the surf in a sheet of silver — gone,
+      <h1 class="game-title">EL MAR</h1>
+      <div class="game-subtitle">Seña reunida</div>
+      <div class="rule"></div>
+      <p class="intro">The gully opens and the calf hits the surf in a sheet of silver — gone,
       out past the kelp to the herds of Millalobo. You stand in the cold foam with
       <b class="gold">✦ ${shavingCount} virutas de cuerno</b> wrapped in your poncho.
       Las machis will pay well.</p>
-      <button id="again-btn">OTRA VEZ</button>
+      <button id="again-btn" class="btn">OTRA VEZ</button>
       <a class="back" href="/">⌂ volver a los mitos</a>`;
     overlay.classList.add('open');
     hud.classList.remove('on');
@@ -71,13 +73,14 @@ export function createUI(root) {
   function showLose(shavingCount) {
     card.innerHTML = `
       <div class="charm">✦</div>
-      <h1>LA QUEBRADA</h1>
-      <div class="epithet">No perdona</div>
-      <p class="myth">Three blows, and the torn earth spat you onto the rocks. Far below, the
+      <h1 class="game-title">LA QUEBRADA</h1>
+      <div class="game-subtitle">No perdona</div>
+      <div class="rule"></div>
+      <p class="intro">Three blows, and the torn earth spat you onto the rocks. Far below, the
       silver calf met the sea without witnesses, and the tide is already taking the
       ${shavingCount > 0 ? `<b class="gold">${shavingCount} virutas</b> from your open hands` : 'gold you never gathered'}.
       <i>La quebrada no perdona.</i></p>
-      <button id="again-btn">OTRA VEZ</button>
+      <button id="again-btn" class="btn">OTRA VEZ</button>
       <a class="back" href="/">⌂ volver a los mitos</a>`;
     overlay.classList.add('open');
     hud.classList.remove('on');

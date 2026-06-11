@@ -173,6 +173,11 @@ export function createAudio() {
           hit(t, 0.45, 0.035, 'bandpass', 1900, 900, 1.2)
           break
         }
+        case 'deny': // cast refused (no buoy / scared spot) — neutral knock,
+          // deliberately unlike the shift/landward motifs the player must learn
+          tone('sine', 130, t, 0.16, 0.05, { slideTo: 95, slideT: 0.1 })
+          hit(t, 0.08, 0.02, 'bandpass', 900, 0, 1.5)
+          break
         case 'thud': // the net comes up empty — dull thud
           tone('sine', 88, t, 0.5, 0.22, { slideTo: 52, slideT: 0.18 })
           hit(t, 0.14, 0.09, 'lowpass', 220, 120, 0.8)

@@ -16,6 +16,7 @@ export function createPlayer(camera, dom, { terrainHeight, collide }) {
   let moving = false
   let sprintKey = false
   let locked = false
+  let everLocked = false // true once pointer lock has been held — real-player session marker
   let speed = 0
 
   const keys = Object.create(null)
@@ -31,6 +32,7 @@ export function createPlayer(camera, dom, { terrainHeight, collide }) {
 
   document.addEventListener('pointerlockchange', () => {
     locked = document.pointerLockElement === dom
+    if (locked) everLocked = true
   })
   document.addEventListener('mousemove', (e) => {
     if (!locked) return
@@ -127,6 +129,9 @@ export function createPlayer(camera, dom, { terrainHeight, collide }) {
     },
     get locked() {
       return locked
+    },
+    get everLocked() {
+      return everLocked
     },
     get speed() {
       return speed

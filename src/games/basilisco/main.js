@@ -32,6 +32,7 @@
 
 import {
   W, H, MIDX, CRACKS, TILES, SLEEPERS, BRAZIERS,
+  DRINK_TIME, PRY_TIME, STUN_TIME,
   collidePlayer, nextWaypoint, tileAt,
 } from './world.js'
 import { createRenderer } from './render.js'
@@ -39,9 +40,6 @@ import { createAudio } from './audio.js'
 
 const NIGHT = 150
 const BRAZIER_BURN = 1 / 65 // full brazier burns out in ~65 s
-const DRINK_TIME = 8
-const PRY_TIME = 3
-const STUN_TIME = 4
 const SHOO_RANGE = 56
 
 // --- dom -------------------------------------------------------------------
@@ -74,7 +72,8 @@ const hFire = hud.querySelector('#h-fire')
 const hBreath = hud.querySelector('#h-breath')
 const toastEl = el('div', '', '', ui)
 toastEl.id = 'toast'
-const hint = el('div', '', 'wasd mover · space espantar / abrir tabla · e clavar · r leña · m silencio', ui)
+const HINT_BASE = 'wasd mover · space espantar / abrir tabla · e clavar · r leña · '
+const hint = el('div', '', HINT_BASE + 'm sonido', ui)
 hint.id = 'hint'
 
 let toastTimer = null
@@ -90,11 +89,12 @@ function card(title, epithet, body, controls, btnLabel, onClick) {
   const ov = el('div', 'overlay', '', ui)
   const c = el('div', 'card', '', ov)
   el('div', 'charm', '✦', c)
-  el('h1', '', title, c)
-  el('div', 'epithet', epithet, c)
-  el('p', 'myth', body, c)
-  if (controls) el('div', 'controls', controls, c)
-  const b = el('button', '', btnLabel, c)
+  el('h1', 'game-title', title, c)
+  el('div', 'game-subtitle', epithet, c)
+  el('div', 'rule', '', c)
+  el('p', 'intro', body, c)
+  if (controls) el('p', 'help', controls, c)
+  const b = el('button', 'btn', btnLabel, c)
   b.addEventListener('click', onClick)
   return ov
 }
@@ -103,7 +103,7 @@ const titleCard = card(
   'EL BASILISCO',
   'La noche del huevo',
   'When a hen grows old and crows like a rooster, she lays one misshapen egg — and something coils inside it. Hatched in secret beneath the floorboards of the palafito, <i>el basilisco</i> climbs up through the cracks at night to drink the breath of the sleeping, <i>el aliento</i>, until the house goes thin and quiet. You are the eldest child, the only one awake: keep the braziers fed, board the cracks, and listen when it squeals — it always cries toward its egg.',
-  'WASD move &nbsp;·&nbsp; SPACE shoo / hold 3&thinsp;s on a loose tile to pry &nbsp;·&nbsp; E board a crack &nbsp;·&nbsp; R feed a brazier &nbsp;·&nbsp; M mute',
+  'WASD move &nbsp;·&nbsp; SPACE shoo / hold 3&thinsp;s on a loose tile to pry &nbsp;·&nbsp; E board a crack &nbsp;·&nbsp; R feed a brazier &nbsp;·&nbsp; M sonido',
   'BEGIN',
   () => begin()
 )
@@ -201,6 +201,7 @@ function resetTrail(x, y) {
 }
 
 function startTelegraph(crackIdx) {
+  bas.state = 'telegraph'
   telegraph.active = true
   telegraph.crack = crackIdx
   telegraph.t = 1.2
@@ -262,6 +263,7 @@ function win() {
   game.reason = 'egg'
   titleCard.remove()
   localStorage.setItem('chiloe-basilisco-done', '1')
+  audio.update(0.05, 1, 0, Math.max(game.braziers[0], game.braziers[1])) // fade the dread drone
   audio.sfx.crush()
   audio.sfx.win()
   renderer.shake(8)
@@ -284,6 +286,7 @@ function lose(reason) {
   game.phase = 'lost'
   game.reason = reason
   titleCard.remove()
+  audio.update(0.05, 1, 0, Math.max(game.braziers[0], game.braziers[1])) // fade the dread drone
   audio.sfx.lose()
   renderer.shake(5)
   const texts = {
@@ -350,13 +353,19 @@ function resolveHold() {
       audio.sfx.eggReveal()
       renderer.pulse('#9fffd0')
       renderer.burst(TILES[i].x, TILES[i].y, '#9fffd0', 12, 60, 1, 2)
-      toast('¡el huevo! — hold SPACE on it to crush it', true)
+      toast('¡el huevo! — mantén ESPACIO para aplastarlo', true)
+      if (input.space) {
+        // still holding — chain straight into the crush
+        player.holdKind = 'crush'
+        player.holdTile = i
+        player.holdT = 0.0001
+      }
     } else {
       game.tiles[i].empty = true
       audio.sfx.splinter()
       renderer.burst(TILES[i].x, TILES[i].y, '#8a7350', 16, 110, 0.8, 2)
       player.stun = STUN_TIME
-      toast('astillas — nothing under this one')
+      toast('astillas — aquí no hay nada')
     }
   } else if (kind === 'crush') {
     win()
@@ -366,14 +375,18 @@ function resolveHold() {
 function boardCrack() {
   if (game.planks <= 0) { toast('no quedan tablas'); return }
   const i = nearestCrack(player.x, player.y, true)
-  if (i < 0) return
+  if (i < 0) { audio.sfx.pryTick(); toast('ninguna grieta cerca'); return }
   const c = CRACKS[i]
-  if (Math.hypot(c.x - player.x, c.y - player.y) > 44) return
+  if (Math.hypot(c.x - player.x, c.y - player.y) > 44) { audio.sfx.pryTick(); toast('ninguna grieta cerca'); return }
   game.cracks[i].boarded = true
   game.planks--
   audio.sfx.hammer()
   renderer.burst(c.x, c.y, '#e8dcc0', 10, 80, 0.5, 1.5)
-  if (telegraph.active && telegraph.crack === i) telegraph.active = false
+  if (telegraph.active && telegraph.crack === i) {
+    telegraph.active = false
+    bas.state = 'hidden'
+    bas.cooldown = 1.5 // thwarted — it tries again soon
+  }
   if (bas.state === 'fleeing' && bas.fleeCrack === i) bas.fleeCrack = nearestCrack(bas.x, bas.y, true)
 }
 
@@ -382,7 +395,7 @@ function feedBrazier() {
   for (let i = 0; i < BRAZIERS.length; i++) {
     const b = BRAZIERS[i]
     if (Math.hypot(b.x - player.x, b.y - player.y) < 52) {
-      if (game.braziers[i] > 0.9) return
+      if (game.braziers[i] > 0.9) { audio.sfx.pryTick(); toast('el brasero aún arde'); return }
       game.braziers[i] = 1
       game.wood--
       audio.sfx.feed()
@@ -390,6 +403,8 @@ function feedBrazier() {
       return
     }
   }
+  audio.sfx.pryTick()
+  toast('ningún brasero cerca')
 }
 
 // --- sim: pure frame(dt) ----------------------------------------------------------
@@ -414,7 +429,7 @@ function frame(dt) {
   }
   const wasDark = game.dark
   game.dark = game.braziers[0] <= 0 && game.braziers[1] <= 0
-  if (game.dark && !wasDark) toast('oscuridad — you can no longer see the cracks rattle', true)
+  if (game.dark && !wasDark) toast('oscuridad — ya no verás temblar las grietas', true)
 
   // player
   if (player.stun > 0) player.stun = Math.max(0, player.stun - dt)
@@ -592,7 +607,13 @@ function keyEvent(code, down, repeat) {
   if (dir) { input[dir] = down ? 1 : 0; return }
   if (code === 'Space') {
     if (down && !repeat && game.phase === 'playing' && player.stun <= 0) {
-      if (!tryShoo()) startHold()
+      if (!tryShoo()) {
+        startHold()
+        if (!player.holdKind && (bas.state === 'surfaced' || bas.state === 'drinking')) {
+          audio.sfx.pryTick()
+          toast('demasiado lejos para espantarlo')
+        }
+      }
     }
     input.space = down
     if (!down && player.holdT > 0 && player.holdT < PRY_TIME) { player.holdT = 0; player.holdKind = null }
@@ -603,13 +624,20 @@ function keyEvent(code, down, repeat) {
   } else if (code === 'KeyM' && down) {
     const m = audio.toggleMute()
     toast(m ? 'silencio' : 'sonido')
+    hint.textContent = HINT_BASE + (m ? 'm silencio' : 'm sonido')
   }
 }
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') e.preventDefault()
+  if (e.code === 'Space' && game.phase === 'playing') e.preventDefault()
   keyEvent(e.code, true, e.repeat)
 })
 window.addEventListener('keyup', (e) => keyEvent(e.code, false, false))
+window.addEventListener('blur', () => {
+  input.up = input.down = input.left = input.right = 0
+  input.space = false
+  player.holdT = 0
+  player.holdKind = null
+})
 
 // --- loop ------------------------------------------------------------------------
 function resize() {

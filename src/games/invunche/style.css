@@ -92,6 +92,7 @@ body {
 
 .card {
   position: relative;
+  pointer-events: auto; /* the overlay is pointer-events: none — restore so the card can scroll */
   max-width: 560px;
   max-height: 88vh;
   overflow-y: auto;
@@ -296,6 +297,22 @@ body {
   transition: opacity 1s ease;
 }
 #hint.show { opacity: 1; }
+
+#hud-mute {
+  top: 16px;
+  right: 26px;
+  pointer-events: none;
+  user-select: none;
+  font-size: 11px;
+  font-variant: small-caps;
+  letter-spacing: 0.22em;
+  color: rgba(232, 220, 192, 0.5);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  transition: opacity 1.8s ease;
+}
+#hud-mute.visible { opacity: 0.6; }
+#hud-mute.off { opacity: 0.35; }
 
 #toast {
   top: 18px;

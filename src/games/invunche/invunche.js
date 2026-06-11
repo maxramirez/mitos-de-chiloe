@@ -281,6 +281,7 @@ export function createInvunche(wall, rng, startCx, startCz) {
     let interval = 1.7 + (0.95 - 1.7) * ramp
     if (mode === 'hunt') interval *= 0.72
     if (env.doorOpen) interval *= 0.82
+    if (interval < 0.9) interval = 0.9 // floor: a full sprint must stay barely winnable
 
     if (moveT < 1) {
       moveT += dt / interval
@@ -301,11 +302,16 @@ export function createInvunche(wall, rng, startCx, startCz) {
       }
       if (pathPos < pathLen) {
         beginStep()
-      } else {
-        if (mode === 'hunt') {
+      } else if (mode === 'hunt') {
+        // arrived where he heard you — keep hunting while the noise persists,
+        // so onMode('hunt') only fires on genuine lurk→hunt transitions
+        if (heardTimer > 0) {
+          plan(heardIdx)
+        } else {
           mode = 'lurk'
           dwell = 2 + rng() * 2.5
         }
+      } else {
         dwell -= dt
         if (dwell <= 0) {
           plan(pickLurkTarget(env))

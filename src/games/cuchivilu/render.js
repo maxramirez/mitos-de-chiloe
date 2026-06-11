@@ -4,7 +4,7 @@
 // (stones, rubble, sand speckles, water shimmer, mouth stakes) are built once
 // at module load from a seeded PRNG so the flats look the same every night.
 
-import { TAU, WORLD, CX, CY, R, SEGN, MOUTH_HALF, A0, SEG_W } from './geom.js'
+import { TAU, WORLD, CX, CY, R, SEGN, MOUTH_HALF, A0, SEG_W, TELE_T } from './geom.js'
 
 // ---- deterministic decor ----------------------------------------------------
 function mulberry32(seed) {
@@ -239,7 +239,7 @@ function drawSerpent(ctx, S, tVis) {
   const sp = S.serp
   if (sp.state === 'down') return
   if (sp.state === 'telegraph') {
-    const k = sp.t / 2.2
+    const k = sp.t / TELE_T
     // widening snout-wake rings in the boiling mud
     ctx.strokeStyle = '#9fd4c4'
     ctx.lineWidth = 1.4

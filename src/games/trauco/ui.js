@@ -5,7 +5,7 @@ export const STRINGS = {
   subtitle: 'No le sostengas la mirada',
   intro:
     'In the deep woods of Chiloé lives el Trauco, a squat old power dressed in ' +
-    'woven quilineja vine, with a stone hatchet that fells a tree in a single blow. ' +
+    'woven quilineja vine, with a stone hatchet that fells the thickest tree in three blows. ' +
     'It is not the hatchet you should fear — it is his mirada, which bends a grown ' +
     'man like green wood. Gather seven strands of glowing quilineja and slip out ' +
     'through the old gate, and whatever you hear in the fog, do not hold his gaze.',
@@ -31,7 +31,7 @@ let root = null
 let modalEl = null
 let primaryBtn = null
 
-let vinesEl, hintEl, charmWrap, charmFill, gazeVig, flashEl
+let vinesEl, hintEl, charmWrap, charmFill, gazeVig, flashEl, muteEl
 let hudShown = false
 let charmShown = false
 let lastVines = -1
@@ -94,6 +94,9 @@ export const ui = {
     charmWrap.appendChild(lbl)
     charmWrap.appendChild(track)
     root.appendChild(charmWrap)
+    muteEl = el('div', '', 'M · sonido')
+    muteEl.id = 'mute-tag'
+    root.appendChild(muteEl)
     vineTexts = []
     for (let i = 0; i <= 7; i++) vineTexts.push(STRINGS.hudVines + ' ✦ ' + i + '/7')
   },
@@ -122,11 +125,9 @@ export const ui = {
     card.appendChild(el('div', 'rule'))
     card.appendChild(el('p', 'intro', won ? STRINGS.winText : STRINGS.loseText))
     const btn = el('button', 'btn', won ? STRINGS.winReplay : STRINGS.loseReplay)
-    btn.addEventListener('click', () => window.location.reload())
     card.appendChild(btn)
     overlay.appendChild(card)
-    root.appendChild(overlay)
-    btn.focus()
+    openModal(overlay, btn, () => window.location.reload())
   },
 
   setHUD(vines, total, charm, hint) {
@@ -163,6 +164,11 @@ export const ui = {
   flash() {
     flashEl.classList.add('pop')
     setTimeout(() => flashEl.classList.remove('pop'), 90)
+  },
+
+  setMuted(m) {
+    muteEl.textContent = m ? 'M · silencio' : 'M · sonido'
+    muteEl.classList.toggle('off', m)
   },
 
   closeModal() {

@@ -263,6 +263,14 @@ html, body {
   color: rgba(232, 220, 192, 0.42);
   margin-bottom: 5px;
 }
+#stamina-label.depleted {
+  color: var(--danger);
+  animation: stamina-depleted 0.9s ease-in-out infinite;
+}
+@keyframes stamina-depleted {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
 #stamina-bar {
   height: 3px;
   border: 1px solid var(--hairline);

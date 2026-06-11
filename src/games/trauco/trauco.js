@@ -176,7 +176,7 @@ export function createTrauco({ terrainHeight, collide, waypoints, rng }) {
   }
   const coneMat = new THREE.MeshBasicMaterial({
     color: 0x8cffb4, transparent: true, opacity: 0.05,
-    depthWrite: false, blending: THREE.AdditiveBlending,
+    depthWrite: false, blending: THREE.AdditiveBlending, fog: false, // fogged additive ≈ invisible at 25 m
   })
   const cone = new THREE.Mesh(gazeConeGeo(1, CONE_LEN), coneMat)
   cone.position.y = 1.02
@@ -185,7 +185,7 @@ export function createTrauco({ terrainHeight, collide, waypoints, rng }) {
   group.add(cone)
   const coneInMat = new THREE.MeshBasicMaterial({
     color: 0xb6ffd2, transparent: true, opacity: 0.09,
-    depthWrite: false, blending: THREE.AdditiveBlending,
+    depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
   })
   const coneIn = new THREE.Mesh(gazeConeGeo(0.45, CONE_LEN * 0.99), coneInMat)
   coneIn.position.y = 1.02
@@ -290,8 +290,8 @@ export function createTrauco({ terrainHeight, collide, waypoints, rng }) {
     sporeMat.opacity = 0.42 + 0.18 * Math.sin(t * 2.2 + 2.0)
 
     // gaze cone brightens while it actually holds you
-    const target = gazeHot ? 0.14 : 0.05
-    const tIn = gazeHot ? 0.26 : 0.09
+    const target = gazeHot ? 0.18 : 0.05
+    const tIn = gazeHot ? 0.3 : 0.09
     const k = dt * 6 > 1 ? 1 : dt * 6
     coneMat.opacity += (target - coneMat.opacity) * k
     coneInMat.opacity += (tIn - coneInMat.opacity) * k

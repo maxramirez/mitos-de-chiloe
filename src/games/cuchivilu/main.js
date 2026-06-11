@@ -52,7 +52,7 @@
 //                            (charge/feed); returns true if it connected
 //   audioState()           — { unlocked, muted, contextState }
 // ============================================================================
-import { TAU, WORLD, CX, CY, R, SEGN, A0, SEG_W, segAt, clamp } from './geom.js'
+import { TAU, WORLD, CX, CY, R, SEGN, A0, SEG_W, TELE_T, segAt, clamp } from './geom.js'
 import { createAudio } from './audio.js'
 import { ui } from './ui.js'
 import { draw } from './render.js'
@@ -69,7 +69,6 @@ const REPAIR_T = 2.5
 const REPAIR_R = 80
 const EAT_T = 2
 const RAM_SPEED = 150
-const TELE_T = 2.2
 
 // ---- shared sim/visual state (one object, mutated in place) ----------------
 const S = {
@@ -182,6 +181,9 @@ window.addEventListener('keyup', (e) => {
   else if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = false
   else if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false
   else if (e.code === 'KeyE') keys.e = false
+})
+window.addEventListener('blur', () => {
+  for (const k in keys) keys[k] = false
 })
 
 // ---- toasts that only teach once or twice -----------------------------------
@@ -618,6 +620,7 @@ function ramHit(nx, ny) {
   toastFirst('ram', 'Se hunde, chillando — vuelve al fango', 'good', 2)
 }
 
+let lastShoveT = -10
 function checkRam() {
   const sp = S.serp
   const b = S.boat
@@ -638,6 +641,12 @@ function checkRam() {
       b.vx -= vr * nx
       b.vy -= vr * ny
     }
+    if (S.simT - lastShoveT > 2.5) {
+      lastShoveT = S.simT
+      burst('splash', sp.x, sp.y, 4, 50, 0.4, 2)
+      audio.cue('shove')
+      toastFirst('slow', 'Te aparta de un empujón — embístelo a todo remo', 'bad', 2)
+    }
   }
 }
 
@@ -656,7 +665,7 @@ function eatOne() {
       best = i
     }
   }
-  if (best < 0) return false
+  if (best < 0 || bd > 150 * 150) return false // out of snout's reach
   const f = S.fish[best]
   f.alive = false
   burst('scale', f.x, f.y, 7, 80, 0.7, 2)
@@ -781,10 +790,10 @@ function serpentUpdate(dt) {
       sp.eatT += dt
       if (sp.eatT >= EAT_T) {
         sp.eatT = 0
-        eatOne()
+        // a failed bite (no fish in reach) counts toward giving up
+        if (eatOne()) sp.noFood = 0
+        else sp.noFood += EAT_T
       }
-      if (S.penned === 0) sp.noFood += dt
-      else sp.noFood = 0
       if (sp.ate >= 6 || sp.t > 16 || sp.noFood > 3.5) selfDive()
       else checkRam()
       break
@@ -856,11 +865,16 @@ function startGame() {
 function win() {
   if (S.phase === 'won' || S.phase === 'lost') return
   S.phase = 'won'
+  S.shake = 0
   try {
     localStorage.setItem('chiloe-cuchivilu-done', '1')
   } catch (e) { /* storage may be unavailable */ }
   audio.cue('win')
   ui.setHUDVisible(false)
+  const walls =
+    S.standing === SEGN
+      ? 'every wall standing or mended by your own cold hands'
+      : 'the walls that still stand patched by your own cold hands, the rest left to the tide'
   ui.showEnd({
     won: true,
     title: 'El corral lleno',
@@ -868,8 +882,9 @@ function win() {
     body:
       'Dawn comes up grey and merciful, and the corral is shivering with silver — ' +
       S.penned +
-      ' fish behind your grandfathers’ stones, every wall standing or mended by your ' +
-      'own cold hands. Far out past the mouth, El Cuchivilu drags his snout under the ' +
+      ' fish behind your grandfathers’ stones, ' +
+      walls +
+      '. Far out past the mouth, El Cuchivilu drags his snout under the ' +
       'marea baja, beaten, his squeal thinning across the flats. This winter no one ' +
       'at your table looks at an empty plate: donde el corral se cuida, el hambre no entra.',
   })
@@ -878,6 +893,7 @@ function win() {
 function lose(reason) {
   if (S.phase === 'won' || S.phase === 'lost') return
   S.phase = 'lost'
+  S.shake = 0
   audio.cue('lose')
   ui.setHUDVisible(false)
   if (reason === 'corral') {

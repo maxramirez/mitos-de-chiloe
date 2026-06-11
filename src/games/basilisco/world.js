@@ -5,6 +5,11 @@
 
 export const W = 960
 export const H = 600
+
+// shared gameplay timings (sim drives them; renderer scales meters by them)
+export const DRINK_TIME = 8
+export const PRY_TIME = 3
+export const STUN_TIME = 4
 export const HOUSE = { x0: 140, y0: 80, x1: 820, y1: 520 }
 export const MIDX = 480
 export const MIDY = 300

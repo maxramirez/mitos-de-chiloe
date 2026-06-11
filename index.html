@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mitos de Chiloé — Diez juegos del archipiélago</title>
+    <title>Mitos de Chiloé — Trece juegos del archipiélago</title>
     <style>
       :root {
         --bg: #06090c;
@@ -50,9 +50,22 @@
         border: 1px solid var(--line);
         outline: 1px solid rgba(0,0,0,0.6);
         outline-offset: 3px;
-        padding: 22px 24px 18px;
+        padding: 0 0 18px;
+        overflow: hidden;
         transition: border-color 0.35s, transform 0.35s, box-shadow 0.35s;
       }
+      .card-art {
+        height: 150px; margin-bottom: 16px;
+        background:
+          linear-gradient(to top, rgba(8,12,15,1) 0%, rgba(8,12,15,0) 35%),
+          var(--art, linear-gradient(160deg, #11202a 0%, #0a1014 70%));
+        background-size: cover; background-position: center 30%;
+        filter: saturate(0.9);
+        transition: filter 0.35s;
+      }
+      a.card:hover .card-art { filter: saturate(1.05) brightness(1.08); }
+      .card.flagship .card-art { height: 230px; }
+      .card-body { padding: 0 24px; }
       a.card:hover {
         border-color: var(--glow);
         transform: translateY(-3px);
@@ -83,7 +96,7 @@
     <header>
       <div class="charm">✦</div>
       <h1>MITOS DE CHILOÉ</h1>
-      <div class="sub">Diez juegos del archipiélago</div>
+      <div class="sub">Trece juegos del archipiélago</div>
     </header>
     <div class="count" id="count"></div>
     <main class="grid" id="grid"></main>
@@ -110,6 +123,12 @@
           blurb: 'Wear the skin vest and fly the night channels. The reunión at Quicaví will not wait past moonset.' },
         { id: 'cuchivilu', title: 'EL CUCHIVILU', sub: 'El corral roto', tag: 'arcade',
           blurb: 'The tide brings the fish and the pig-snake breaks the corral. Herd one, fight the other, finish by dawn.' },
+        { id: 'fiura', title: 'LA FIURA', sub: 'El pantanal', tag: 'plataforma',
+          blurb: 'Cross her swamp log by sinking log, time your runs between her charm pulses, and bring the machi five herbs.' },
+        { id: 'quicavi', title: 'EL BRUJO DE QUICAVÍ', sub: 'Las siete páginas', tag: 'horror · páginas',
+          blurb: 'Seven skin-parchment pages are nailed to the black forest. Something keeps them, and it is always behind you.' },
+        { id: 'piuchen', title: 'EL PIUCHÉN', sub: 'La majada', tag: 'arcade · puntería',
+          blurb: 'The winged serpent dives for your sheep out of the stars. One sling, five waves, dawn or nothing.' },
       ]
       const grid = document.getElementById('grid')
       let done = 0
@@ -119,10 +138,12 @@
         const a = document.createElement('a')
         a.className = 'card' + (g.flagship ? ' flagship' : '') + (isDone ? ' completed' : '')
         a.href = '/games/' + g.id + '.html'
-        a.innerHTML = '<span class="done">✦</span><h2>' + g.title + '</h2>' +
+        a.innerHTML = '<span class="done">✦</span>' +
+          '<div class="card-art" style="--art:url(/assets/cards/' + g.id + '.png)"></div>' +
+          '<div class="card-body"><h2>' + g.title + '</h2>' +
           '<div class="epithet">' + g.sub + '</div>' +
           '<p>' + g.blurb + '</p>' +
-          '<span class="tag">' + g.tag + '</span>'
+          '<span class="tag">' + g.tag + '</span></div>'
         grid.appendChild(a)
       }
       document.getElementById('count').innerHTML =

@@ -26,6 +26,8 @@ export function buildCourse(scene, seed = 20260610) {
     color: 0xdff4ff, transparent: true, opacity: 0.9,
     blending: THREE.AdditiveBlending, depthWrite: false,
   });
+  const logGeo = new THREE.CylinderGeometry(0.42, 0.48, 1, 7); // unit height, scaled per log
+  const branchGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.9, 5);
   const shavingGeo = new THREE.TorusGeometry(0.24, 0.075, 6, 10);
   const shavingMat = new THREE.MeshStandardMaterial({
     color: 0xffd97a, emissive: 0xffb52e, emissiveIntensity: 1.8, roughness: 0.35,
@@ -62,13 +64,14 @@ export function buildCourse(scene, seed = 20260610) {
 
   function makeLog(cx, z, halfW) {
     const root = new THREE.Group();
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, halfW * 2, 7), logMat);
+    const m = new THREE.Mesh(logGeo, logMat);
+    m.scale.y = halfW * 2; // scale applies in local space, before the z-rotation
     m.rotation.z = Math.PI / 2;
     m.rotation.y = (rng() - 0.5) * 0.18;
     m.position.y = 0.42;
     root.add(m);
     for (let b = 0; b < 2; b++) { // stub branches
-      const br = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.9, 5), logMat);
+      const br = new THREE.Mesh(branchGeo, logMat);
       br.position.set((rng() - 0.5) * halfW * 1.4, 0.7, (rng() - 0.5) * 0.4);
       br.rotation.z = (rng() - 0.5) * 1.8;
       root.add(br);
@@ -122,7 +125,7 @@ export function buildCourse(scene, seed = 20260610) {
     const m = new THREE.Mesh(shavingGeo, shavingMat);
     m.position.set(x, baseY, z);
     scene.add(m);
-    shavings.push({ x, z, baseY, mesh: m, collected: false, phase: rng() * 6.28 });
+    shavings.push({ x, z, baseY, relH: baseY - groundY(x, z), mesh: m, collected: false, phase: rng() * 6.28 });
   }
 
   function shavingLine(zFrom, zTo, lane, n, arcPeak) {

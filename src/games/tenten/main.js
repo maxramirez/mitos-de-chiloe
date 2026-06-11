@@ -54,13 +54,15 @@ const STEP_T = 0.26; // s per villager step (render.js mirrors these)
 const FLOOD_RISE_T = 1.1;
 const FLOOD_CALM_T = 0.3;
 const LS_DONE = 'chiloe-tenten-done';
+// NOTE: extra key beyond the collection's one-key-per-game convention
+// ('chiloe-<id>-done') — any reset-progress feature must clear this too.
 const LS_UNLOCKED = 'chiloe-tenten-unlocked';
 
 const REASONS = {
   gente: 'La gente está ahí — no puedes alzar bajo sus pies',
   cielo: 'Esa tierra ya toca el cielo',
-  sin: 'No quedan alzamientos — termina el turno',
-  fuera: 'Sólo la isla obedece a Tenten',
+  sin: 'Ya no puedes alzar más — termina el turno',
+  fuera: 'Solo la isla obedece a Tenten',
   fase: 'Espera — no es la hora de alzar',
   nada: 'Nada que deshacer',
 };
@@ -80,7 +82,11 @@ const game = {
   anim: 0, // visual clock (always running)
   marchStep: 0,
   floodRising: false,
+  endAt: -1, // anim time to show the deferred end overlay (-1 = none)
 };
+
+// stashed args for the deferred win/lose overlay (no allocs per end)
+const pendingEnd = { kind: '', level: 1, saved: 0, lost: 0, isFinal: false, reason: '' };
 
 const hover = { i: -1, x: -1, y: -1, why: 'fuera' };
 
@@ -95,6 +101,7 @@ const ui = createUI(document.getElementById('ui'), {
   onUndo: () => undo(),
   onEndPhase: () => endPhase(),
   onNext: () => setLevel(Math.min(3, game.level + 1)),
+  onReplay: () => startLevel(game.level),
   onSelectLevel: (n) => { game.selected = n; },
 });
 
@@ -108,6 +115,7 @@ function startLevel(n) {
   game.t = 0;
   game.marchStep = 0;
   game.floodRising = false;
+  game.endAt = -1;
   renderer.setLevel(game.sim);
   ui.hideOverlays();
   ui.updateHUD(game);
@@ -185,10 +193,12 @@ function planStep() {
 
 function commitMarchStep() {
   const sim = game.sim;
+  let moved = false;
   for (let i = 0; i < sim.villagers.length; i++) {
     const v = sim.villagers[i];
     if (!v.alive) continue;
     if (v.tx === v.x && v.ty === v.y) continue;
+    moved = true;
     const arrived = commitVillager(sim, v, idx(v.tx, v.ty));
     if (arrived) {
       v.savedAt = game.anim;
@@ -196,6 +206,7 @@ function commitMarchStep() {
       sfx('save');
     }
   }
+  if (moved) sfx('step');
   const verdict = evaluate(sim);
   if (verdict === 'won') return doWin();
   if (verdict === 'lost') return doLose(sim.loseReason);
@@ -228,7 +239,7 @@ function commitFlood() {
     if (n > 0) {
       sfx('splash');
       renderer.shake(3);
-      ui.flash(n === 1 ? 'El agua tomó a uno — ya nada como gente' : 'El agua tomó a ' + n);
+      ui.flash(n === 1 ? 'El agua tomó a uno — ya no camina con la gente' : 'El agua tomó a ' + n);
     }
   }
   const verdict = evaluate(sim);
@@ -255,7 +266,14 @@ function doWin() {
   } catch (e) { /* storage may be unavailable */ }
   sfx('win');
   ui.updateHUD(game);
-  ui.showWin(game.level, game.sim.saved, game.sim.lost, isFinal);
+  // defer the overlay so the final save sparkle plays out (anim-clock driven
+  // so __game.step()/autoplaySolve stay deterministic)
+  pendingEnd.kind = 'win';
+  pendingEnd.level = game.level;
+  pendingEnd.saved = game.sim.saved;
+  pendingEnd.lost = game.sim.lost;
+  pendingEnd.isFinal = isFinal;
+  game.endAt = game.anim + 1.2;
 }
 
 function doLose(reason) {
@@ -264,7 +282,10 @@ function doLose(reason) {
   sfx('lose');
   renderer.shake(5);
   ui.updateHUD(game);
-  ui.showLose(reason || 'gente');
+  // defer the overlay so the seal transformation plays out
+  pendingEnd.kind = 'lose';
+  pendingEnd.reason = reason || 'gente';
+  game.endAt = game.anim + 1.2;
 }
 
 // ---------- frame loop (pure, driven by rAF AND by __game.step) ----------
@@ -272,6 +293,14 @@ function frame(dt = 1 / 60) {
   if (!(dt > 0)) return;
   if (dt > 0.05) dt = 0.05;
   game.anim += dt;
+  if (game.endAt >= 0 && game.anim >= game.endAt) {
+    game.endAt = -1;
+    if (pendingEnd.kind === 'win') {
+      ui.showWin(pendingEnd.level, pendingEnd.saved, pendingEnd.lost, pendingEnd.isFinal);
+    } else {
+      ui.showLose(pendingEnd.reason);
+    }
+  }
   if (game.phase === 'playing') {
     if (game.sub === 'march') {
       game.t += dt;
@@ -299,9 +328,15 @@ function tick(now) {
 }
 
 // ---------- input ----------
+// like canRaise, but also honest about the raise budget (doRaise checks it)
+function hoverWhy(x, y) {
+  const why = canRaise(game.sim, x, y);
+  return !why && game.sim.raisesLeft <= 0 ? 'sin' : why;
+}
+
 function refreshHover() {
   if (hover.i >= 0 && game.sim) {
-    hover.why = canRaise(game.sim, hover.x, hover.y);
+    hover.why = hoverWhy(hover.x, hover.y);
   }
 }
 
@@ -311,17 +346,28 @@ canvas.addEventListener('pointermove', (e) => {
   if (i >= 0) {
     hover.x = i % SIZE;
     hover.y = (i / SIZE) | 0;
-    hover.why = canRaise(game.sim, hover.x, hover.y);
+    hover.why = hoverWhy(hover.x, hover.y);
   }
 });
-canvas.addEventListener('pointerleave', () => {
+canvas.addEventListener('pointerleave', (e) => {
+  // touch lifts fire pointerleave too — keep the tap-preview visible
+  if (e.pointerType === 'touch') return;
   hover.i = -1;
 });
 canvas.addEventListener('pointerdown', (e) => {
   initAudio(); // a real gesture — safe place to unlock audio
   if (game.phase !== 'playing' || game.sub !== 'raise') return;
   const i = renderer.pick(e.clientX, e.clientY);
-  if (i >= 0) tryRaise(i % SIZE, (i / SIZE) | 0);
+  if (i < 0) return;
+  if (e.pointerType === 'touch' && i !== hover.i) {
+    // no hover on touch: first tap previews, second tap on the same tile commits
+    hover.i = i;
+    hover.x = i % SIZE;
+    hover.y = (i / SIZE) | 0;
+    hover.why = hoverWhy(hover.x, hover.y);
+    return;
+  }
+  tryRaise(i % SIZE, (i / SIZE) | 0);
 });
 
 window.addEventListener('keydown', (e) => {

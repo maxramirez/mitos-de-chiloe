@@ -7,13 +7,15 @@
 //   WASD walk · SHIFT sprint (loud: sprinting within 18 m of him makes him
 //   turn toward the noise) · mouse look (pointer lock) · M mute.
 //   While the gaze cone touches you with a clear line of sight, the charm
-//   meter fills (vignette closes in, drone rises); break line of sight behind
+//   meter fills (vignette closes in, drone rises) — faster if you meet his
+//   eyes, slower with your back turned; break line of sight behind
 //   trunks to drain it. Charm full -> lost ("bent like green wood").
 //   Each vine collected: he walks 8% faster and pauses less at waypoints.
 //   Win: 7 vines + stand at the gate (radius 3.5 m).
 //   ON WIN ONLY: localStorage.setItem('chiloe-trauco-done', '1').
-//   Sim pauses while any overlay is open; dt clamped at 0.05; the loop is a
-//   pure frame(dt) driven by BOTH requestAnimationFrame and manual stepping.
+//   Sim pauses while any overlay is open or pointer lock is lost (Esc);
+//   dt clamped at 0.05; the loop is a pure frame(dt) driven by BOTH
+//   requestAnimationFrame and manual stepping.
 //
 // TEST API — window.__game
 //   begin()                  same as clicking BEGIN (unlocks audio, starts play)
@@ -107,6 +109,7 @@ let lastGazed = false
 let lastBlocked = false
 let lastTraucoDist = 9999
 let gazeStingT = 0
+let gateDenyT = 0
 let tAmb = 0
 
 // hint strings precomputed (no per-frame string building)
@@ -191,7 +194,9 @@ const AP = { moving: false, run: false, charm: 0, gazed: false, traucoDist: 9999
 function frame(rawDt) {
   const dt = rawDt > 0.05 ? 0.05 : rawDt > 0 ? rawDt : 0
   tAmb += dt
-  const playing = phase === 'playing'
+  // Esc (pointer-lock loss) pauses the sim like any overlay; headless tests
+  // never acquire lock (everLocked stays false) so __game.step() keeps working
+  const playing = phase === 'playing' && (player.locked || !player.everLocked)
 
   if (playing) {
     player.update(dt)
@@ -228,8 +233,11 @@ function frame(rawDt) {
     lastBlocked = blocked
     trauco.setGazeHot(gazed)
 
-    if (gazed) charm += dt * (0.3 + 0.34 * (1 - traucoDist / GAZE_LEN))
-    else charm -= dt * 0.3
+    if (gazed) {
+      // meeting his eyes feeds the charm; averting them buys time (trunks remain the true answer)
+      const face = (Math.sin(player.yaw) * dxT + Math.cos(player.yaw) * dzT) / traucoDist
+      charm += dt * (face > 0.25 ? 1 : 0.55) * (0.3 + 0.34 * (1 - traucoDist / GAZE_LEN))
+    } else charm -= dt * 0.3
     if (charm < 0) charm = 0
     if (charm >= 1) {
       charm = 1
@@ -247,15 +255,26 @@ function frame(rawDt) {
         if (dx * dx + dz * dz < 5.76) collectVine(i)
       }
       // gate (only opens with all 7)
+      const dxg = world.gate.x - player.x
+      const dzg = world.gate.z - player.z
+      const dg2 = dxg * dxg + dzg * dzg
+      gateDenyT -= dt
       if (vinesTaken >= VINE_TOTAL) {
-        const dx = world.gate.x - player.x
-        const dz = world.gate.z - player.z
-        if (dx * dx + dz * dz < 12.25) win()
+        if (dg2 < 12.25) win()
+      } else if (dg2 < 12.25 && gateDenyT <= 0) {
+        gateDenyT = 4 // the gate refuses: low blip + the wisp gutters
+        audio.stinger('denied')
+        world.denyFlicker()
       }
     }
     fx.update(dt)
   } else {
     trauco.update(dt, false, tAmb) // idle visuals only — sim is paused
+    if (phase === 'lost' && charm > 0) {
+      // the gaze lets go over ~4 s — drone, heartbeat and vignette settle under the end card
+      charm -= dt * 0.25
+      if (charm < 0) charm = 0
+    }
   }
 
   world.update(tAmb, vinesTaken >= VINE_TOTAL)
@@ -294,7 +313,8 @@ renderer.setAnimationLoop(() => {
 
 // ---------- global keys / resize ----------
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyM') audio.toggleMute()
+  if (e.repeat) return
+  if (e.code === 'KeyM') ui.setMuted(audio.toggleMute())
 })
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight

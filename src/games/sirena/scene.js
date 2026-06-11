@@ -52,6 +52,8 @@ export function createScene(canvas) {
   const shells = [];
   for (let i = 0; i < 5; i++) shells.push({ x: 0, y: 0, r: 0, rot: 0, grad: null });
   const shimmer = new Float32Array(5);
+  const deny = new Float32Array(5); // dim pulse when a press is refused
+  const dying = new Float32Array(3); // per-candle gutter timers
   const waitPts = new Float32Array(12); // 6 shore lantern spots
 
   // pools
@@ -245,6 +247,10 @@ export function createScene(canvas) {
     t += dt;
     for (let i = 0; i < 5; i++) {
       if (shimmer[i] > 0) shimmer[i] = Math.max(0, shimmer[i] - dt * 1.5);
+      if (deny[i] > 0) deny[i] = Math.max(0, deny[i] - dt * 2.5);
+    }
+    for (let i = 0; i < 3; i++) {
+      if (dying[i] > 0) dying[i] = Math.max(0, dying[i] - dt);
     }
     singGlow = Math.max(0, singGlow - dt * 1.2);
     glyphA = Math.max(0, glyphA - dt * 0.85);
@@ -514,8 +520,10 @@ export function createScene(canvas) {
       const y0 = waitPts[slot * 2 + 1];
       const cx = W * 0.52;
       const cy = horizon + H * 0.05;
-      const x1 = shipX;
-      const y1 = shipY - 6 * U;
+      // end at the lantern's destination slot so arrival never teleports
+      const di = Math.min(5, Math.max(0, view.souls - 1)) * 2;
+      const x1 = shipX + LANT[di] * U;
+      const y1 = shipY + LANT[di + 1] * U;
       // trail
       for (let k = 3; k >= 1; k--) {
         const ek = Math.max(0, e - 0.05 * k);
@@ -543,6 +551,17 @@ export function createScene(canvas) {
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(0, -r * 0.15, r * (1.05 + (1 - sh) * 0.8), 0, TAU);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      const dn = deny[i];
+      if (dn > 0.01) {
+        // refused press — a dim grey ring, no spectral glow, no sparks
+        ctx.strokeStyle = 'rgba(154,145,124,0.6)';
+        ctx.globalAlpha = dn * 0.5;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(0, -r * 0.15, r * (1.0 + (1 - dn) * 0.35), 0, TAU);
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
@@ -612,7 +631,7 @@ export function createScene(canvas) {
     ctx.globalAlpha = 1;
   }
 
-  function drawCandle(x, y, lit) {
+  function drawCandle(x, y, lit, idx) {
     ctx.fillStyle = '#2c3a3a';
     ctx.fillRect(x - 1.5, y, 3, 11);
     if (lit) {
@@ -621,6 +640,17 @@ export function createScene(canvas) {
       ctx.beginPath();
       ctx.ellipse(x, y - 4, 2, 3.6, 0, 0, TAU);
       ctx.fill();
+    } else if (dying[idx] > 0.01) {
+      // guttering — the flame flickers down before the smoke takes over
+      const p = dying[idx] / 0.7;
+      const a = p * (0.4 + 0.6 * Math.abs(Math.sin(t * 22)));
+      drawGlowSpr(glowW, x, y - 4, 9 * p, 0.55 * a);
+      ctx.fillStyle = '#efe0ae';
+      ctx.globalAlpha = a;
+      ctx.beginPath();
+      ctx.ellipse(x, y - 4, 2 * (0.4 + 0.6 * p), 3.6 * (0.3 + 0.7 * p), 0, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     } else {
       ctx.strokeStyle = 'rgba(154,145,124,0.35)';
       ctx.lineWidth = 1;
@@ -646,7 +676,7 @@ export function createScene(canvas) {
       ctx.fillText(view.soulsLabel, W * 0.5, 44);
     }
     // three candles — your remaining mistakes
-    for (let i = 0; i < 3; i++) drawCandle(W - 36 - i * 30, 26, i < 3 - view.mistakes);
+    for (let i = 0; i < 3; i++) drawCandle(W - 36 - i * 30, 26, i < 3 - view.mistakes, i);
     ctx.letterSpacing = '0px';
     ctx.font = PROMPT_FONT;
     ctx.fillStyle = 'rgba(159,255,208,0.8)';
@@ -663,15 +693,22 @@ export function createScene(canvas) {
     resize,
     update,
     render,
-    // hit-test a pointer position against the five shells
+    // hit-test a pointer position against the five shells — nearest match,
+    // so overlapping generous hit circles on narrow viewports can't steal taps
     shellIndexAt(x, y) {
+      let best = -1;
+      let bestD = Infinity;
       for (let i = 0; i < 5; i++) {
         const s = shells[i];
         const dx = x - s.x;
         const dy = y - s.y;
-        if (dx * dx + dy * dy < s.r * s.r * 1.96) return i;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < s.r * s.r * 1.96 && d2 < bestD) {
+          bestD = d2;
+          best = i;
+        }
       }
-      return -1;
+      return best;
     },
     // she sings note i: shell shimmers, glyph floats, ripples spread
     sirenSing(i) {
@@ -697,6 +734,19 @@ export function createScene(canvas) {
     soulLaunch(soulsAfter) {
       const slot = Math.min(5, Math.max(0, 6 - soulsAfter));
       burst(waitPts[slot * 2], waitPts[slot * 2 + 1], 6);
+    },
+    // a soul lands at the Caleuche: flare at its lantern slot
+    soulArrive(soulsNow) {
+      const di = Math.min(5, Math.max(0, soulsNow - 1)) * 2;
+      burst(shipX + LANT[di] * U, shipY + LANT[di + 1] * U, 6);
+    },
+    // a press while it is not the player's turn — dim grey pulse, no glow
+    denyShell(i) {
+      if (i >= 0 && i < 5) deny[i] = 1;
+    },
+    // candle idx gutters out over ~0.7 s instead of snapping to smoke
+    snuffCandle(idx) {
+      if (idx >= 0 && idx < 3) dying[idx] = 0.7;
     },
     setTurn(v) {
       turnTarget = v;

@@ -224,7 +224,11 @@ let dying = 0
 let flare = 0
 let proxLast = 0
 let lowWaxWarned = false
+let sconceFullHinted = false
 const cinema = { active: false, t: 0, blackout: false }
+const winCinema = { active: false, t: 0, fromX: 0, fromZ: 0, dirX: 0, dirZ: 0 }
+const FOG_NIGHT = new THREE.Color(0x010202)
+const FOG_DAY = new THREE.Color(0xdfeefc)
 
 // reused per-frame context objects (no frame-loop allocations)
 const env = { elapsed: 0, doorOpen: false, playerCellIdx: 0, sealIdx: new Int16Array(3), sealCount: 3 }
@@ -249,8 +253,6 @@ inv.onMode = (m) => {
 }
 
 // ---------------- handlers (real win/lose/begin paths) -----------------------
-const CARDINAL = ['este', 'oeste', 'sur', 'norte']
-
 function begin() {
   if (phase !== 'title') return
   phase = 'playing'
@@ -260,6 +262,36 @@ function begin() {
   player.enabled = true
   player.requestLock()
   ui.hint('tres sellos abren la puerta — camina despacio', 6500)
+}
+
+// the short walk into the daylight before the win card (mirrors updateCinema)
+function startWinCinema() {
+  if (winCinema.active || phase !== 'playing') return
+  winCinema.active = true
+  winCinema.t = 0
+  player.enabled = false
+  winCinema.fromX = player.position.x
+  winCinema.fromZ = player.position.z
+  const dx = world.door.x - winCinema.fromX
+  const dz = world.door.z - winCinema.fromZ
+  const d = Math.sqrt(dx * dx + dz * dz) || 1
+  winCinema.dirX = dx / d
+  winCinema.dirZ = dz / d
+}
+
+function updateWinCinema(dt) {
+  winCinema.t += dt
+  const k = Math.min(1, winCinema.t / 1.2)
+  const e = k * k * (3 - 2 * k)
+  player.position.x = winCinema.fromX + winCinema.dirX * 2 * e
+  player.position.z = winCinema.fromZ + winCinema.dirZ * 2 * e
+  scene.fog.color.lerpColors(FOG_NIGHT, FOG_DAY, e)
+  scene.fog.density = 0.06 + (0.01 - 0.06) * e
+  scene.background.copy(scene.fog.color)
+  if (winCinema.t > 1.2) {
+    winCinema.active = false
+    winGame()
+  }
 }
 
 function winGame() {
@@ -324,7 +356,7 @@ function unlockDoor() {
   world.openDoor()
   audio.stinger('unlock')
   fx.shake(0.55)
-  ui.hint('la puerta del día está abierta — al muro ' + CARDINAL[doorDir], 8000)
+  ui.hint('la puerta del día está abierta — sigue la luz fría', 8000)
 }
 
 function collectSealAt(i) {
@@ -365,8 +397,17 @@ function checkSconces() {
     const dx = s.x - px
     const dz = s.z - pz
     if (dx * dx + dz * dz < 1.8 * 1.8) {
+      // a once-only refill is too precious to burn at near-full wax
+      if (wax >= WAX_MAX - SCONCE_WAX * 0.6) {
+        if (!sconceFullHinted) {
+          sconceFullHinted = true
+          ui.hint('la vela aún está entera — el candil puede esperar', 3800)
+        }
+        continue
+      }
       world.useSconce(i)
       wax = Math.min(WAX_MAX, wax + SCONCE_WAX)
+      if (wax >= 30) lowWaxWarned = false // re-arm the low-wax coaching
       dying = 0
       flare = 1
       audio.stinger('sconce')
@@ -381,7 +422,7 @@ function checkWin() {
   if (!world.door.isOpen()) return
   const dx = world.door.x - player.position.x
   const dz = world.door.z - player.position.z
-  if (dx * dx + dz * dz < (TILE * 0.6) * (TILE * 0.6)) winGame()
+  if (dx * dx + dz * dz < (TILE * 0.6) * (TILE * 0.6)) startWinCinema()
 }
 
 function updateWax(dt) {
@@ -430,7 +471,10 @@ function frame(dt) {
   if (!(dt > 0)) return
   simT += dt
 
-  if (phase === 'playing') {
+  if (phase === 'playing' && winCinema.active) {
+    updateWinCinema(dt)
+    fx.update(dt, simT, false)
+  } else if (phase === 'playing') {
     elapsed += dt
     player.update(dt)
     updateWax(dt)
@@ -454,8 +498,9 @@ function frame(dt) {
     if (player.sprinting && d < 34) inv.hear(env.playerCellIdx, true)
     else if (player.speed > 0.6 && d < 9) inv.hear(env.playerCellIdx, false)
 
-    // caught: your cell, his sight
-    if (phase === 'playing' && d < 2.25 && hasLOS(player.position.x, player.position.z, inv.worldX, inv.worldZ)) {
+    // caught: your cell, his sight — wider reach mid-hunt, slippable in lurk
+    const catchR = 1.5 + (inv.mode === 'hunt' ? 0.5 : 0)
+    if (phase === 'playing' && d < catchR && hasLOS(player.position.x, player.position.z, inv.worldX, inv.worldZ)) {
       catchPlayer()
     }
 
@@ -504,6 +549,7 @@ window.addEventListener('resize', () => {
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') {
     const m = audio.toggleMute()
+    ui.setMuted(m)
     ui.toast(m ? 'silencio' : 'sonido')
   }
 })

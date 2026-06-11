@@ -25,7 +25,8 @@
 //   setHits(n)               set collision count (0..3); 3 while playing
 //                            triggers the real lose path
 //   advanceTo(metersFromEnd) teleport so `remaining` === metersFromEnd
-//                            (e.g. advanceTo(0.5) + step() reaches the win)
+//                            (e.g. advanceTo(0.5) + step(1/60, 2) reaches the
+//                            win; one default step covers ~0.43 m)
 //
 // Sim pauses whenever an overlay is open (phase !== 'playing'). dt clamped at
 // 0.05. No allocations in the frame loop (pools, cached strings, reused state).
@@ -41,7 +42,9 @@ import {
 } from './consts.js';
 
 const world = createWorld(document.getElementById('app'));
-const course = buildCourse(world.scene);
+// per-run random course; ?seed=<n> pins the layout (e2e passes ?seed=20260610)
+const seedParam = new URLSearchParams(location.search).get('seed');
+const course = buildCourse(world.scene, seedParam !== null ? +seedParam : (Math.random() * 2 ** 31) | 0);
 const audio = createAudio();
 const ui = createUI(document.getElementById('ui'));
 world.ponchoMat.emissive.setHex(0x88ffcc); // intensity drives the invuln flicker
@@ -81,6 +84,7 @@ function winGame() {
   if (phase === 'won' || phase === 'lost') return;
   phase = 'won';
   localStorage.setItem('chiloe-camahueto-done', '1');
+  audio.bedOff();
   audio.win();
   ui.showWin(shavingCount);
 }
@@ -88,6 +92,7 @@ function winGame() {
 function loseGame() {
   if (phase === 'won' || phase === 'lost') return;
   phase = 'lost';
+  audio.bedOff();
   audio.lose();
   ui.showLose(shavingCount);
 }
@@ -145,12 +150,14 @@ function simulate(dt) {
   let inWet = false;
   for (let i = 0; i < course.gushes.length; i++) {
     const g = course.gushes[i];
-    if (pz - g.z > g.halfL || g.z - pz > g.halfL) continue;
+    const gdz = pz - g.z;
+    if (gdz > g.halfL || -gdz > g.halfL) continue;
     const dWall = g.side * (g.x - px); // distance inward from the source wall
     if (dWall < -0.3 || dWall > g.width) continue;
     inWet = true;
     vx += -g.side * 16 * (grounded ? 1 : 0.4) * d;
-    if (dWall < 2.0 && airY < 1.2) hit();
+    // lethal core only near the visible jet cone; the shove spans the wash
+    if (dWall < 2.0 && gdz > -2 && gdz < 2 && airY < 1.2) hit();
   }
   if (inWet) {
     splashT -= dt;
@@ -197,7 +204,7 @@ function simulate(dt) {
     if (o.type === T_BOULDER) {
       const dx = px - o.x;
       const rr = o.r + 0.55;
-      if (dx < rr && dx > -rr && dz < o.r + 0.7 && dz > -(o.r + 0.7) && airY < o.top) hit();
+      if (dx * dx + dz * dz < rr * rr && airY < o.top) hit(); // radial — matches the round rock
     } else if (o.type === T_LOG) {
       if (dz < 0.75 && dz > -0.75 && px > o.x - o.halfW - 0.3 && px < o.x + o.halfW + 0.3 && airY < o.top) hit();
     }
@@ -211,7 +218,8 @@ function simulate(dt) {
     const dz = pz - s.z;
     if (dz < -1.4 || dz > 1.4) continue;
     const dx = px - s.x;
-    if (dx < 1.35 && dx > -1.35) {
+    // height gate: arc shavings over full-span logs require the jump
+    if (dx < 1.35 && dx > -1.35 && Math.abs(airY + 0.9 - s.relH) <= 1.0) {
       s.collected = true;
       s.mesh.visible = false;
       shavingCount++;
@@ -296,6 +304,11 @@ addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
   if (k === 'a' || k === 'arrowleft') keys.left = false;
   else if (k === 'd' || k === 'arrowright') keys.right = false;
+});
+addEventListener('blur', () => { // keys latch if focus leaves mid-hold
+  keys.left = false;
+  keys.right = false;
+  jumpBuf = 0;
 });
 
 ui.showTitle(begin);

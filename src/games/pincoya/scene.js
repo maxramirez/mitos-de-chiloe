@@ -59,7 +59,7 @@ export function createWorld(S) {
   scene.add(moonLight)
 
   // ---- water --------------------------------------------------------------
-  const waterGeo = new THREE.PlaneGeometry(260, 170, 100, 60)
+  const waterGeo = new THREE.PlaneGeometry(260, 170, 64, 40)
   waterGeo.rotateX(-Math.PI / 2)
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x0e2a36,

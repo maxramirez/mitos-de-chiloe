@@ -12,7 +12,7 @@ const STRINGS = {
     'nothing enters and nothing leaves. Your candle holds three minutes of wax; ' +
     'the cold seam of daylight will not open without los tres sellos. He cannot ' +
     'see far, but he listens — y la cueva escucha con él.',
-  controls: 'wasd — walk · mouse / arrows — look · shift — run, he hears it · m — silence',
+  controls: 'wasd — walk · mouse / arrows — look · shift — run, he hears it · m — sonido',
   begin: 'BEGIN',
   won: {
     charm: '✦',
@@ -33,7 +33,7 @@ const STRINGS = {
     body:
       'The last thing the candle finds is a face turned the wrong way on its ' +
       'shoulders, close enough to share your breath. The brujos will have use ' +
-      'for you — siempre necesitan otro guardián. La cueva no devuelve lo que toma.',
+      'for you — en la cueva siempre falta quien sirva. La cueva no devuelve lo que toma.',
     charms: '',
     btn: 'OTRA VELA',
   },
@@ -58,6 +58,7 @@ export const ui = {
   sealsEl: null,
   hintEl: null,
   toastEl: null,
+  muteEl: null,
   flashEl: null,
   blackoutEl: null,
   titleEl: null,
@@ -80,8 +81,10 @@ export const ui = {
       '</div>' +
       '<div id="hud-seals"><span class="hud-label">sellos</span> <span id="seal-pips">✧ ✧ ✧</span></div>' +
       '<div id="hint"></div>' +
-      '<div id="toast"></div>'
+      '<div id="toast"></div>' +
+      '<div id="hud-mute">M · sonido</div>'
     this.hud = document.getElementById('hud')
+    this.muteEl = document.getElementById('hud-mute')
     this.waxFill = document.getElementById('wax-fill')
     this.waxWrap = document.getElementById('wax-bar')
     this.sealsEl = document.getElementById('seal-pips')
@@ -117,6 +120,7 @@ export const ui = {
     setTimeout(() => el.remove(), 1100)
     this.hud.classList.add('visible')
     document.getElementById('hud-seals').classList.add('visible')
+    this.muteEl.classList.add('visible')
   },
 
   // kind: 'won' | 'caught' | 'dark'
@@ -137,7 +141,11 @@ export const ui = {
       '</div>'
     this.root.appendChild(el)
     this.endEl = el
-    document.getElementById('replay-btn').addEventListener('click', () => location.reload())
+    // 'VOLVER A LA ISLA' honors its label — the win returns to the hub
+    document.getElementById('replay-btn').addEventListener('click', () => {
+      if (kind === 'won') location.href = '/'
+      else location.reload()
+    })
   },
 
   isOverlayOpen() {
@@ -148,6 +156,12 @@ export const ui = {
     this.waxFill.style.width = (pct < 0 ? 0 : pct > 100 ? 100 : pct) + '%'
     if (low) this.waxWrap.classList.add('low')
     else this.waxWrap.classList.remove('low')
+  },
+
+  setMuted(m) {
+    this.muteEl.textContent = m ? 'M · silencio' : 'M · sonido'
+    if (m) this.muteEl.classList.add('off')
+    else this.muteEl.classList.remove('off')
   },
 
   setSeals(n) {

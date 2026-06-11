@@ -25,6 +25,7 @@ export function createWorld(container) {
   addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); // DPR can change across monitors
     renderer.setSize(innerWidth, innerHeight);
   });
 
@@ -36,6 +37,7 @@ export function createWorld(container) {
 
   // ---------- recycled terrain chunks ----------
   const chunks = [];
+  const shrubGeo = new THREE.ConeGeometry(1, 1, 5); // unit cone, scaled per shrub
   const soilA = new THREE.Color(0x332312);   // gouged dark soil
   const soilB = new THREE.Color(0x23301f);   // mossy banks
   const gougeC = new THREE.Color(0x140c06);  // torn streaks
@@ -76,7 +78,9 @@ export function createWorld(container) {
       const sx = side * (BANK_X + 1.5 + rng() * 6);
       const sz = -rng() * CHUNK;
       const h = 0.8 + rng() * 2.2;
-      const shrub = new THREE.Mesh(new THREE.ConeGeometry(0.35 + rng() * 0.5, h, 5), shrubMat);
+      const shrub = new THREE.Mesh(shrubGeo, shrubMat);
+      const sr = 0.35 + rng() * 0.5; // same rng draw order as before
+      shrub.scale.set(sr, h, sr);
       shrub.position.set(sx, bankY(sx) + sz * SLOPE + h * 0.4, sz);
       shrub.rotation.set((rng() - 0.5) * 0.3, rng() * 3.14, (rng() - 0.5) * 0.3);
       mesh.add(shrub);

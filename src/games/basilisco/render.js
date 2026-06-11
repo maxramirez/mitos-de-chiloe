@@ -6,6 +6,7 @@
 
 import {
   W, H, HOUSE, WALLS, SLEEPERS, BRAZIERS, BRAZIER_RADIUS, CRACKS, TILES, TILE_SIZE,
+  DRINK_TIME, PRY_TIME, STUN_TIME,
 } from './world.js'
 
 const INK = '#e8dcc0'
@@ -387,7 +388,7 @@ export function createRenderer(canvas) {
         ctx.strokeStyle = 'rgba(220,90,60,0.85)'
         ctx.lineWidth = 2.5
         ctx.beginPath()
-        ctx.arc(s.x, s.y - 24, 11, -Math.PI / 2, -Math.PI / 2 + (st.drain / 8) * Math.PI * 2)
+        ctx.arc(s.x, s.y - 24, 11, -Math.PI / 2, -Math.PI / 2 + (st.drain / DRINK_TIME) * Math.PI * 2)
         ctx.stroke()
       }
     }
@@ -429,10 +430,6 @@ export function createRenderer(canvas) {
       ctx.lineTo(hx + Math.cos(g.bas.heading + 0.7) * 7, hy + Math.sin(g.bas.heading + 0.7) * 7)
       ctx.closePath()
       ctx.fill()
-      // eyes glow — visible even in the dark
-      ctx.fillStyle = GLOW
-      circle2(ctx, hx + Math.cos(g.bas.heading - 0.6) * 4.5, hy + Math.sin(g.bas.heading - 0.6) * 4.5, 1.6)
-      circle2(ctx, hx + Math.cos(g.bas.heading + 0.6) * 4.5, hy + Math.sin(g.bas.heading + 0.6) * 4.5, 1.6)
       // drinking: breath thread from sleeper to mouth
       if (g.bas.state === 'drinking' && g.bas.targetSleeper >= 0) {
         const sl = SLEEPERS[g.bas.targetSleeper]
@@ -467,14 +464,14 @@ export function createRenderer(canvas) {
       ctx.strokeStyle = pl.holdKind === 'crush' ? GLOW : 'rgba(232,220,192,0.85)'
       ctx.lineWidth = 3
       ctx.beginPath()
-      ctx.arc(pl.x, pl.y, 18, -Math.PI / 2, -Math.PI / 2 + (pl.holdT / 3) * Math.PI * 2)
+      ctx.arc(pl.x, pl.y, 18, -Math.PI / 2, -Math.PI / 2 + (pl.holdT / PRY_TIME) * Math.PI * 2)
       ctx.stroke()
     }
     if (pl.stun > 0) {
       ctx.strokeStyle = 'rgba(220,90,60,0.7)'
       ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.arc(pl.x, pl.y, 16, -Math.PI / 2, -Math.PI / 2 + (pl.stun / 4) * Math.PI * 2)
+      ctx.arc(pl.x, pl.y, 16, -Math.PI / 2, -Math.PI / 2 + (pl.stun / STUN_TIME) * Math.PI * 2)
       ctx.stroke()
     }
 
@@ -487,21 +484,6 @@ export function createRenderer(canvas) {
       ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size)
     }
     ctx.globalAlpha = 1
-
-    // squeal ripples — arcs aimed toward the egg
-    for (let i = 0; i < RIP_N; i++) {
-      const r = ripples[i]
-      if (!r.active) continue
-      const a = 1 - r.age / 2.2
-      ctx.strokeStyle = 'rgba(159,255,208,' + (a * 0.55).toFixed(2) + ')'
-      for (let k = 0; k < 3; k++) {
-        const rad = 18 + r.age * 90 + k * 16
-        ctx.lineWidth = 2 - k * 0.5
-        ctx.beginPath()
-        ctx.arc(r.x, r.y, rad, r.dir - 0.45, r.dir + 0.45)
-        ctx.stroke()
-      }
-    }
 
     // darkness layer
     const ambient = g.dark ? 0.92 : 0.66 - 0.06 * (g.braziers[0] > 0 ? 1 : 0) - 0.06 * (g.braziers[1] > 0 ? 1 : 0)
@@ -525,6 +507,30 @@ export function createRenderer(canvas) {
     dctx.fillRect(-110, -110, 220, 220)
     dctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.drawImage(dark, 0, 0)
+
+    // eyes glow — drawn over the darkness so they read even with both braziers out
+    if (g.bas.visible) {
+      const hx = g.bas.trail[0]
+      const hy = g.bas.trail[1]
+      ctx.fillStyle = GLOW
+      circle2(ctx, hx + Math.cos(g.bas.heading - 0.6) * 4.5, hy + Math.sin(g.bas.heading - 0.6) * 4.5, 1.6)
+      circle2(ctx, hx + Math.cos(g.bas.heading + 0.6) * 4.5, hy + Math.sin(g.bas.heading + 0.6) * 4.5, 1.6)
+    }
+
+    // squeal ripples — arcs aimed toward the egg, over the darkness (the core win hint)
+    for (let i = 0; i < RIP_N; i++) {
+      const r = ripples[i]
+      if (!r.active) continue
+      const a = 1 - r.age / 2.2
+      ctx.strokeStyle = 'rgba(159,255,208,' + (a * 0.55).toFixed(2) + ')'
+      for (let k = 0; k < 3; k++) {
+        const rad = 18 + r.age * 90 + k * 16
+        ctx.lineWidth = 2 - k * 0.5
+        ctx.beginPath()
+        ctx.arc(r.x, r.y, rad, r.dir - 0.45, r.dir + 0.45)
+        ctx.stroke()
+      }
+    }
 
     // rain over everything
     ctx.strokeStyle = 'rgba(170,200,210,0.16)'

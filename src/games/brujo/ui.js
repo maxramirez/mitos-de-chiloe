@@ -12,7 +12,7 @@ const S = {
     'wears it may ride the night air. Tonight the reunión convenes across the channel, ' +
     'and the door of the cueva opens only while the moon is above the water. ' +
     'Thread the twelve anillos de luz before la luna se hunde — or fall, and the macuñ tears.',
-  help: 'mouse or arrows steer · W boost · S brake · M sound',
+  help: 'ratón o flechas · volar — w · impulso — s · frenar — m · sonido',
   begin: 'PONTE EL MACUÑ',
   winTitle: 'LA REUNIÓN',
   winText:
@@ -45,7 +45,7 @@ export function createUI() {
     '<div id="hud-crashes"></div>' +
     '</div>' +
     '<div id="hud-wet">alas mojadas…</div>' +
-    '<div id="hud-mute">m · sound</div>'
+    '<div id="hud-mute">M · sonido</div>'
 
   const el = {
     flash: document.getElementById('flash'),
@@ -55,6 +55,7 @@ export function createUI() {
     ring: document.getElementById('hud-ring'),
     moon: document.getElementById('hud-moon'),
     stamina: document.getElementById('stamina-fill'),
+    staminaLabel: document.getElementById('stamina-label'),
     crashes: document.getElementById('hud-crashes'),
     wet: document.getElementById('hud-wet'),
   }
@@ -122,6 +123,7 @@ export function createUI() {
   let cStam = -1
   let cCrash = -1
   let cWet = null
+  let cDepleted = false
 
   function setRing(n, total) {
     if (n === cRing) return
@@ -142,11 +144,17 @@ export function createUI() {
     el.moon.classList.toggle('late', s <= 45)
   }
 
-  function setStamina(f) {
+  function setStamina(f, depleted) {
     const q = Math.round(f * 100)
-    if (q === cStam) return
-    cStam = q
-    el.stamina.style.transform = 'scaleX(' + f + ')'
+    if (q !== cStam) {
+      cStam = q
+      el.stamina.style.transform = 'scaleX(' + f + ')'
+    }
+    const d = !!depleted
+    if (d !== cDepleted) {
+      cDepleted = d
+      el.staminaLabel.classList.toggle('depleted', d)
+    }
   }
 
   function setCrashes(n, max) {
