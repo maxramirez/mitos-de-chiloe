@@ -71,6 +71,188 @@ const DASH_FOAM = [16, 10]
 const DASH_FOAM2 = [7, 13]
 const DASH_NONE = []
 
+// ---- procedural textures (built once at boot, cached canvases) ---------------
+function makeCanvas(w, h) {
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  return c
+}
+
+// wet-mud tile: tide-ripple striations (groove + moonlit crest) over fine grain.
+// Ripple frequencies are whole multiples of TAU/256 so the tile wraps seamlessly.
+const MUD_TILE = (() => {
+  const c = makeCanvas(256, 256)
+  const g = c.getContext('2d')
+  // fine grain
+  for (let i = 0; i < 1100; i++) {
+    const dark = rnd() > 0.45
+    g.fillStyle = dark ? '#050403' : '#2a2218'
+    g.globalAlpha = (dark ? 0.2 : 0.13) + rnd() * 0.12
+    g.fillRect(rnd() * 256, rnd() * 256, 1 + rnd() * 1.6, 1 + rnd() * 1.3)
+  }
+  // ripple striations
+  for (let y = 6; y < 246; y += 8 + rnd() * 8) {
+    const amp = 1.2 + rnd() * 2.4
+    const ph = rnd() * TAU
+    const k = 2 + ((rnd() * 3) | 0) // 2..4 whole waves per tile
+    const freq = (TAU * k) / 256
+    g.lineWidth = 1.3
+    for (let pass = 0; pass < 2; pass++) {
+      g.strokeStyle = pass === 0 ? '#000000' : '#d6c4a0'
+      g.globalAlpha = pass === 0 ? 0.13 + rnd() * 0.09 : 0.04 + rnd() * 0.035
+      const oy = pass === 0 ? 0 : -1.2
+      g.beginPath()
+      for (let x = -8; x <= 264; x += 8) {
+        const yy = y + oy + Math.sin(x * freq + ph) * amp
+        if (x === -8) g.moveTo(x, yy)
+        else g.lineTo(x, yy)
+      }
+      g.stroke()
+    }
+  }
+  g.globalAlpha = 1
+  return c
+})()
+
+// water tile: moon-grey slivers and ink counter-streaks (drawn twice for wrap)
+const WATER_TILE = (() => {
+  const c = makeCanvas(256, 256)
+  const g = c.getContext('2d')
+  g.lineCap = 'round'
+  for (let i = 0; i < 64; i++) {
+    const x = rnd() * 256
+    const y = rnd() * 256
+    const len = 14 + rnd() * 56
+    const light = rnd() > 0.38
+    g.strokeStyle = light ? '#9fc8bc' : '#04141a'
+    g.globalAlpha = light ? 0.05 + rnd() * 0.07 : 0.09 + rnd() * 0.1
+    g.lineWidth = light ? 1 : 1.6 + rnd() * 1.2
+    for (let wrap = 0; wrap < 2; wrap++) {
+      const wx = x - wrap * 256
+      g.beginPath()
+      g.moveTo(wx - len * 0.5, y)
+      g.lineTo(wx + len * 0.5, y)
+      g.stroke()
+    }
+  }
+  g.fillStyle = '#bcd8d2'
+  for (let i = 0; i < 130; i++) {
+    g.globalAlpha = 0.03 + rnd() * 0.06
+    g.fillRect(rnd() * 256, rnd() * 256, 1, 1)
+  }
+  g.globalAlpha = 1
+  return c
+})()
+
+// each standing wall segment pre-rendered: shaded stones with contact shadow,
+// moonlit gradient, algae kiss and grain — one drawImage per segment per frame.
+const WALL_SPR = []
+for (let i = 0; i < SEGN; i++) {
+  const stones = STONES[i]
+  let minX = 1e9
+  let minY = 1e9
+  let maxX = -1e9
+  let maxY = -1e9
+  for (let k = 0; k < stones.length; k++) {
+    const st = stones[k]
+    const x = CX + Math.cos(st.a) * st.r
+    const y = CY + Math.sin(st.a) * st.r
+    if (x - st.s - 6 < minX) minX = x - st.s - 6
+    if (y - st.s - 6 < minY) minY = y - st.s - 6
+    if (x + st.s + 6 > maxX) maxX = x + st.s + 6
+    if (y + st.s + 6 > maxY) maxY = y + st.s + 6
+  }
+  minX = Math.floor(minX)
+  minY = Math.floor(minY)
+  const c = makeCanvas(Math.ceil(maxX - minX), Math.ceil(maxY - minY))
+  const g = c.getContext('2d')
+  for (let k = 0; k < stones.length; k++) {
+    const st = stones[k]
+    const lx = CX + Math.cos(st.a) * st.r - minX
+    const ly = CY + Math.sin(st.a) * st.r - minY
+    // contact shadow pooling in the wet mud
+    g.globalAlpha = 0.5
+    g.fillStyle = '#000000'
+    g.beginPath()
+    g.ellipse(lx + 0.7, ly + st.s * 0.42, st.s * 1.08, st.s * 0.82, 0, 0, TAU)
+    g.fill()
+    // body, lit from the moon side (up-left)
+    g.globalAlpha = 1
+    const gr = g.createRadialGradient(lx - st.s * 0.42, ly - st.s * 0.5, st.s * 0.12, lx, ly, st.s * 1.14)
+    gr.addColorStop(0, '#4d565b')
+    gr.addColorStop(0.45, st.c > 0.5 ? '#262b2e' : '#202527')
+    gr.addColorStop(1, '#0f1315')
+    g.fillStyle = gr
+    g.beginPath()
+    g.arc(lx, ly, st.s, 0, TAU)
+    g.fill()
+    // algae kiss on some seaward faces
+    if (st.c > 0.6) {
+      g.globalAlpha = 0.2
+      g.fillStyle = '#3f5a4e'
+      g.beginPath()
+      g.arc(lx - st.s * 0.18, ly - st.s * 0.5, st.s * 0.52, 0, TAU)
+      g.fill()
+    }
+    // moon glint
+    g.globalAlpha = 0.4
+    g.fillStyle = '#79848a'
+    g.beginPath()
+    g.arc(lx - st.s * 0.38, ly - st.s * 0.46, st.s * 0.2, 0, TAU)
+    g.fill()
+    // grain specks
+    g.fillStyle = '#0a0d0e'
+    for (let n = 0; n < 3; n++) {
+      g.globalAlpha = 0.18 + rnd() * 0.14
+      g.fillRect(lx + (rnd() - 0.5) * st.s * 1.1, ly + (rnd() - 0.5) * st.s * 1.1, 1, 1)
+    }
+  }
+  g.globalAlpha = 1
+  WALL_SPR.push({ c, x: minX, y: minY })
+}
+
+// serpent body/head sprites: rim-lit, mottled, spectral sheen baked in
+function serpSprite(litTop, base, deep, rim) {
+  const c = makeCanvas(64, 64)
+  const g = c.getContext('2d')
+  const gr = g.createRadialGradient(26, 22, 3, 32, 32, 30)
+  gr.addColorStop(0, litTop)
+  gr.addColorStop(0.55, base)
+  gr.addColorStop(1, deep)
+  g.fillStyle = gr
+  g.beginPath()
+  g.arc(32, 32, 30, 0, TAU)
+  g.fill()
+  // mottled hide
+  g.fillStyle = '#060d09'
+  for (let i = 0; i < 26; i++) {
+    const a = rnd() * TAU
+    const r = rnd() * 24
+    g.globalAlpha = 0.1 + rnd() * 0.12
+    g.beginPath()
+    g.arc(32 + Math.cos(a) * r, 32 + Math.sin(a) * r, 1.6 + rnd() * 3.4, 0, TAU)
+    g.fill()
+  }
+  // spectral rim along the moon side
+  g.globalAlpha = rim
+  g.strokeStyle = '#9fffd0'
+  g.lineWidth = 2.4
+  g.beginPath()
+  g.arc(32, 32, 28.2, -2.6, -0.55)
+  g.stroke()
+  g.globalAlpha = rim * 0.45
+  g.lineWidth = 4.6
+  g.beginPath()
+  g.arc(32, 32, 27, -2.45, -0.7)
+  g.stroke()
+  g.globalAlpha = 1
+  return c
+}
+const SERP_BODY_A = serpSprite('#234034', '#13231d', '#070d0a', 0.2)
+const SERP_BODY_B = serpSprite('#1d382d', '#102019', '#060b08', 0.16)
+const SERP_HEAD = serpSprite('#2a4a3b', '#16271f', '#08100c', 0.3)
+
 // ---- cached gradients -------------------------------------------------------
 let G = null
 function ensureGradients(ctx) {
@@ -102,6 +284,8 @@ function ensureGradients(ctx) {
   lantern.addColorStop(0, 'rgba(255,200,122,0.3)')
   lantern.addColorStop(1, 'rgba(255,200,122,0)')
   G.lantern = lantern
+  G.mud = ctx.createPattern(MUD_TILE, 'repeat')
+  G.waterPat = ctx.createPattern(WATER_TILE, 'repeat')
 }
 
 // ---- pieces -----------------------------------------------------------------
@@ -110,22 +294,17 @@ function drawWalls(ctx, S, tVis) {
   for (let i = 0; i < SEGN; i++) {
     const seg = S.segs[i]
     if (!seg.broken) {
-      const stones = STONES[i]
-      for (let k = 0; k < stones.length; k++) {
-        const st = stones[k]
-        const x = CX + Math.cos(st.a) * st.r
-        const y = CY + Math.sin(st.a) * st.r
-        // moonlit edge, then the stone
-        ctx.fillStyle = '#454d51'
-        ctx.beginPath()
-        ctx.arc(x - 1.1, y - 1.5, st.s, 0, TAU)
-        ctx.fill()
-        ctx.fillStyle = st.c > 0.5 ? '#262b2e' : '#202527'
-        ctx.beginPath()
-        ctx.arc(x, y, st.s, 0, TAU)
-        ctx.fill()
-      }
+      // pre-shaded stones: contact shadow, moonlit gradient, algae, grain
+      const spr = WALL_SPR[i]
+      ctx.drawImage(spr.c, spr.x, spr.y)
     } else {
+      // scoured wet stain where the wall used to stand
+      ctx.globalAlpha = 0.3
+      ctx.fillStyle = '#04080a'
+      ctx.beginPath()
+      ctx.ellipse(seg.mx, seg.my, 32, 23, 0, 0, TAU)
+      ctx.fill()
+      ctx.globalAlpha = 1
       // rubble in the breach
       const rub = RUBBLE[i]
       ctx.fillStyle = '#181d1f'
@@ -271,32 +450,25 @@ function drawSerpent(ctx, S, tVis) {
   const fade = sp.state === 'dive' ? Math.max(0, 1 - sp.t / 1.1) : 1
   const px = -sp.dy
   const py = sp.dx
-  // segmented body, tail to head
-  ctx.strokeStyle = '#9fffd0'
-  ctx.lineWidth = 1
+  // segmented body, tail to head — rim-lit mottled sprites
   for (let i = 9; i >= 0; i--) {
     const wob = Math.sin(tVis * 5 + i * 0.9) * 2
     const x = sp.sx[i] + px * wob
     const y = sp.sy[i] + py * wob
     const rr = 12.5 - i * 0.75
     ctx.globalAlpha = fade
-    ctx.fillStyle = (i & 1) === 1 ? '#13231d' : '#102019'
-    ctx.beginPath()
-    ctx.arc(x, y, rr, 0, TAU)
-    ctx.fill()
-    ctx.globalAlpha = fade * 0.13
-    ctx.stroke()
+    ctx.drawImage((i & 1) === 1 ? SERP_BODY_A : SERP_BODY_B, x - rr, y - rr, rr * 2, rr * 2)
   }
   // head
   const ga = sp.state === 'feed' ? 1 + 0.08 * Math.sin(sp.t * 8) : 1
+  const hr = 15 * ga
   ctx.globalAlpha = fade
-  ctx.fillStyle = '#16271f'
-  ctx.beginPath()
-  ctx.arc(sp.x, sp.y, 15 * ga, 0, TAU)
-  ctx.fill()
-  ctx.globalAlpha = fade * 0.22
+  ctx.drawImage(SERP_HEAD, sp.x - hr, sp.y - hr, hr * 2, hr * 2)
+  ctx.globalAlpha = fade * (0.18 + 0.1 * Math.sin(tVis * 3.3))
   ctx.strokeStyle = '#9fffd0'
   ctx.lineWidth = 1.2
+  ctx.beginPath()
+  ctx.arc(sp.x, sp.y, hr, 0, TAU)
   ctx.stroke()
   // little tusks
   ctx.globalAlpha = fade * 0.85
@@ -460,6 +632,14 @@ function drawParticles(ctx, S) {
       ctx.beginPath()
       ctx.arc(p.x, p.y, p.s, 0, TAU)
       ctx.fill()
+    } else if (p.t === 'ring') {
+      // expanding impact ring: radius grows as life burns down
+      ctx.globalAlpha = a * 0.5
+      ctx.strokeStyle = '#cfe2da'
+      ctx.lineWidth = 1.8
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, p.s + (1 - a) * 52, 0, TAU)
+      ctx.stroke()
     } else {
       // splash
       ctx.globalAlpha = a * 0.55
@@ -510,9 +690,13 @@ export function draw(ctx, view, S, tVis) {
   const shy = sh > 0 ? Math.cos(tVis * 47) * sh * 5 : 0
   ctx.setTransform(view.scale, 0, 0, view.scale, view.ox + shx * view.scale, view.oy + shy * view.scale)
 
-  // wet flats
+  // wet flats: gradient, then tide-rippled mud grain, then speckle
   ctx.fillStyle = G.sand
   ctx.fillRect(-900, -900, 2800, 2800)
+  ctx.fillStyle = G.mud
+  ctx.globalAlpha = 0.6
+  ctx.fillRect(-900, -900, 2800, 2800)
+  ctx.globalAlpha = 1
   ctx.fillStyle = '#241d15'
   for (let i = 0; i < SPECK.length; i++) {
     const p = SPECK[i]
@@ -526,12 +710,28 @@ export function draw(ctx, view, S, tVis) {
   ctx.fillRect(-900, -900, 2800, S.shoreY + 900)
   ctx.fillStyle = G.glint
   ctx.fillRect(-900, -900, 2800, S.shoreY + 900)
+  // two counter-drifting sheets of water grain (cheap current)
+  ctx.fillStyle = G.waterPat
+  const w1 = (tVis * 7) % 256
+  ctx.save()
+  ctx.translate(w1, 0)
+  ctx.globalAlpha = 0.5
+  ctx.fillRect(-900 - w1, -900, 2800, S.shoreY + 900)
+  ctx.restore()
+  const w2 = (tVis * -4.3) % 256
+  ctx.save()
+  ctx.translate(w2, 7)
+  ctx.globalAlpha = 0.28
+  ctx.fillRect(-900 - w2, -907, 2800, S.shoreY + 900)
+  ctx.restore()
+  // shimmer slivers, brightening into a glitter path under the moon glint
   ctx.strokeStyle = '#9fc8bc'
   ctx.lineWidth = 1
   for (let i = 0; i < SHIM.length; i++) {
     const s = SHIM[i]
     if (s.y > S.shoreY - 24) continue
-    ctx.globalAlpha = 0.035 + 0.04 * (1 + Math.sin(tVis * 0.8 + s.ph))
+    const moonK = 1 + Math.max(0, 1 - Math.abs(s.x - 660) / 140) * 1.7
+    ctx.globalAlpha = (0.035 + 0.04 * (1 + Math.sin(tVis * 0.8 + s.ph))) * moonK
     ctx.beginPath()
     ctx.moveTo(s.x - s.len * 0.5, s.y)
     ctx.lineTo(s.x + s.len * 0.5, s.y)

@@ -119,7 +119,7 @@ const hSheep = hud.querySelector('#h-sheep')
 
 const toastEl = el('div', '', '', ui)
 toastEl.id = 'toast'
-const hint = el('div', '', 'mouse apuntar · click / space lanzar la honda · m silencio', ui)
+const hint = el('div', '', 'MOUSE apuntar · CLIC / ESPACIO lanzar la piedra · M sonido', ui)
 hint.id = 'hint'
 
 let toastTimer = null
@@ -147,9 +147,9 @@ function card(title, epithet, body, controls, btnLabel, onClick) {
 const titleCard = card(
   'EL PIUCHÉN',
   'La majada',
-  'On still nights over the archipelago a dry whistle crosses the stars: <i>el Piuchén</i>, the winged serpent no one sees twice, circling hungry above the folds. Where it lands, a sheep is found at dawn pale and hollow, <i>sin una gota de sangre</i>. Tonight you are the shepherd on the hill — only your eye and your sling stand between the serpent and <i>la majada</i> huddled behind the stones. Watch the dark: its eyes flash green the instant before it dives.',
-  'MOUSE aim &nbsp;·&nbsp; CLICK / SPACE sling a stone (max 3 in the air) &nbsp;·&nbsp; M mute',
-  'BEGIN',
+  'En las noches quietas del archipiélago un silbido seco cruza las estrellas: es <i>el Piuchén</i>, la serpiente alada que nadie ve dos veces, rondando hambrienta sobre los corrales. Donde se posa, al alba aparece una oveja pálida y vacía, <i>sin una gota de sangre</i>. Esta noche el pastor del cerro eres tú — solo tu ojo y tu honda se interponen entre la serpiente y <i>la majada</i> apretada contra las piedras. Vigila lo oscuro: sus ojos relampaguean en verde un instante antes del picado.',
+  'MOUSE apuntar &nbsp;·&nbsp; CLIC / ESPACIO lanzar la piedra (máx. 3 en el aire) &nbsp;·&nbsp; M sonido',
+  'COMENZAR',
   () => begin()
 )
 
@@ -282,9 +282,9 @@ function win() {
     showEnd(
       'EL ALBA',
       alive === 8 ? 'La majada amanece completa' : 'La majada amanece',
-      'First light slides up the canal and the dry whistle thins, falters, and is gone — <i>el Piuchén</i> does not hunt under the sun. You count them in a low voice, the way your grandfather taught you, and the fold answers with sleepy bleats' +
-        (alive === 8 ? ': <i>la majada amanece completa</i>.' : ', though some still walk <i>mareadas</i>, dizzy with the memory of wings.') +
-        ' The island will know who kept watch tonight.<span class="tally">' + tally + '</span>',
+      'La primera luz sube por el canal y el silbido seco se adelgaza, titubea y se apaga — <i>el Piuchén</i> no caza bajo el sol. Las vas contando en voz baja, como te enseñó tu abuelo, y la majada responde con balidos dormidos' +
+        (alive === 8 ? ': <i>la majada amanece completa</i>.' : ', aunque algunas andan todavía <i>mareadas</i>, con el recuerdo de las alas encima.') +
+        ' La isla sabrá quién veló esta noche.<span class="tally">' + tally + '</span>',
       'OTRA NOCHE'
     )
   }, 1000)
@@ -301,7 +301,7 @@ function lose(reason) {
     showEnd(
       'LA MAJADA SANGRADA',
       'Tres ovejas vacías',
-      'Three sheep lie pale against the stones, <i>sin una gota de sangre</i>, and the whistle climbs away satisfied into the dark. The serpent only falls when a stone meets the dive: wait for the green flash of its eyes, lead your shot into the swoop — and if it latches on, you still have three breaths to knock it loose.',
+      'Tres ovejas yacen pálidas contra las piedras, <i>sin una gota de sangre</i>, y el silbido se aleja satisfecho en lo oscuro. La serpiente solo cae cuando una piedra la encuentra en el picado: espera el destello verde de sus ojos, adelanta el tiro al vuelo — y si se prende a una oveja, te quedan tres respiros para arrancarla a pedradas.',
       'OTRA NOCHE'
     )
   }, 900)

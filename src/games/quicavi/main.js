@@ -407,7 +407,8 @@ function updateBoat(dt) {
     if (nearBoat && pagesTaken < PAGES_TOTAL) {
       if (lockedPromptFor !== pagesTaken) {
         lockedPromptFor = pagesTaken
-        lockedPrompt = 'el bote está cerrado — faltan ' + (PAGES_TOTAL - pagesTaken) + ' páginas'
+        const left = PAGES_TOTAL - pagesTaken
+        lockedPrompt = left === 1 ? 'el bote está cerrado — falta una página' : 'el bote está cerrado — faltan ' + left + ' páginas'
       }
       ui.prompt(lockedPrompt)
       if (!lockedHintShown) {

@@ -8,6 +8,7 @@ import {
   TRACK_LEN, SLOPE, BANK_X, CHUNK, N_CHUNKS,
   bankY, groundY, microNoise, mulberry32,
 } from './consts.js';
+import { soilTex, woodTex, clothTex, seaTex } from './textures.js';
 
 export function createWorld(container) {
   const scene = new THREE.Scene();
@@ -38,10 +39,17 @@ export function createWorld(container) {
   // ---------- recycled terrain chunks ----------
   const chunks = [];
   const shrubGeo = new THREE.ConeGeometry(1, 1, 5); // unit cone, scaled per shrub
-  const soilA = new THREE.Color(0x332312);   // gouged dark soil
-  const soilB = new THREE.Color(0x23301f);   // mossy banks
+  // colours lifted ~15% to offset the soil texture's sub-white average
+  const soilA = new THREE.Color(0x3c2a16);   // gouged dark soil
+  const soilB = new THREE.Color(0x2a3a25);   // mossy banks
   const gougeC = new THREE.Color(0x140c06);  // torn streaks
   const tmpC = new THREE.Color();
+  // one shared ground material: procedural soil grain as map + self-bump
+  const groundMat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.95, flatShading: true,
+    map: soilTex, bumpMap: soilTex, bumpScale: 0.25,
+  });
+  const shrubMat = new THREE.MeshStandardMaterial({ color: 0x1c2618, roughness: 1, flatShading: true });
 
   for (let ci = 0; ci < N_CHUNKS; ci++) {
     const geo = new THREE.PlaneGeometry(38, CHUNK, 26, 34);
@@ -66,13 +74,11 @@ export function createWorld(container) {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(geo, groundMat);
     scene.add(mesh);
 
     // decor children: rim shrubs/stakes + glowing horn-shaving dust on the soil
     const rng = mulberry32(977 + ci * 131);
-    const shrubMat = new THREE.MeshStandardMaterial({ color: 0x1c2618, roughness: 1, flatShading: true });
     for (let s = 0; s < 9; s++) {
       const side = rng() < 0.5 ? -1 : 1;
       const sx = side * (BANK_X + 1.5 + rng() * 6);
@@ -157,18 +163,20 @@ export function createWorld(container) {
 
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(700, 360),
-    new THREE.MeshStandardMaterial({ color: 0x0a1620, roughness: 0.35, metalness: 0.5, emissive: 0x05121c, emissiveIntensity: 0.7 })
+    new THREE.MeshStandardMaterial({
+      color: 0x0c1a26, roughness: 0.35, metalness: 0.5,
+      emissive: 0x07161f, emissiveIntensity: 0.85,
+      map: seaTex, emissiveMap: seaTex, bumpMap: seaTex, bumpScale: 0.5,
+    })
   );
   sea.rotation.x = -Math.PI / 2;
   sea.position.set(0, seaY - 1.2, -(TRACK_LEN + 190));
   scene.add(sea);
-  const moonpath = new THREE.Mesh(
-    new THREE.PlaneGeometry(9, 300),
-    new THREE.MeshBasicMaterial({
-      color: 0xbcd8e8, transparent: true, opacity: 0.16,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    })
-  );
+  const moonpathMat = new THREE.MeshBasicMaterial({
+    color: 0xbcd8e8, transparent: true, opacity: 0.16,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const moonpath = new THREE.Mesh(new THREE.PlaneGeometry(9, 300), moonpathMat);
   moonpath.rotation.x = -Math.PI / 2;
   moonpath.position.set(14, seaY - 1.1, -(TRACK_LEN + 180));
   scene.add(moonpath);
@@ -216,13 +224,22 @@ export function createWorld(container) {
       calfLegs[i].rotation.x = Math.sin(tVis * 14.8 + i * 1.7) * 0.85;
     }
     calfHornMat.emissiveIntensity = 2.6 + Math.sin(tVis * 2.1) * 1.2;
+    // living water: swell streaks drift shoreward, moonpath breathes
+    seaTex.offset.y = tVis * 0.012; // uniform-only update, no re-upload
+    moonpathMat.opacity = 0.14 + 0.05 * Math.sin(tVis * 0.7);
   }
 
   // ---------- player rig: hunched figure on a wooden sled ----------
   const player = new THREE.Group();
-  const ponchoMat = new THREE.MeshStandardMaterial({ color: 0x5c4c36, roughness: 0.95, flatShading: true });
+  const ponchoMat = new THREE.MeshStandardMaterial({
+    color: 0x67563c, roughness: 0.95, flatShading: true,
+    map: clothTex, bumpMap: clothTex, bumpScale: 0.12,
+  });
   const skinMat = new THREE.MeshStandardMaterial({ color: 0x8a6e52, roughness: 0.9, flatShading: true });
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x4e3a24, roughness: 0.9, flatShading: true });
+  const woodMat = new THREE.MeshStandardMaterial({
+    color: 0x59432a, roughness: 0.9, flatShading: true,
+    map: woodTex, bumpMap: woodTex, bumpScale: 0.2,
+  });
   // a hooded lantern above the sled — a warm moving pool of light
   const lantern = new THREE.PointLight(0xffd9a0, 18, 21, 1.8);
   lantern.position.set(0, 2.2, -0.2);

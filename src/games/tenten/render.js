@@ -1,11 +1,13 @@
 // ============================================================
 // TENTEN Y CAICAI — render.js
-// 2D canvas, isometric stacked diamonds. Everything procedural.
-// All per-frame work is allocation-free: colors, strings,
-// gradients, orders and pools are cached up front.
+// 2D canvas, isometric stacked diamonds.
+// All per-frame work is allocation-free: every texture is baked
+// once at boot — backdrop (painted PNG with a full procedural
+// fallback), 30 land-tile sprites (6 heights × 5 grain variants),
+// a tiling water-sparkle pattern and the serpent's head glow.
 // ============================================================
 
-import { SIZE, idx } from './sim.js';
+import { SIZE, idx, inBounds } from './sim.js';
 
 const VW = 860; // virtual canvas size (scaled to fit window)
 const VH = 600;
@@ -23,6 +25,7 @@ const TOPS = ['#23291f', '#33402c', '#415138', '#566346', '#6e7a52', '#8d9465'];
 const DIGIT_COLOR = 'rgba(232, 220, 192, 0.34)';
 const WATER_FILL = '#0e2c38';
 const WATER_LINE = 'rgba(159, 255, 208, 0.16)';
+const FOAM = 'rgba(214, 255, 236, 0.85)';
 const GLOW = '#9fffd0';
 const BAD = '#c96a5a';
 const VILLAGER_INK = '#e0d6c2';
@@ -32,6 +35,16 @@ function shade(hex, f) {
   const g = Math.round(parseInt(hex.slice(3, 5), 16) * f);
   const b = Math.round(parseInt(hex.slice(5, 7), 16) * f);
   return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+// deterministic boot-time rand for all baked textures
+let seed = 7;
+function srand(s) {
+  seed = s | 0;
+}
+function rnd() {
+  seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+  return seed / 0x7fffffff;
 }
 
 export function createRenderer(canvas) {
@@ -46,6 +59,7 @@ export function createRenderer(canvas) {
   const BX = new Float32Array(N);
   const BY = new Float32Array(N);
   const ORDER = new Int16Array(N);
+  const VARI = new Uint8Array(N); // per-tile grain variant (deterministic)
   {
     let o = 0;
     for (let s = 0; s <= (SIZE - 1) * 2; s++) {
@@ -59,42 +73,326 @@ export function createRenderer(canvas) {
       for (let x = 0; x < SIZE; x++) {
         BX[idx(x, y)] = CX + (x - y) * HW;
         BY[idx(x, y)] = CY + (x + y - 12) * HH;
+        VARI[idx(x, y)] = (x * 7 + y * 13) % 5;
       }
     }
   }
 
-  // --- cached per-tile colors (rebuilt on level load / single raise) ---
-  const topC = new Array(N).fill(TOPS[0]);
-  const leftC = new Array(N).fill(TOPS[0]);
-  const rightC = new Array(N).fill(TOPS[0]);
   const DIGITS = ['0', '1', '2', '3', '4', '5'];
   const PREVIEW = ['0→1', '1→2', '2→3', '3→4', '4→5', '—'];
 
   let simRef = null;
 
-  function cacheTile(i) {
-    const h = simRef ? simRef.heights[i] : 0;
-    // tiny deterministic per-tile variation so the land reads as land
-    const x = i % SIZE;
-    const y = (i / SIZE) | 0;
-    const v = 1 + (((x * 7 + y * 13) % 5) - 2) * 0.022;
-    const base = TOPS[h < 0 ? 0 : h > 5 ? 5 : h];
-    topC[i] = shade(base, v);
-    leftC[i] = shade(base, 0.52 * v);
-    rightC[i] = shade(base, 0.7 * v);
+  // ============================================================
+  // BAKED TEXTURES (all generated once, here, at boot)
+  // ============================================================
+
+  // --- backdrop: procedural night sea painted first; the gpt-image-1
+  //     painting at /assets/tenten/backdrop.png replaces it when (if)
+  //     it loads. Both go through the same readability veil so the
+  //     board always pops. Draw cost per frame: one drawImage.
+  const BWD = 1024;
+  const BHD = 640;
+  const HORIZON = 268;
+  const back = document.createElement('canvas');
+  back.width = BWD;
+  back.height = BHD;
+
+  function paintReadabilityVeil(b) {
+    // dark pool where the island sits + an overall veil
+    const g = b.createRadialGradient(BWD / 2, BHD * 0.6, 70, BWD / 2, BHD * 0.6, 430);
+    g.addColorStop(0, 'rgba(3, 6, 9, 0.5)');
+    g.addColorStop(1, 'rgba(3, 6, 9, 0)');
+    b.fillStyle = g;
+    b.fillRect(0, 0, BWD, BHD);
+    b.fillStyle = 'rgba(4, 7, 10, 0.28)';
+    b.fillRect(0, 0, BWD, BHD);
   }
+
+  function paintProceduralBackdrop() {
+    const b = back.getContext('2d');
+    srand(99173);
+    // sky
+    let g = b.createLinearGradient(0, 0, 0, HORIZON);
+    g.addColorStop(0, '#04070d');
+    g.addColorStop(0.72, '#081424');
+    g.addColorStop(1, '#0d1e2a');
+    b.fillStyle = g;
+    b.fillRect(0, 0, BWD, HORIZON);
+    // sea
+    g = b.createLinearGradient(0, HORIZON, 0, BHD);
+    g.addColorStop(0, '#0c1f2b');
+    g.addColorStop(0.35, '#081421');
+    g.addColorStop(1, '#04080d');
+    b.fillStyle = g;
+    b.fillRect(0, HORIZON, BWD, BHD - HORIZON);
+    // moon + halo (upper right — the tile rim-light agrees with this)
+    const mx = 792;
+    const my = 104;
+    g = b.createRadialGradient(mx, my, 8, mx, my, 170);
+    g.addColorStop(0, 'rgba(232, 220, 192, 0.32)');
+    g.addColorStop(0.28, 'rgba(214, 216, 188, 0.1)');
+    g.addColorStop(1, 'rgba(214, 216, 188, 0)');
+    b.fillStyle = g;
+    b.beginPath();
+    b.arc(mx, my, 170, 0, Math.PI * 2);
+    b.fill();
+    b.fillStyle = '#ddd3b4';
+    b.beginPath();
+    b.arc(mx, my, 33, 0, Math.PI * 2);
+    b.fill();
+    b.fillStyle = 'rgba(168, 162, 138, 0.55)';
+    for (let i = 0; i < 7; i++) {
+      const a = rnd() * Math.PI * 2;
+      const d = rnd() * 24;
+      b.beginPath();
+      b.arc(mx + Math.cos(a) * d, my + Math.sin(a) * d, 1.5 + rnd() * 4, 0, Math.PI * 2);
+      b.fill();
+    }
+    // faint baked stars (the live twinkling ones layer on top)
+    b.fillStyle = 'rgba(190, 205, 198, 0.5)';
+    for (let i = 0; i < 110; i++) {
+      b.globalAlpha = 0.08 + rnd() * 0.3;
+      b.fillRect(rnd() * BWD, rnd() * (HORIZON - 30), rnd() < 0.12 ? 2 : 1, 1);
+    }
+    b.globalAlpha = 1;
+    // distant island silhouettes resting on the horizon
+    b.fillStyle = '#0a161e';
+    b.beginPath();
+    b.moveTo(40, HORIZON);
+    b.quadraticCurveTo(150, HORIZON - 26, 300, HORIZON);
+    b.closePath();
+    b.fill();
+    b.beginPath();
+    b.moveTo(540, HORIZON);
+    b.quadraticCurveTo(640, HORIZON - 16, 760, HORIZON);
+    b.closePath();
+    b.fill();
+    b.fillStyle = '#0c1a23';
+    b.beginPath();
+    b.moveTo(860, HORIZON);
+    b.quadraticCurveTo(950, HORIZON - 20, 1050, HORIZON);
+    b.closePath();
+    b.fill();
+    // moon glint column on the water
+    for (let y = HORIZON + 6; y < BHD - 40; y += 5 + rnd() * 9) {
+      const sp = ((y - HORIZON) / (BHD - HORIZON)) * 130;
+      const wdt = 4 + rnd() * (10 + sp * 0.45);
+      b.globalAlpha = (0.26 - (y - HORIZON) / (BHD - HORIZON) * 0.22) * (0.5 + rnd() * 0.5);
+      b.fillStyle = rnd() < 0.25 ? '#cfe7d2' : '#b9c8ae';
+      b.fillRect(mx - sp / 2 + (rnd() - 0.5) * sp, y, wdt, 1 + (rnd() < 0.2 ? 1 : 0));
+    }
+    b.globalAlpha = 1;
+    // sparse wave hairlines elsewhere
+    b.fillStyle = 'rgba(140, 190, 180, 0.1)';
+    for (let i = 0; i < 60; i++) {
+      const y = HORIZON + 8 + rnd() * (BHD - HORIZON - 30);
+      b.fillRect(rnd() * BWD, y, 8 + rnd() * 36, 1);
+    }
+    // spectral mist hugging the horizon
+    g = b.createLinearGradient(0, HORIZON - 22, 0, HORIZON + 30);
+    g.addColorStop(0, 'rgba(120, 200, 175, 0)');
+    g.addColorStop(0.5, 'rgba(120, 200, 175, 0.07)');
+    g.addColorStop(1, 'rgba(120, 200, 175, 0)');
+    b.fillStyle = g;
+    b.fillRect(0, HORIZON - 22, BWD, 52);
+    paintReadabilityVeil(b);
+  }
+  paintProceduralBackdrop();
+
+  {
+    // painted backdrop: swap in over the procedural one if it loads.
+    // On any failure (404, decode error) the procedural sky simply stays.
+    const img = new Image();
+    img.onload = () => {
+      const b = back.getContext('2d');
+      const s = Math.max(BWD / img.width, BHD / img.height);
+      b.drawImage(img, (BWD - img.width * s) / 2, (BHD - img.height * s) / 2, img.width * s, img.height * s);
+      paintReadabilityVeil(b);
+    };
+    img.src = '/assets/tenten/backdrop.jpg';
+  }
+
+  // --- land tile sprites: 6 heights × 5 variants, grain + strata baked.
+  //     Anchor: (HW+PAD, HH+PAD) is the centre of the TOP diamond.
+  const PAD = 2;
+  const SPR = [];
+  function bakeTile(h, v) {
+    const W = HW * 2 + PAD * 2;
+    const H = HH * 2 + h * TZ + PAD * 2;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const b = c.getContext('2d');
+    const cx = HW + PAD;
+    const cy = HH + PAD; // top diamond centre
+    const by = cy + h * TZ; // base diamond centre
+    const f = 1 + (v - 2) * 0.022;
+    const base = TOPS[h];
+    srand(h * 733 + v * 131 + 17);
+    if (h > 0) {
+      // cliff faces
+      b.fillStyle = shade(base, 0.52 * f);
+      b.beginPath();
+      b.moveTo(cx - HW, cy);
+      b.lineTo(cx, cy + HH);
+      b.lineTo(cx, by + HH);
+      b.lineTo(cx - HW, by);
+      b.closePath();
+      b.fill();
+      b.fillStyle = shade(base, 0.7 * f);
+      b.beginPath();
+      b.moveTo(cx + HW, cy);
+      b.lineTo(cx, cy + HH);
+      b.lineTo(cx, by + HH);
+      b.lineTo(cx + HW, by);
+      b.closePath();
+      b.fill();
+      // everything below lands only on already-painted face pixels
+      b.globalCompositeOperation = 'source-atop';
+      // sediment strata: one dark seam per raised level, following the slope
+      b.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+      b.lineWidth = 1;
+      for (let k = 1; k < h + 1; k++) {
+        const yy = cy + k * TZ - 2 + rnd() * 2;
+        b.beginPath();
+        b.moveTo(cx - HW, yy);
+        b.lineTo(cx, yy + HH);
+        b.lineTo(cx + HW, yy);
+        b.stroke();
+      }
+      // vertical rain-streaks and pale mineral flecks
+      for (let s = 0; s < 8; s++) {
+        const sx = cx - HW + rnd() * HW * 2;
+        const sy = cy + rnd() * (h * TZ);
+        const ln = 3 + rnd() * (TZ * 0.9);
+        b.fillStyle = rnd() < 0.6 ? 'rgba(0, 0, 0, 0.13)' : 'rgba(220, 224, 196, 0.07)';
+        b.fillRect(sx, sy, 1, ln);
+      }
+      // ambient occlusion pooling at the foot of the cliff
+      const ao = b.createLinearGradient(0, by - TZ * 0.8, 0, by + HH);
+      ao.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      ao.addColorStop(1, 'rgba(0, 0, 0, 0.32)');
+      b.fillStyle = ao;
+      b.fillRect(0, by - TZ, W, HH + TZ + PAD);
+      // cool moonlight kiss down the right face edge
+      b.fillStyle = 'rgba(159, 255, 208, 0.05)';
+      b.fillRect(cx + HW - 3, cy, 3, h * TZ);
+      b.globalCompositeOperation = 'source-over';
+    }
+    // top diamond
+    b.fillStyle = shade(base, f);
+    b.beginPath();
+    b.moveTo(cx, cy - HH);
+    b.lineTo(cx + HW, cy);
+    b.lineTo(cx, cy + HH);
+    b.lineTo(cx - HW, cy);
+    b.closePath();
+    b.fill();
+    b.save();
+    b.clip();
+    // grain: speckles + short wind-combed strokes along the iso axes
+    for (let i = 0; i < 30; i++) {
+      const px = cx - HW + rnd() * HW * 2;
+      const py = cy - HH + rnd() * HH * 2;
+      b.fillStyle = rnd() < 0.5 ? 'rgba(0, 0, 0, 0.1)' : 'rgba(236, 240, 208, 0.07)';
+      b.fillRect(px, py, 1 + rnd() * 1.5, 1);
+    }
+    for (let i = 0; i < 7; i++) {
+      const px = cx - HW + rnd() * HW * 2;
+      const py = cy - HH + rnd() * HH * 2;
+      const ln = 3 + rnd() * 6;
+      const dir = rnd() < 0.5 ? 1 : -1;
+      b.strokeStyle = rnd() < 0.5 ? 'rgba(0, 0, 0, 0.09)' : 'rgba(232, 238, 200, 0.07)';
+      b.beginPath();
+      b.moveTo(px, py);
+      b.lineTo(px + ln, py + dir * ln * (HH / HW));
+      b.stroke();
+    }
+    // soft self-shadow toward the lower-left of the top face
+    const ts = b.createLinearGradient(cx + HW * 0.6, cy - HH * 0.6, cx - HW * 0.7, cy + HH * 0.7);
+    ts.addColorStop(0, 'rgba(255, 248, 220, 0.05)');
+    ts.addColorStop(0.55, 'rgba(0, 0, 0, 0)');
+    ts.addColorStop(1, 'rgba(0, 0, 0, 0.12)');
+    b.fillStyle = ts;
+    b.fillRect(cx - HW, cy - HH, HW * 2, HH * 2);
+    b.restore();
+    // grid stroke (kept — puzzle readability) + moonlit rim on the NE edge
+    b.strokeStyle = 'rgba(0, 0, 0, 0.28)';
+    b.lineWidth = 1;
+    b.beginPath();
+    b.moveTo(cx, cy - HH);
+    b.lineTo(cx + HW, cy);
+    b.lineTo(cx, cy + HH);
+    b.lineTo(cx - HW, cy);
+    b.closePath();
+    b.stroke();
+    b.strokeStyle = h > 0 ? 'rgba(232, 220, 192, 0.2)' : 'rgba(232, 220, 192, 0.08)';
+    b.beginPath();
+    b.moveTo(cx, cy - HH);
+    b.lineTo(cx + HW, cy);
+    b.stroke();
+    return c;
+  }
+  for (let h = 0; h <= 5; h++) {
+    SPR[h] = [];
+    for (let v = 0; v < 5; v++) SPR[h][v] = bakeTile(h, v);
+  }
+
+  // --- water sparkle: one tiling canvas, drifted per frame via a
+  //     single cached DOMMatrix (no per-frame allocations)
+  const WPS = 192;
+  const wpc = document.createElement('canvas');
+  wpc.width = WPS;
+  wpc.height = WPS;
+  {
+    const b = wpc.getContext('2d');
+    srand(421);
+    for (let i = 0; i < 150; i++) {
+      b.globalAlpha = 0.05 + rnd() * 0.2;
+      b.fillStyle = rnd() < 0.3 ? '#cfe9da' : '#7fd4cf';
+      b.fillRect(rnd() * WPS, rnd() * WPS, 1 + (rnd() < 0.4 ? rnd() * 2 : 0), 1);
+    }
+    for (let i = 0; i < 22; i++) {
+      b.globalAlpha = 0.06 + rnd() * 0.09;
+      b.fillStyle = '#9fffd0';
+      b.fillRect(rnd() * WPS, rnd() * WPS, 4 + rnd() * 8, 1);
+    }
+    b.globalAlpha = 1;
+  }
+  const waterPat = ctx.createPattern(wpc, 'repeat');
+  const patM = new DOMMatrix();
+
+  // --- serpent head glow sprite ---
+  const headGlow = document.createElement('canvas');
+  headGlow.width = 64;
+  headGlow.height = 64;
+  {
+    const b = headGlow.getContext('2d');
+    const g = b.createRadialGradient(32, 32, 2, 32, 32, 31);
+    g.addColorStop(0, 'rgba(159, 255, 208, 0.5)');
+    g.addColorStop(0.45, 'rgba(159, 255, 208, 0.14)');
+    g.addColorStop(1, 'rgba(159, 255, 208, 0)');
+    b.fillStyle = g;
+    b.fillRect(0, 0, 64, 64);
+  }
+
+  // --- freshly-raised flash stamps (interaction juice) ---
+  const flashT = new Float32Array(N).fill(-9);
 
   function setLevel(sim) {
     simRef = sim;
-    for (let i = 0; i < N; i++) cacheTile(i);
     // a restart starts visually clean
     shakeAmp = 0;
     surgeT = 0;
+    flashT.fill(-9);
     for (let i = 0; i < PN; i++) parts[i].on = false;
   }
 
   function onHeightChanged(x, y) {
-    cacheTile(idx(x, y));
+    // heights live in the sim; sprites index off them directly.
+    // Stamp the tile so the change confirms itself with a brief glow.
+    flashT[idx(x, y)] = animT;
   }
 
   // --- stars (built once, twinkle in place) ---
@@ -199,6 +497,12 @@ export function createRenderer(canvas) {
     }
   }
 
+  // backdrop cover-fit (cached on resize — fills the whole window,
+  // so the letterbox bands around the virtual area are gone)
+  let bkS = 1;
+  let bkX = 0;
+  let bkY = 0;
+
   function resize() {
     dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.round(window.innerWidth * dpr);
@@ -208,6 +512,9 @@ export function createRenderer(canvas) {
     scale = Math.min(window.innerWidth / VW, window.innerHeight / VH);
     offX = (window.innerWidth - VW * scale) / 2;
     offY = (window.innerHeight - VH * scale) / 2;
+    bkS = Math.max(window.innerWidth / BWD, window.innerHeight / BHD);
+    bkX = (window.innerWidth - BWD * bkS) / 2;
+    bkY = (window.innerHeight - BHD * bkS) / 2;
   }
 
   // virtual coords from a pointer event
@@ -295,13 +602,19 @@ export function createRenderer(canvas) {
     [0, 0], [-6, -2], [6, -2], [-6, 3], [6, 3], [0, -6],
   ];
 
+  // true when (x, y) stands dry above the rendered water level
+  function dryAt(x, y, wl) {
+    return inBounds(x, y) && simRef.heights[idx(x, y)] > wl;
+  }
+
   function draw(game, hover) {
     const w = canvas.width / dpr;
     const h = canvas.height / dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // night
+    // night sea backdrop, cover-fit to the whole window
     ctx.fillStyle = '#06090c';
     ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(back, bkX, bkY, BWD * bkS, BHD * bkS);
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * offX, dpr * offY);
     // stars
     ctx.fillStyle = '#aebdb4';
@@ -320,6 +633,11 @@ export function createRenderer(canvas) {
       sy = Math.cos(animT * 53) * shakeAmp * 0.6;
     }
     ctx.translate(sx, sy);
+
+    // drift the water sparkle (one mutation of a cached matrix)
+    patM.e = (animT * 6) % WPS;
+    patM.f = (animT * 2.2) % WPS;
+    waterPat.setTransform(patM);
 
     // Caicai behind the island
     if (sim) drawSerpent(game, true);
@@ -345,37 +663,27 @@ export function createRenderer(canvas) {
         const by = BY[i];
         const hh = heights[i];
         const ty = by - hh * TZ;
-        if (hh > 0) {
-          // faces
-          ctx.fillStyle = leftC[i];
-          ctx.beginPath();
-          ctx.moveTo(bx - HW, ty);
-          ctx.lineTo(bx, ty + HH);
-          ctx.lineTo(bx, by + HH);
-          ctx.lineTo(bx - HW, by);
-          ctx.closePath();
+        // baked sprite: textured top + cliff faces + grid stroke in one blit
+        ctx.drawImage(SPR[hh][VARI[i]], bx - HW - PAD, ty - HH - PAD);
+        // freshly-raised confirmation glow
+        const ft = animT - flashT[i];
+        if (ft >= 0 && ft < 0.45) {
+          ctx.globalAlpha = (1 - ft / 0.45) * 0.3;
+          ctx.fillStyle = GLOW;
+          diamond(bx, ty);
           ctx.fill();
-          ctx.fillStyle = rightC[i];
-          ctx.beginPath();
-          ctx.moveTo(bx + HW, ty);
-          ctx.lineTo(bx, ty + HH);
-          ctx.lineTo(bx, by + HH);
-          ctx.lineTo(bx + HW, by);
-          ctx.closePath();
-          ctx.fill();
+          ctx.globalAlpha = 1;
         }
-        // top
-        ctx.fillStyle = topC[i];
-        diamond(bx, ty);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.28)';
-        ctx.stroke();
         // water over flooded tiles
         if (hh <= wl) {
           const wy = by - (wl + 0.42) * TZ;
           ctx.globalAlpha = 0.66 + 0.07 * Math.sin(animT * 1.4 + x * 0.9 + y * 0.7);
           ctx.fillStyle = WATER_FILL;
           diamond(bx, wy);
+          ctx.fill();
+          // drifting moon-sparkle on the same path
+          ctx.globalAlpha = 0.11 + 0.05 * Math.sin(animT * 1.1 + x * 1.3 - y * 0.8);
+          ctx.fillStyle = waterPat;
           ctx.fill();
           ctx.globalAlpha = 0.35;
           ctx.strokeStyle = WATER_LINE;
@@ -394,6 +702,37 @@ export function createRenderer(canvas) {
           ctx.closePath();
           ctx.fill();
           ctx.globalAlpha = 1;
+          // foam lapping where the water meets dry land (slightly inset so
+          // the neighbour's cliff, drawn later, doesn't swallow the line)
+          const fE = dryAt(x + 1, y, wl);
+          const fS = dryAt(x, y + 1, wl);
+          const fW = dryAt(x - 1, y, wl);
+          const fN = dryAt(x, y - 1, wl);
+          if (fE || fS || fW || fN) {
+            ctx.strokeStyle = FOAM;
+            ctx.lineWidth = 1.2;
+            ctx.globalAlpha = 0.14 + 0.09 * Math.sin(animT * 1.9 + x + y * 1.4);
+            ctx.beginPath();
+            if (fE) {
+              ctx.moveTo(bx + HW * 0.92, wy);
+              ctx.lineTo(bx, wy + HH * 0.92);
+            }
+            if (fS) {
+              ctx.moveTo(bx, wy + HH * 0.92);
+              ctx.lineTo(bx - HW * 0.92, wy);
+            }
+            if (fW) {
+              ctx.moveTo(bx - HW * 0.92, wy);
+              ctx.lineTo(bx, wy - HH * 0.92);
+            }
+            if (fN) {
+              ctx.moveTo(bx, wy - HH * 0.92);
+              ctx.lineTo(bx + HW * 0.92, wy);
+            }
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.lineWidth = 1;
+          }
         } else if (hh > 0) {
           // height digit, very faint — puzzle readability
           ctx.fillStyle = DIGIT_COLOR;
@@ -558,13 +897,32 @@ export function createRenderer(canvas) {
       const isBehind = ey < cy;
       if (isBehind !== behind) continue;
       const r = i === 0 ? 9 : 8 - (i / SEGS) * 5.5;
-      ctx.globalAlpha = (urgent || rising ? 0.75 + 0.25 * Math.sin(animT * 7) : 0.62) * (1 - i / (SEGS * 1.6));
+      const segA = (urgent || rising ? 0.75 + 0.25 * Math.sin(animT * 7) : 0.62) * (1 - i / (SEGS * 1.6));
+      ctx.globalAlpha = segA;
       ctx.fillStyle = i % 4 === 2 ? '#16343b' : '#112730';
       ctx.beginPath();
       ctx.arc(ex, ey, r, 0, Math.PI * 2);
       ctx.fill();
+      // dorsal crest: a small spectral fin on every third segment
+      if (i % 3 === 1 && i < SEGS - 4) {
+        let nx = ex - CX;
+        let ny = ey - cy;
+        const nl = Math.sqrt(nx * nx + ny * ny) || 1;
+        nx /= nl;
+        ny /= nl;
+        ctx.globalAlpha = segA * 0.55;
+        ctx.fillStyle = '#1d4a4a';
+        ctx.beginPath();
+        ctx.moveTo(ex + nx * (r - 1) - ny * 2.4, ey + ny * (r - 1) + nx * 2.4);
+        ctx.lineTo(ex + nx * (r + 5), ey + ny * (r + 5));
+        ctx.lineTo(ex + nx * (r - 1) + ny * 2.4, ey + ny * (r - 1) - nx * 2.4);
+        ctx.closePath();
+        ctx.fill();
+      }
       if (i === 0) {
-        // head: eyes + crest
+        // head: spectral halo + eyes + crest
+        ctx.globalAlpha = urgent || rising ? 0.42 + 0.16 * Math.sin(animT * 7) : 0.2;
+        ctx.drawImage(headGlow, ex - 32, ey - 32);
         ctx.globalAlpha = 1;
         ctx.fillStyle = urgent || rising ? '#d8fff0' : GLOW;
         const la = a + 0.16;

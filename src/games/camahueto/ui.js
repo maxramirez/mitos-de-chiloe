@@ -32,63 +32,79 @@ export function createUI(root) {
   let lastShv = -1;
   let lastLives = -1;
   let flashTO = 0;
+  let closeTO = 0;
 
   const LIVES = ['◇ ◇ ◇', '⟡ ◇ ◇', '⟡ ⟡ ◇', '⟡ ⟡ ⟡']; // index = lives remaining
 
+  // painted card art; if the PNG is missing or fails to decode, the inline
+  // onerror removes the <img> and the card renders in its text-only form.
+  const art = (name, cls) =>
+    `<img class="card-art${cls ? ' ' + cls : ''}" alt="" src="/assets/camahueto/${name}.png" onerror="this.remove()">`;
+
+  function openOverlay() {
+    clearTimeout(closeTO);
+    overlay.classList.remove('closing');
+    overlay.classList.add('open');
+    hud.classList.remove('on');
+  }
+
   function showTitle(onBegin) {
     card.innerHTML = `
+      ${art('card-title')}
       <div class="charm">✦</div>
       <h1 class="game-title">EL CAMAHUETO</h1>
       <div class="game-subtitle">La bajada</div>
       <div class="rule"></div>
-      <p class="intro">For twenty-five years the one-horned calf grew under the hill, and tonight
-      it breaks for the sea, tearing a gully — <i>la quebrada</i> — through soil and stone.
-      Where its golden horn scrapes rock it leaves <i>virutas</i>, shavings the machis grind
-      into remedies worth a winter's wages. Ride the torn earth behind it, gather what
-      gold you can, and do not let the gully throw you.</p>
-      <div class="help">A / D&nbsp;o&nbsp;← → — moverse &nbsp;·&nbsp; espacio — saltar &nbsp;·&nbsp; M — sonido</div>
+      <p class="intro">Veinticinco años creció bajo el cerro el ternero de un solo cuerno, y esta
+      noche rompe hacia el mar, abriendo <i>la quebrada</i> entre tierra y piedra.
+      Donde el cuerno de oro raspa la roca quedan <i>virutas</i>, que las machis muelen
+      en remedios que valen el sueldo de un invierno. Baja por la tierra rota tras él,
+      junta el oro que puedas, y no dejes que la quebrada te bote.</p>
+      <div class="help">A / D&nbsp;o&nbsp;← → moverse &nbsp;·&nbsp; espacio saltar &nbsp;·&nbsp; M sonido</div>
       <button id="begin-btn" class="btn">COMENZAR LA BAJADA</button>`;
-    overlay.classList.add('open');
-    hud.classList.remove('on');
+    openOverlay();
     card.querySelector('#begin-btn').addEventListener('click', onBegin);
   }
 
   function showWin(shavingCount) {
     card.innerHTML = `
+      ${art('card-sea')}
       <div class="charm">✦</div>
       <h1 class="game-title">EL MAR</h1>
       <div class="game-subtitle">Seña reunida</div>
       <div class="rule"></div>
-      <p class="intro">The gully opens and the calf hits the surf in a sheet of silver — gone,
-      out past the kelp to the herds of Millalobo. You stand in the cold foam with
-      <b class="gold">✦ ${shavingCount} virutas de cuerno</b> wrapped in your poncho.
-      Las machis will pay well.</p>
+      <p class="intro">La quebrada se abre y el ternero entra a la rompiente en una lámina de
+      plata — se pierde más allá de los huiros, hacia los rebaños del Millalobo. Quedas
+      de pie en la espuma fría, con <b class="gold">✦ ${shavingCount} virutas de cuerno</b>
+      envueltas en el poncho. Las machis pagarán bien.</p>
       <button id="again-btn" class="btn">OTRA VEZ</button>
       <a class="back" href="/">⌂ volver a los mitos</a>`;
-    overlay.classList.add('open');
-    hud.classList.remove('on');
+    openOverlay();
     card.querySelector('#again-btn').addEventListener('click', () => location.reload());
   }
 
   function showLose(shavingCount) {
     card.innerHTML = `
+      ${art('card-title', 'grim')}
       <div class="charm">✦</div>
       <h1 class="game-title">LA QUEBRADA</h1>
       <div class="game-subtitle">No perdona</div>
       <div class="rule"></div>
-      <p class="intro">Three blows, and the torn earth spat you onto the rocks. Far below, the
-      silver calf met the sea without witnesses, and the tide is already taking the
-      ${shavingCount > 0 ? `<b class="gold">${shavingCount} virutas</b> from your open hands` : 'gold you never gathered'}.
+      <p class="intro">Tres golpes, y la tierra rota te escupió contra las piedras. Allá abajo,
+      el ternero de plata llegó al mar sin testigos, y la marea ya se lleva
+      ${shavingCount > 0 ? `las <b class="gold">${shavingCount} virutas</b> de tus manos abiertas` : 'el oro que nunca juntaste'}.
       <i>La quebrada no perdona.</i></p>
       <button id="again-btn" class="btn">OTRA VEZ</button>
       <a class="back" href="/">⌂ volver a los mitos</a>`;
-    overlay.classList.add('open');
-    hud.classList.remove('on');
+    openOverlay();
     card.querySelector('#again-btn').addEventListener('click', () => location.reload());
   }
 
   function hideOverlay() {
     overlay.classList.remove('open');
+    overlay.classList.add('closing'); // brief fade out instead of a hard cut
+    clearTimeout(closeTO);
+    closeTO = setTimeout(() => overlay.classList.remove('closing'), 480);
     hud.classList.add('on');
   }
 

@@ -40,6 +40,151 @@ function makeGlowTexture() {
   return new THREE.CanvasTexture(c)
 }
 
+// ---- procedural surface textures (built once at boot, cached) ---------------
+// low-contrast streak noise for the water: bumpMap + roughnessMap. Streaks are
+// drawn wrapped at ±size so the canvas tiles without seams.
+function makeWaterTexture() {
+  const s = 256
+  const c = document.createElement('canvas')
+  c.width = c.height = s
+  const g = c.getContext('2d')
+  g.fillStyle = '#7f8488'
+  g.fillRect(0, 0, s, s)
+  for (let i = 0; i < 760; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    const w = 8 + Math.random() * 34
+    const h = 1 + Math.random() * 1.4
+    const a = (0.035 + Math.random() * 0.075).toFixed(3)
+    g.fillStyle = Math.random() > 0.5 ? 'rgba(226,233,238,' + a + ')' : 'rgba(18,28,36,' + a + ')'
+    for (let ox = -s; ox <= s; ox += s)
+      for (let oy = -s; oy <= s; oy += s) g.fillRect(x - w / 2 + ox, y - h / 2 + oy, w, h)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// near-white speckled grain for the sand — multiplies the beach vertex colors
+function makeSandTexture() {
+  const s = 256
+  const c = document.createElement('canvas')
+  c.width = c.height = s
+  const g = c.getContext('2d')
+  g.fillStyle = '#e2ddd1'
+  g.fillRect(0, 0, s, s)
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    const r = 0.5 + Math.random() * 1.1
+    const a = (0.05 + Math.random() * 0.1).toFixed(3)
+    g.fillStyle = Math.random() > 0.42 ? 'rgba(92,78,56,' + a + ')' : 'rgba(255,252,240,' + a + ')'
+    g.fillRect(x, y, r, r)
+  }
+  // broad tonal smudges, drawn wrapped
+  for (let i = 0; i < 36; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    const r = 12 + Math.random() * 26
+    g.fillStyle = Math.random() > 0.5 ? 'rgba(110,96,72,0.045)' : 'rgba(240,236,224,0.05)'
+    for (let ox = -s; ox <= s; ox += s)
+      for (let oy = -s; oy <= s; oy += s) {
+        g.beginPath()
+        g.arc(x + ox, y + oy, r, 0, Math.PI * 2)
+        g.fill()
+      }
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// near-white vertical grain for the lancha and buoy wood — multiplies material color
+function makeWoodTexture() {
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = c.height = s
+  const g = c.getContext('2d')
+  g.fillStyle = '#ded3c1'
+  g.fillRect(0, 0, s, s)
+  for (let i = 0; i < 30; i++) {
+    const x0 = Math.random() * s
+    const dark = Math.random() > 0.3
+    g.strokeStyle = dark
+      ? 'rgba(44,28,14,' + (0.07 + Math.random() * 0.13).toFixed(3) + ')'
+      : 'rgba(252,246,232,' + (0.06 + Math.random() * 0.1).toFixed(3) + ')'
+    g.lineWidth = 0.8 + Math.random() * 1.7
+    const ph = Math.random() * 6.28
+    const amp = 1.5 + Math.random() * 2.5
+    for (let ox = -s; ox <= s; ox += s) {
+      g.beginPath()
+      for (let y = -8; y <= s + 8; y += 6) {
+        const x = x0 + ox + Math.sin(y * 0.05 + ph) * amp
+        if (y === -8) g.moveTo(x, y)
+        else g.lineTo(x, y)
+      }
+      g.stroke()
+    }
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// sparse vertical glints, bright at center column, for the moon's glitter path
+function makeGlitterTexture() {
+  const w = 128
+  const h = 256
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const g = c.getContext('2d')
+  for (let i = 0; i < 420; i++) {
+    const x = Math.random() * w
+    const y = Math.random() * h
+    const edge = Math.abs(x - w / 2) / (w / 2)
+    const fall = Math.pow(Math.max(0, 1 - edge), 2.2)
+    if (fall < 0.05) continue
+    const a = (fall * (0.22 + Math.random() * 0.5)).toFixed(3)
+    const len = 2 + Math.random() * 7
+    g.fillStyle = 'rgba(206,226,243,' + a + ')'
+    const ww = 1 + Math.random() * 1.2
+    g.fillRect(x, y - len / 2, ww, len)
+    g.fillRect(x, y - len / 2 - h, ww, len)
+    g.fillRect(x, y - len / 2 + h, ww, len)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = THREE.ClampToEdgeWrapping
+  t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// pale wisps along the shoreline foam band
+function makeFoamTexture() {
+  const w = 64
+  const h = 256
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const g = c.getContext('2d')
+  for (let i = 0; i < 260; i++) {
+    const x = Math.random() * w
+    const y = Math.random() * h
+    const edge = Math.abs(x - w / 2) / (w / 2)
+    const fall = Math.max(0, 1 - edge * edge * 1.5)
+    const a = (fall * (0.1 + Math.random() * 0.28)).toFixed(3)
+    const len = 4 + Math.random() * 14
+    g.fillStyle = 'rgba(226,236,231,' + a + ')'
+    g.fillRect(x, y, 1.4, len)
+    g.fillRect(x, y - h, 1.4, len)
+    g.fillRect(x, y + h, 1.4, len)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = THREE.ClampToEdgeWrapping
+  t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
 export function createWorld(S) {
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(0x05080b)
@@ -61,11 +206,18 @@ export function createWorld(S) {
   // ---- water --------------------------------------------------------------
   const waterGeo = new THREE.PlaneGeometry(260, 170, 64, 40)
   waterGeo.rotateX(-Math.PI / 2)
+  // streak noise drifts slowly as micro-chop: bump for moonlit glints,
+  // roughness variation for gloss lanes (mid-gray base ≈ original 0.5 gloss)
+  const waterTex = makeWaterTexture()
+  waterTex.repeat.set(7, 4)
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x0e2a36,
     emissive: 0x041318,
-    roughness: 0.5,
+    roughness: 0.85,
     metalness: 0.35,
+    bumpMap: waterTex,
+    bumpScale: 0.045,
+    roughnessMap: waterTex,
     transparent: true,
     opacity: 0.94,
   })
@@ -77,12 +229,51 @@ export function createWorld(S) {
   const wArr = wPos.array
   const nArr = wNor.array
 
+  // moon glitter path — a long additive plane of vertical glints laid on the
+  // swell, following the moon as it slides to the horizon. Vertex colors fade
+  // both ends so the band dissolves into the bay.
+  const glitterTex = makeGlitterTexture()
+  glitterTex.repeat.set(1, 2)
+  const moonPathGeo = new THREE.PlaneGeometry(8.5, 95, 1, 12)
+  moonPathGeo.rotateX(-Math.PI / 2)
+  {
+    const p = moonPathGeo.attributes.position
+    const col = new Float32Array(p.count * 3)
+    for (let i = 0; i < p.count; i++) {
+      const v = p.getZ(i) / 95 + 0.5 // 0 horizon end … 1 near end
+      const k = Math.pow(Math.sin(Math.min(1, Math.max(0, v)) * Math.PI), 0.85)
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = k
+    }
+    moonPathGeo.setAttribute('color', new THREE.BufferAttribute(col, 3))
+  }
+  const moonPathMat = new THREE.MeshBasicMaterial({
+    map: glitterTex,
+    color: 0xaac6de,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.4,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  })
+  const moonPath = new THREE.Mesh(moonPathGeo, moonPathMat)
+  // slanted from under the moon (x≈-40 at the horizon) toward the camera
+  moonPath.position.set(-28, 0.45, -72)
+  moonPath.rotation.y = 0.247
+  moonPath.renderOrder = 1
+  scene.add(moonPath)
+
   // ---- beach (left, diagonal shoreline) -----------------------------------
   // waterline: x = -20 - 0.25*(z+30); sand rises where x < waterline
   const beachGeo = new THREE.PlaneGeometry(95, 120, 28, 34)
   beachGeo.rotateX(-Math.PI / 2)
   {
     const p = beachGeo.attributes.position
+    // vertex colors carry the sand hue (near-white grain map multiplies it):
+    // dry warm sand high up, darker cool wet band hugging the waterline
+    const col = new Float32Array(p.count * 3)
+    const cDry = new THREE.Color(0xbdae8e)
+    const cWet = new THREE.Color(0x59594f)
     for (let i = 0; i < p.count; i++) {
       const wx = p.getX(i) - 48
       const wz = p.getZ(i) - 30
@@ -90,15 +281,49 @@ export function createWorld(S) {
       let h = (waterline - wx) * 0.13
       h += Math.sin(wx * 0.35) * 0.12 + Math.sin(wz * 0.22 + 1.7) * 0.1
       p.setY(i, Math.max(-2.5, Math.min(8, h)))
+      const d = waterline - wx // distance onshore from the waterline
+      let wet = d < 1.2 ? 1 : d > 5.5 ? 0 : 1 - (d - 1.2) / 4.3
+      wet = wet * wet * (3 - 2 * wet) // smoothstep
+      const tone = 1 + (Math.random() - 0.5) * 0.12
+      col[i * 3] = (cDry.r + (cWet.r - cDry.r) * wet) * tone
+      col[i * 3 + 1] = (cDry.g + (cWet.g - cDry.g) * wet) * tone
+      col[i * 3 + 2] = (cDry.b + (cWet.b - cDry.b) * wet) * tone
     }
+    beachGeo.setAttribute('color', new THREE.BufferAttribute(col, 3))
     beachGeo.computeVertexNormals()
   }
+  const sandTex = makeSandTexture()
+  sandTex.repeat.set(6, 8)
   const beach = new THREE.Mesh(
     beachGeo,
-    new THREE.MeshStandardMaterial({ color: 0xa09377, roughness: 1, metalness: 0 })
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      map: sandTex,
+      bumpMap: sandTex,
+      bumpScale: 0.18,
+      roughness: 0.96,
+      metalness: 0,
+    })
   )
   beach.position.set(-48, 0, -30)
   scene.add(beach)
+
+  // foam band breathing along the waterline (x = -20 - 0.25*(z+30))
+  const foamTex = makeFoamTexture()
+  foamTex.repeat.set(1, 8)
+  const foamMat = new THREE.MeshBasicMaterial({
+    map: foamTex,
+    color: 0xd4e2da,
+    transparent: true,
+    opacity: 0.2,
+    depthWrite: false,
+  })
+  const foam = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 110).rotateX(-Math.PI / 2), foamMat)
+  foam.rotation.y = Math.atan2(-0.25, 1) // align with the diagonal shoreline
+  foam.position.set(-20, 0.3, -30)
+  foam.renderOrder = 2
+  scene.add(foam)
 
   // headland / island silhouettes
   const silMat = new THREE.MeshStandardMaterial({ color: 0x0a1116, roughness: 1 })
@@ -155,10 +380,17 @@ export function createWorld(S) {
   scene.add(dawn)
 
   // ---- la lancha ------------------------------------------------------------
+  // grain map is near-white so it multiplies into the plank colors
+  // (base colors brightened to compensate for the ~0.7 map average)
+  const woodTex = makeWoodTexture()
   const boat = new THREE.Group()
   {
-    const wood = new THREE.MeshStandardMaterial({ color: 0x3b2d20, roughness: 0.9 })
-    const woodDark = new THREE.MeshStandardMaterial({ color: 0x2b2017, roughness: 0.95 })
+    const wood = new THREE.MeshStandardMaterial({
+      color: 0x52402e, map: woodTex, bumpMap: woodTex, bumpScale: 0.03, roughness: 0.9,
+    })
+    const woodDark = new THREE.MeshStandardMaterial({
+      color: 0x3d2e21, map: woodTex, bumpMap: woodTex, bumpScale: 0.03, roughness: 0.95,
+    })
     const hull = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.42, 3.2), wood)
     hull.position.y = 0.24
     const flare = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.26, 3.35), wood)
@@ -205,12 +437,14 @@ export function createWorld(S) {
     const g = new THREE.Group()
     const float = new THREE.Mesh(
       new THREE.CylinderGeometry(0.5, 0.42, 0.3, 10),
-      new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.95 })
+      new THREE.MeshStandardMaterial({
+        color: 0x3b2d22, map: woodTex, bumpMap: woodTex, bumpScale: 0.03, roughness: 0.95,
+      })
     )
     float.position.y = 0.12
     const post = new THREE.Mesh(
       new THREE.CylinderGeometry(0.04, 0.04, 1.05, 6),
-      new THREE.MeshStandardMaterial({ color: 0x241c12, roughness: 1 })
+      new THREE.MeshStandardMaterial({ color: 0x342919, map: woodTex, roughness: 1 })
     )
     post.position.y = 0.65
     const lant = new THREE.Mesh(
@@ -367,7 +601,9 @@ export function createWorld(S) {
     fish: { r: 0.85, g: 0.89, b: 0.93, grav: -4.5, life: 1.1, spread: 0.8, up: 3.6 },
     dark: { r: 0.24, g: 0.31, b: 0.28, grav: -0.4, life: 1.3, spread: 0.7, up: 0.7 },
     gold: { r: 1.0, g: 0.85, b: 0.63, grav: -0.3, life: 1.4, spread: 0.9, up: 1.2 },
+    wake: { r: 0.42, g: 0.55, b: 0.6, grav: -3.2, life: 0.55, spread: 0.5, up: 1.1 },
   }
+  let wakeT = 0 // throttle for the lancha's stern wake
   function spawn(x, y, z, dx, dz, kind, count) {
     const k = KINDS[kind]
     for (let n = 0; n < count; n++) {
@@ -439,6 +675,29 @@ export function createWorld(S) {
     boat.rotation.y = Math.atan2(Math.sin(S.boatA), -Math.cos(S.boatA))
     boat.rotation.z = -S.boatV * 0.55 + Math.sin(tVis * 1.7) * 0.035
     boat.rotation.x = Math.sin(tVis * 1.3 + 1) * 0.028
+
+    // stern wake while the lancha slides (throttled, pooled)
+    wakeT -= dt
+    if (wakeT <= 0 && Math.abs(S.boatV) > 0.22) {
+      wakeT = 0.11
+      const ry = boat.rotation.y
+      spawn(
+        boat.position.x - Math.sin(ry) * 1.7,
+        boat.position.y + 0.05,
+        boat.position.z - Math.cos(ry) * 1.7,
+        -Math.sin(ry) * 0.12,
+        -Math.cos(ry) * 0.12,
+        'wake',
+        1
+      )
+    }
+
+    // drifting micro-chop + shoreline foam breathing with the swell
+    waterTex.offset.set(tVis * 0.006, tVis * -0.004)
+    const fw = waveHeight(-20, -30, tVis)
+    foam.position.set(-20 - 0.97 * fw * 0.9, 0.3 + fw * 0.25, -30 - 0.24 * fw * 0.9)
+    foamMat.opacity = 0.13 + 0.09 * (fw / 0.34 + 1) * 0.5
+    foamTex.offset.y = tVis * 0.01
 
     // camera follows gently; small shake
     const shx = S.shake * (Math.sin(tVis * 47) * 0.6 + Math.sin(tVis * 31) * 0.4) * 0.3
@@ -546,11 +805,17 @@ export function createWorld(S) {
     const k = S.timerK // 0 fresh night → 1 dawn
     moon.position.y = 42 - 37 * k
     moonGlow.position.copy(moon.position)
+    // keep the billboard in front of the disc plane — their intersection used
+    // to depth-clip the additive glow into a hard diagonal seam across the moon
+    moonGlow.position.z += 6
     moonLight.intensity = 1.15 - 0.5 * k
     const dawnK = Math.max(0, (k - 0.7) / 0.3)
     dawn.material.opacity = dawnK * 0.55
     scene.background.copy(BG_NIGHT).lerp(BG_DAWN, dawnK)
     starMat.opacity = (0.85 - 0.45 * dawnK) * (0.85 + 0.15 * Math.sin(tVis * 0.7))
+    // glitter path strengthens as the moon drops to a low angle, dies at dawn
+    moonPathMat.opacity = (0.3 + 0.32 * k) * (1 - dawnK * 0.8) + Math.sin(tVis * 2.3) * 0.03
+    glitterTex.offset.y = tVis * 0.02
 
     // particles
     for (let i = 0; i < P_N; i++) {

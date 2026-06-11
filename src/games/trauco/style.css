@@ -76,6 +76,15 @@ body::after {
   0%, 100% { text-shadow: 0 0 7px var(--glow-soft), 0 0 18px var(--glow-faint); }
   50% { text-shadow: 0 0 11px var(--glow-soft), 0 0 30px var(--glow-soft); }
 }
+@keyframes hud-pop {
+  0% { transform: scale(1); color: var(--ink); }
+  25% {
+    transform: scale(1.12);
+    color: var(--glow);
+    text-shadow: 0 0 14px var(--glow-soft), 0 2px 10px rgba(0, 0, 0, 0.9);
+  }
+  100% { transform: scale(1); color: var(--ink); }
+}
 
 /* ============================================================
    Overlays — a page from the storybook
@@ -107,6 +116,29 @@ body::after {
     rgba(3, 8, 7, 0.96) 52%,
     rgba(1, 2, 2, 1) 100%
   );
+}
+
+/* painted backdrop (gpt-image-1) — the .art class is only added by ui.js
+   AFTER the image loads; without it the gradients above are the fallback. */
+.title-overlay.art {
+  background:
+    radial-gradient(
+      ellipse 115% 85% at 50% 40%,
+      rgba(7, 13, 11, 0.45) 0%,
+      rgba(3, 8, 7, 0.78) 55%,
+      rgba(1, 2, 2, 0.97) 100%
+    ),
+    url('/assets/trauco/title.png') center 38% / cover no-repeat rgb(1, 2, 2);
+}
+.end-overlay.art {
+  background:
+    radial-gradient(
+      ellipse 115% 85% at 50% 42%,
+      rgba(8, 14, 12, 0.62) 0%,
+      rgba(4, 9, 8, 0.88) 55%,
+      rgba(1, 3, 3, 0.98) 100%
+    ),
+    url('/assets/trauco/title.png') center 38% / cover no-repeat rgb(1, 2, 2);
 }
 
 .card {
@@ -266,6 +298,10 @@ body::after {
 }
 #vines-hud.visible {
   opacity: 1;
+}
+#vines-hud.pop {
+  animation: hud-pop 0.55s ease-out;
+  transform-origin: 100% 50%;
 }
 
 #hint-hud {

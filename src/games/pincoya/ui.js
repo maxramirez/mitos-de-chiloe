@@ -7,14 +7,14 @@ const STR = {
   title: 'LA PINCOYA',
   subtitle: 'Marea alta',
   intro:
-    'They say the daughter of the Millalobo dances on the cold sand at marea alta, ' +
-    'and the sea watches her the way a dog watches its master. When La Pincoya faces ' +
-    'the water the fish come in silver crowds; when she turns her back to it, the nets ' +
-    'rise empty and the bay goes quiet as a held breath. Fill your hold before the moon ' +
-    'touches the horizon — and do not cast against her back, for the third such net ' +
-    'always tears.',
-  help: 'a / d · deslizar la lancha — espacio · echar la red — m · sonido',
-  begin: 'Begin',
+    'Dicen que la hija del Millalobo danza sobre la arena fría con la marea alta, ' +
+    'y que el mar la mira como un perro mira a su amo. Cuando La Pincoya mira hacia ' +
+    'el agua, los peces llegan en cardúmenes de plata; cuando le da la espalda, las ' +
+    'redes suben vacías y la bahía queda callada como un aliento contenido. Llena la ' +
+    'bodega antes de que la luna toque el horizonte — y no eches la red contra su ' +
+    'espalda, que la tercera siempre se rompe.',
+  help: 'A/D o flechas deslizar la lancha · Espacio echar la red · M sonido',
+  begin: 'Comenzar',
   replay: 'Otra marea',
   toHub: '⌂ volver al archipiélago',
 }

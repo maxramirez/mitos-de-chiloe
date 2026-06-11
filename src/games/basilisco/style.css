@@ -76,6 +76,7 @@ html, body {
 }
 @keyframes ov-in { from { opacity: 0; } }
 .card {
+  position: relative; overflow: hidden;
   max-width: 560px; width: calc(100% - 48px);
   background: linear-gradient(165deg, rgba(16, 24, 28, 0.97), rgba(7, 11, 14, 0.99));
   border: 1px solid var(--line);
@@ -86,6 +87,14 @@ html, body {
   text-align: center;
   animation: card-in 0.7s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
+/* painted backdrop: if the PNG is missing only the gradient shows (same as before) */
+.card::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(165deg, rgba(13, 20, 24, 0.80), rgba(6, 10, 13, 0.93)),
+    url('/assets/basilisco/title.png') center 32% / cover no-repeat;
+}
+.card > * { position: relative; }
 @keyframes card-in { from { opacity: 0; transform: translateY(14px); } }
 .card .charm { color: var(--glow); letter-spacing: 8px; font-size: 15px; opacity: 0.9; }
 .card .game-title {

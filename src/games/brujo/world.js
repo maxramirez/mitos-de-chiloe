@@ -6,6 +6,7 @@
 
 import * as THREE from 'three'
 import { fbm, mulberry32, smooth01, clamp } from './noise.js'
+import { getTextures } from './textures.js'
 
 /* ---- the channel: ~12 islets across ~1.5 km ---- */
 export const ISLETS = [
@@ -127,6 +128,7 @@ export function glowTexture(inner, outer) {
 
 /* ============================================================ */
 export function buildWorld(scene) {
+  const T = getTextures() /* all procedural canvases, generated once */
   scene.background = new THREE.Color(0x06090c)
   scene.fog = new THREE.FogExp2(0x0a141a, 0.0019)
 
@@ -139,9 +141,19 @@ export function buildWorld(scene) {
   /* ---- islets: per-islet displaced planes, vertex colored ---- */
   const cSand = new THREE.Color(0x4c483c)
   const cGrass = new THREE.Color(0x202c24)
+  const cMoss = new THREE.Color(0x1c2f33) /* cold blue-teal moss patches */
   const cRock = new THREE.Color(0x3c4046)
   const tmpC = new THREE.Color()
-  const isletMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true })
+  /* grain canvas as map+bump; vertex colors brightened ~1.4x to repay
+     the mid-gray map multiply, so overall value stays where it was */
+  const isletMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 1,
+    flatShading: true,
+    map: T.ground,
+    bumpMap: T.ground,
+    bumpScale: 0.5,
+  })
   for (const isl of ISLETS) {
     const size = isl.r * 2.3
     const geo = new THREE.PlaneGeometry(size, size, 26, 26)
@@ -155,14 +167,18 @@ export function buildWorld(scene) {
       pos.setY(i, h)
       const t = clamp(h / isl.h, 0, 1)
       if (h < 1.2) tmpC.copy(cSand)
-      else if (t < 0.65) tmpC.copy(cGrass)
+      else if (t < 0.65) tmpC.copy(cGrass).lerp(cMoss, clamp(fbm(wx * 0.026 + 11.3, wz * 0.026 - 5.1, 2) * 1.5 - 0.3, 0, 1))
       else tmpC.copy(cRock)
-      tmpC.multiplyScalar(0.85 + fbm(wx * 0.1, wz * 0.1, 2) * 0.3)
+      tmpC.multiplyScalar(1.2 + fbm(wx * 0.1, wz * 0.1, 2) * 0.42)
       colors[i * 3] = tmpC.r
       colors[i * 3 + 1] = tmpC.g
       colors[i * 3 + 2] = tmpC.b
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    /* world-scale UVs: one grain tile every ~30 m */
+    const uv = geo.attributes.uv
+    const uvScale = size / 30
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * uvScale, uv.getY(i) * uvScale)
     geo.computeVertexNormals()
     const mesh = new THREE.Mesh(geo, isletMat)
     mesh.position.set(isl.x, 0, isl.z)
@@ -195,9 +211,13 @@ export function buildWorld(scene) {
   const crownGeo = new THREE.ConeGeometry(2.1, 7.5, 6)
   crownGeo.translate(0, 6.4, 0)
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x191410, roughness: 1 })
-  const crownMat = new THREE.MeshStandardMaterial({ color: 0x131e16, roughness: 1, flatShading: true })
+  /* white base — each crown gets its own color via instanceColor */
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true })
   const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, treeSpots.length)
   const crowns = new THREE.InstancedMesh(crownGeo, crownMat, treeSpots.length)
+  const cCrownA = new THREE.Color(0x101f15) /* deep forest green */
+  const cCrownB = new THREE.Color(0x1e3326) /* mossier, lighter */
+  const cCrownC = new THREE.Color(0x16313a) /* cold moonlit teal */
   const m4 = new THREE.Matrix4()
   const q = new THREE.Quaternion()
   const eul = new THREE.Euler()
@@ -212,7 +232,10 @@ export function buildWorld(scene) {
     m4.compose(vP, q, vS)
     trunks.setMatrixAt(i, m4)
     crowns.setMatrixAt(i, m4)
+    tmpC.copy(cCrownA).lerp(rng() < 0.3 ? cCrownC : cCrownB, rng())
+    crowns.setColorAt(i, tmpC)
   }
+  if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true
   scene.add(trunks, crowns)
 
   /* ---- one hut + warm window light per islet ---- */
@@ -242,7 +265,15 @@ export function buildWorld(scene) {
   }
 
   /* ---- rock arches over rings 4 and 9 ---- */
-  const rockMat = new THREE.MeshStandardMaterial({ color: 0x33373d, roughness: 1, flatShading: true })
+  /* base lifted ~1.4x to repay the mid-gray strata map multiply */
+  const rockMat = new THREE.MeshStandardMaterial({
+    color: 0x4a4f57,
+    roughness: 1,
+    flatShading: true,
+    map: T.rock,
+    bumpMap: T.rock,
+    bumpScale: 0.6,
+  })
   for (const r of RINGS) {
     if (!r.arch) continue
     const grp = new THREE.Group()
@@ -268,11 +299,13 @@ export function buildWorld(scene) {
   waterGeo.attributes.position.setUsage(THREE.DynamicDrawUsage)
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x0a2226,
-    roughness: 0.55,
+    roughness: 0.5,
     metalness: 0.25,
     transparent: true,
     opacity: 0.92,
     emissive: 0x041014,
+    bumpMap: T.sparkle /* pinprick glints under the moonlight */,
+    bumpScale: 0.6,
   })
   const water = new THREE.Mesh(waterGeo, waterMat)
   water.position.y = 0
@@ -300,7 +333,7 @@ export function buildWorld(scene) {
   const moonGroup = new THREE.Group()
   const moonDisc = new THREE.Mesh(
     new THREE.CircleGeometry(66, 40),
-    new THREE.MeshBasicMaterial({ color: 0xf4ecd8, fog: false })
+    new THREE.MeshBasicMaterial({ map: T.moon, fog: false })
   )
   const moonHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('rgba(244,236,216,0.5)', 'rgba(244,236,216,0)'), transparent: true, opacity: 0.85, fog: false, depthWrite: false }))
   moonHalo.scale.setScalar(340)
@@ -313,6 +346,38 @@ export function buildWorld(scene) {
   moonAz.x /= azl
   moonAz.z /= azl
 
+  /* ---- moonglade: glitter lane on the water toward the moon.
+     Vertex colors fade it in toward the horizon; opacity follows
+     the moon's progress, so the lane itself reads as the timer. ---- */
+  const glitGeo = new THREE.PlaneGeometry(54, 1250, 1, 12)
+  glitGeo.rotateX(-Math.PI / 2)
+  {
+    const gp = glitGeo.attributes.position
+    const gc = new Float32Array(gp.count * 3)
+    for (let i = 0; i < gp.count; i++) {
+      const t = clamp(gp.getZ(i) / 1250 + 0.5, 0, 1) /* local +z → toward moon */
+      const b = 0.1 + 0.9 * Math.pow(t, 1.5)
+      gc[i * 3] = b
+      gc[i * 3 + 1] = b
+      gc[i * 3 + 2] = b * 0.93 /* a hair warm, like the disc */
+    }
+    glitGeo.setAttribute('color', new THREE.BufferAttribute(gc, 3))
+  }
+  const glitMat = new THREE.MeshBasicMaterial({
+    map: T.glitter,
+    transparent: true,
+    opacity: 0.3,
+    vertexColors: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  })
+  const glitter = new THREE.Mesh(glitGeo, glitMat)
+  glitter.position.set(moonAz.x * 320, 0.75, moonAz.z * 320) /* above ripple peaks */
+  glitter.rotation.y = Math.atan2(moonAz.x, moonAz.z)
+  glitter.renderOrder = 2 /* always composited after the water plane */
+  scene.add(glitter)
+
   /* p = fraction of night remaining (1 → 0). Elevation 13° → -2.5°. */
   function setMoonProgress(p) {
     const elev = (-2.5 + 15.5 * p) * (Math.PI / 180)
@@ -322,6 +387,7 @@ export function buildWorld(scene) {
     moonDisc.lookAt(0, 0, 0)
     moonLight.position.set(moonAz.x * 300, Math.max(20, y * 0.25 + 40), moonAz.z * 300)
     moonLight.intensity = 0.5 + clamp(p, 0, 1) * 1.1
+    glitMat.opacity = 0.34 * Math.pow(clamp(p, 0, 1), 0.8) /* lane dies with the moon */
     return moonGroup.position
   }
   setMoonProgress(1)
@@ -329,6 +395,9 @@ export function buildWorld(scene) {
   let waterAcc = 1 /* force a first ripple pass */
   function update(t, dt) {
     stars.rotation.y = t * 0.0024
+    /* live micro-shimmer: scroll the bump/glint tiles (uniform-only, free) */
+    T.sparkle.offset.set(t * 0.012, t * 0.009)
+    T.glitter.offset.y = t * -0.05
     /* throttle the CPU ripple pass — the slow shimmer reads the same at ~25 Hz */
     waterAcc += dt
     if (waterAcc < 0.04) return
@@ -351,7 +420,16 @@ export function buildWorld(scene) {
 export function createBrujo() {
   const group = new THREE.Group()
   const skin = new THREE.MeshStandardMaterial({ color: 0x1a1612, roughness: 0.9 })
-  const macun = new THREE.MeshStandardMaterial({ color: 0x241b14, roughness: 0.85, side: THREE.DoubleSide, emissive: 0x9fffd0, emissiveIntensity: 0.018 })
+  /* the flayed-skin vest gets a faint leather grain (bump only) */
+  const macun = new THREE.MeshStandardMaterial({
+    color: 0x241b14,
+    roughness: 0.85,
+    side: THREE.DoubleSide,
+    emissive: 0x9fffd0,
+    emissiveIntensity: 0.018,
+    bumpMap: getTextures().leather,
+    bumpScale: 0.05,
+  })
 
   const body = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.1, 7), skin)
   body.rotation.x = Math.PI / 2 /* cone tip points +z = direction of flight */

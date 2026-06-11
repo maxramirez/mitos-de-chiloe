@@ -133,11 +133,115 @@ function faceTexture() {
   return tex
 }
 
+// matted wet hide — dark base with directional clumped strokes and a few
+// mange-pale patches. Visual only (Math.random, never the sim rng). The same
+// canvas doubles as bumpMap: three samples the red channel, and the stroke
+// value variation gives the clumps real relief under the candle.
+function hideTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')
+  g.fillStyle = '#2b211a'
+  g.fillRect(0, 0, 256, 256)
+  // mange patches (worn skin showing through)
+  for (let i = 0; i < 7; i++) {
+    const x = Math.random() * 256
+    const y = Math.random() * 256
+    const r = 14 + Math.random() * 26
+    const grad = g.createRadialGradient(x, y, 2, x, y, r)
+    grad.addColorStop(0, 'rgba(92,74,56,0.5)')
+    grad.addColorStop(1, 'rgba(92,74,56,0)')
+    g.fillStyle = grad
+    g.beginPath()
+    g.arc(x, y, r, 0, 6.3)
+    g.fill()
+  }
+  // clumped strokes, loosely vertical — wet fur drag
+  for (let i = 0; i < 540; i++) {
+    const x = Math.random() * 256
+    const y = Math.random() * 256
+    const len = 6 + Math.random() * 18
+    const lean = (Math.random() - 0.5) * 0.7
+    const v = 18 + Math.random() * 48
+    g.strokeStyle = 'rgba(' + (v + 14) + ',' + (v + 4) + ',' + v + ',' + (0.25 + Math.random() * 0.4).toFixed(2) + ')'
+    g.lineWidth = 0.8 + Math.random() * 1.6
+    g.beginPath()
+    g.moveTo(x, y)
+    g.quadraticCurveTo(x + lean * len * 0.6, y + len * 0.5, x + lean * len, y + len)
+    g.stroke()
+  }
+  // sparse wet glints
+  for (let i = 0; i < 50; i++) {
+    g.fillStyle = 'rgba(120,110,95,' + (0.12 + Math.random() * 0.2).toFixed(2) + ')'
+    g.fillRect(Math.random() * 256, Math.random() * 256, 1.4, 2.6)
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+// sickly mottled skin for the head — pale blotches, faint veins.
+function skinTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')
+  g.fillStyle = '#6e5c49'
+  g.fillRect(0, 0, 128, 128)
+  for (let i = 0; i < 70; i++) {
+    const warm = Math.random() > 0.5
+    g.fillStyle = warm
+      ? 'rgba(130,108,84,' + (0.1 + Math.random() * 0.2).toFixed(2) + ')'
+      : 'rgba(52,42,33,' + (0.1 + Math.random() * 0.22).toFixed(2) + ')'
+    g.save()
+    g.translate(Math.random() * 128, Math.random() * 128)
+    g.scale(1, 0.5 + Math.random())
+    g.beginPath()
+    g.arc(0, 0, 3 + Math.random() * 11, 0, 6.3)
+    g.fill()
+    g.restore()
+  }
+  // faint veins
+  g.strokeStyle = 'rgba(58,52,58,0.35)'
+  g.lineWidth = 1
+  for (let i = 0; i < 9; i++) {
+    let x = Math.random() * 128
+    let y = Math.random() * 128
+    g.beginPath()
+    g.moveTo(x, y)
+    for (let s = 0; s < 4; s++) {
+      x += (Math.random() - 0.5) * 26
+      y += (Math.random() - 0.5) * 26
+      g.lineTo(x, y)
+    }
+    g.stroke()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
 export function createInvunche(wall, rng, startCx, startCz) {
   // ---------- body (faces +z; +z is its direction of travel) ----------
   const group = new THREE.Group()
-  const hide = new THREE.MeshStandardMaterial({ color: 0x271d16, roughness: 0.95 })
-  const skin = new THREE.MeshStandardMaterial({ color: 0x71604d, roughness: 0.9 })
+  const hideTex = hideTexture()
+  const skinTex = skinTexture()
+  const hide = new THREE.MeshStandardMaterial({
+    map: hideTex,
+    bumpMap: hideTex,
+    bumpScale: 0.5,
+    color: 0xc9bcae, // multiplies the dark map back toward its old key
+    roughness: 0.82,
+    metalness: 0.04,
+  })
+  const skin = new THREE.MeshStandardMaterial({
+    map: skinTex,
+    bumpMap: skinTex,
+    bumpScale: 0.25,
+    color: 0xfff6ea,
+    roughness: 0.74,
+  })
 
   const torso = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), hide)
   torso.scale.set(0.92, 1.3, 0.72)

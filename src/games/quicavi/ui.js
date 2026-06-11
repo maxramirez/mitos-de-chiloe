@@ -8,23 +8,23 @@ const STRINGS = {
   title: 'EL BRUJO DE QUICAVÍ',
   epithet: 'Las siete páginas',
   intro:
-    'In Quicaví the brujos keep their pact written on seven pages of skin-' +
-    'parchment — esta noche están clavadas a los árboles del bosque negro. ' +
-    'Pull all seven free and the rowboat at the fence will carry you out, ' +
-    'toward la luz de la costa. But something keeps the pages: no camina, ' +
-    'it is simply there when you turn — and looking at it too long lets it in.',
-  controls: 'wasd — walk · shift — run · mouse / arrows — look · e / click — take · m — silence',
-  begin: 'BEGIN',
+    'En Quicaví los brujos guardan su pacto escrito en siete páginas de ' +
+    'pergamino de piel — esta noche están clavadas a los árboles del bosque ' +
+    'negro. Arranca las siete y el bote junto al cerco te sacará de aquí, ' +
+    'hacia la luz de la costa. Pero algo cuida las páginas: no camina, ' +
+    'simplemente está ahí cuando te das vuelta — y mirarlo demasiado lo deja entrar.',
+  controls: 'WASD moverse · mouse o flechas mirar · Shift correr · E o clic tomar · M sonido',
+  begin: 'COMENZAR',
   won: {
     charm: '✦',
     title: 'EL CANAL TE SUELTA',
     sub: 'siete de siete',
     body:
-      'The hull grinds off the shingle and the black water of the canal takes ' +
-      'you, cold and certain. Behind you the forest stands very still — every ' +
-      'tree holding its shape a little too carefully. Las siete páginas weigh ' +
-      'nothing in your coat, y el brujo de Quicaví se queda sin su pacto. ' +
-      'Tonight, the channel lets you go.',
+      'El casco raspa el pedregal y el agua negra del canal te recibe, fría y ' +
+      'segura. A tu espalda el bosque se queda muy quieto — cada árbol ' +
+      'sosteniendo su forma con demasiado cuidado. Las siete páginas no pesan ' +
+      'nada en tu abrigo, y el brujo de Quicaví se queda sin su pacto. ' +
+      'Esta noche, el canal te deja ir.',
     charms: '✦ ✦ ✦ ✦ ✦ ✦ ✦',
     btn: 'VOLVER A LA ISLA',
   },
@@ -33,11 +33,11 @@ const STRINGS = {
     title: 'LA MIRADA',
     sub: 'lo miraste demasiado',
     body:
-      'The static was him, climbing in through your eyes — el que mira al ' +
-      'brujo le abre la puerta. The farol rolls into the wet leaves and goes ' +
-      'out, and seven pages fly back to their trees like birds. Whoever finds ' +
-      'the lantern will not find you. No lo mires: count the pages, and keep ' +
-      'walking.',
+      'La estática era él, entrando por tus ojos — el que mira al brujo le ' +
+      'abre la puerta. El farol rueda entre las hojas mojadas y se apaga, y ' +
+      'siete páginas vuelven volando a sus árboles como pájaros. Quien ' +
+      'encuentre el farol no te encontrará a ti. No lo mires: cuenta las ' +
+      'páginas, y sigue caminando.',
     charms: '',
     btn: 'OTRA NOCHE',
   },

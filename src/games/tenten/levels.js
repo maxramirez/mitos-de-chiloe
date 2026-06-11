@@ -13,7 +13,7 @@ export const LEVELS = [
     id: 1,
     name: 'LA LOMA',
     epithet: 'la zanja que dejó el rayo',
-    note: 'A kind round hill — but a drowned ditch rings the summit, and one family waits across the eastern shallows. Raise stepping stones before Caicai closes the door.',
+    note: 'Una loma redonda y mansa — pero una zanja ahogada rodea la cumbre, y una familia espera al otro lado del bajío del este. Alza pasos de piedra antes de que Caicai cierre la puerta.',
     map: [
       '0000001000000',
       '0000012100000',
@@ -52,7 +52,7 @@ export const LEVELS = [
     id: 2,
     name: 'LOS DOS BRAZOS',
     epithet: 'el canal partido',
-    note: 'Two arms of land, both broken — a drowned gap on the west, a sheer cliff on the east. Three families on each.',
+    note: 'Dos brazos de tierra, ambos quebrados: un vacío ahogado al oeste, un farellón a pique al este. Tres familias en cada uno.',
     map: [
       '0000000000000',
       '0001234321000',
@@ -92,7 +92,7 @@ export const LEVELS = [
     id: 3,
     name: 'EL ANILLO',
     epithet: 'la laguna ciega',
-    note: 'A ring of land around a blind lagoon. The south shore is cut off and low — the only road home is the one you raise through the water.',
+    note: 'Un anillo de tierra en torno a una laguna ciega. La costa sur quedó cortada y baja: el único camino de vuelta es el que tú alzas a través del agua.',
     map: [
       '0000001000000',
       '0000023200000',

@@ -3,7 +3,16 @@
 // 7 quilineja vines, the exit gate (two leaning trunks under a wisp),
 // moon + fog + environment lights. Also owns the 2D collision / line-of-sight
 // queries against tree trunks (allocation-free: shared result object).
+// Surfaces carry procedural CanvasTextures (textures.js, generated once at
+// boot): forest-floor mottle + bump, bark grain + bump, foliage mottle, and
+// a ring of drifting ground-mist sprites animated in update().
 import * as THREE from 'three'
+import {
+  makeGroundTextures,
+  makeBarkTextures,
+  makeFoliageTexture,
+  makeMistTexture,
+} from './textures.js'
 
 // ---------- deterministic value noise ----------
 function hash2(ix, iz) {
@@ -50,6 +59,12 @@ function makeGlowTexture() {
 export function buildWorld(scene, rng) {
   const PLAY_R = 60.5
   const GATE_R = 58
+
+  // ---------- procedural textures (one-time boot cost, cached for life) ----------
+  const groundTex = makeGroundTextures(26) // ~10 m per tile over the 260 m plane
+  const barkTex = makeBarkTextures()
+  const foliageTex = makeFoliageTexture()
+  const mistTex = makeMistTexture()
 
   scene.background = new THREE.Color(0x050a10)
   scene.fog = new THREE.FogExp2(0x050a10, 0.034)
@@ -170,7 +185,13 @@ export function buildWorld(scene, rng) {
   groundGeo.computeVertexNormals()
   const ground = new THREE.Mesh(
     groundGeo,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })
+    new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 1,
+      map: groundTex.map, // near-white mottle — modulates the vertex colors
+      bumpMap: groundTex.bumpMap,
+      bumpScale: 0.5, // leaf-litter relief the hand-lantern can rake across
+    })
   )
   scene.add(ground)
 
@@ -187,13 +208,25 @@ export function buildWorld(scene, rng) {
 
   const trunkGeo = new THREE.CylinderGeometry(0.55, 0.75, 1, 7)
   trunkGeo.translate(0, 0.5, 0)
-  const barkMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true })
+  const barkMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 1,
+    flatShading: true,
+    map: barkTex.map, // vertical grain — modulates the per-instance tints
+    bumpMap: barkTex.bumpMap,
+    bumpScale: 0.4,
+  })
   const trunks = new THREE.InstancedMesh(trunkGeo, barkMat, nPlay + nWall)
   trunks.frustumCulled = false
 
   const folGeo = new THREE.ConeGeometry(1, 1, 7)
   folGeo.translate(0, 0.5, 0)
-  const folMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true })
+  const folMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 1,
+    flatShading: true,
+    map: foliageTex, // needle-clump mottle breaks the flat cone faces
+  })
   const foliage = new THREE.InstancedMesh(folGeo, folMat, cypCount * 2)
   foliage.frustumCulled = false
 
@@ -258,7 +291,10 @@ export function buildWorld(scene, rng) {
   const gateGrp = new THREE.Group()
   gateGrp.position.set(gate.x, terrainHeight(gate.x, gate.z), gate.z)
   gateGrp.rotation.y = gateAng
-  const gateWood = new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 1, flatShading: true })
+  const gateWood = new THREE.MeshStandardMaterial({
+    color: 0x4a3826, roughness: 1, flatShading: true,
+    map: barkTex.map, bumpMap: barkTex.bumpMap, bumpScale: 0.4,
+  })
   const gateTrunkGeo = new THREE.CylinderGeometry(0.26, 0.4, 9, 7)
   gateTrunkGeo.translate(0, 4.5, 0)
   const gtL = new THREE.Mesh(gateTrunkGeo, gateWood)
@@ -297,7 +333,10 @@ export function buildWorld(scene, rng) {
   })
   const stumpGeo = new THREE.CylinderGeometry(0.2, 0.27, 1.4, 7)
   stumpGeo.translate(0, 0.7, 0)
-  const stumpMat = new THREE.MeshStandardMaterial({ color: 0x3a332a, roughness: 1, flatShading: true })
+  const stumpMat = new THREE.MeshStandardMaterial({
+    color: 0x3a332a, roughness: 1, flatShading: true,
+    map: barkTex.map, bumpMap: barkTex.bumpMap, bumpScale: 0.35,
+  })
   const vineSpriteMat = new THREE.SpriteMaterial({
     map: glowTex, color: 0x9fffd0, transparent: true, opacity: 0.45, depthWrite: false,
   })
@@ -315,6 +354,42 @@ export function buildWorld(scene, rng) {
     g.add(spr)
     scene.add(g)
     vineGroups.push(g)
+  }
+
+  // ---------- drifting ground-mist (visible fog, not just FogExp2) ----------
+  // 14 wide soft sprites on slow circular drifts; 3 shared materials so the
+  // layer breathes at three depths. All motion is allocation-free in update().
+  const MIST_N = 14
+  const mistMats = [
+    new THREE.SpriteMaterial({ map: mistTex, color: 0x9fb4ad, transparent: true, opacity: 0.16, depthWrite: false }),
+    new THREE.SpriteMaterial({ map: mistTex, color: 0x8da6a4, transparent: true, opacity: 0.12, depthWrite: false }),
+    new THREE.SpriteMaterial({ map: mistTex, color: 0xa8bdb2, transparent: true, opacity: 0.09, depthWrite: false }),
+  ]
+  const mistSprites = []
+  const mistBX = new Float32Array(MIST_N)
+  const mistBY = new Float32Array(MIST_N)
+  const mistBZ = new Float32Array(MIST_N)
+  const mistPh = new Float32Array(MIST_N)
+  const mistAmp = new Float32Array(MIST_N)
+  const mistSpd = new Float32Array(MIST_N)
+  for (let i = 0; i < MIST_N; i++) {
+    const a = rng() * Math.PI * 2
+    const r = 16 + rng() * 38
+    const x = Math.sin(a) * r
+    const z = Math.cos(a) * r
+    const spr = new THREE.Sprite(mistMats[i % 3])
+    const w = 15 + rng() * 11
+    spr.scale.set(w, 4.5 + rng() * 3, 1)
+    mistBX[i] = x
+    mistBZ[i] = z
+    mistBY[i] = terrainHeight(x, z) + 1.5 + rng() * 0.8
+    mistPh[i] = rng() * Math.PI * 2
+    mistAmp[i] = 2.5 + rng() * 3.5
+    mistSpd[i] = 0.05 + rng() * 0.05
+    spr.position.set(x, mistBY[i], z)
+    spr.renderOrder = 2
+    scene.add(spr)
+    mistSprites.push(spr)
   }
 
   // ---------- collision + line of sight (play trees only) ----------
@@ -384,6 +459,19 @@ export function buildWorld(scene, rng) {
     const s = (gateExcited ? 5.4 : 3.2) + Math.sin(t * 3.1) * 0.3
     wispSprite.scale.set(s, s, 1)
     wispGrp.position.y = 5.2 + Math.sin(t * 1.3) * 0.25
+
+    // ground-mist drift: slow circular wander + breathing opacity
+    for (let i = 0; i < MIST_N; i++) {
+      const spr = mistSprites[i]
+      const ph = mistPh[i]
+      const w = t * mistSpd[i]
+      spr.position.x = mistBX[i] + Math.sin(w + ph) * mistAmp[i]
+      spr.position.z = mistBZ[i] + Math.cos(w * 0.8 + ph * 1.7) * mistAmp[i]
+      spr.position.y = mistBY[i] + Math.sin(t * 0.17 + ph) * 0.35
+    }
+    mistMats[0].opacity = 0.13 + 0.05 * Math.sin(t * 0.21)
+    mistMats[1].opacity = 0.10 + 0.04 * Math.sin(t * 0.27 + 2.1)
+    mistMats[2].opacity = 0.075 + 0.035 * Math.sin(t * 0.16 + 4.2)
   }
 
   return {

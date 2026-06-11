@@ -8,25 +8,25 @@ const S = {
   title: 'EL VUELO DEL BRUJO',
   subtitle: 'Macuñ',
   intro:
-    'In Quicaví the brujos keep a vest of human skin — the macuñ — and whoever ' +
-    'wears it may ride the night air. Tonight the reunión convenes across the channel, ' +
-    'and the door of the cueva opens only while the moon is above the water. ' +
-    'Thread the twelve anillos de luz before la luna se hunde — or fall, and the macuñ tears.',
-  help: 'ratón o flechas · volar — w · impulso — s · frenar — m · sonido',
+    'En Quicaví los brujos guardan un chaleco de piel humana —el macuñ— y quien ' +
+    'lo viste puede andar el aire de la noche. Esta noche la reunión se junta al otro ' +
+    'lado del canal, y la puerta de la cueva se abre solo mientras la luna sigue sobre el agua. ' +
+    'Atraviesa los doce anillos de luz antes de que la luna se hunda; si caes, el macuñ se rasga.',
+  help: 'mouse o flechas volar · W impulso · S frenar · M sonido',
   begin: 'PONTE EL MACUÑ',
   winTitle: 'LA REUNIÓN',
   winText:
-    'The twelfth ring closes behind you like a held breath released. Below, on the black ' +
-    'shore of Quicaví, a door that is also a stone swings open — la reunión te espera. ' +
-    'You fold the night air and descend. The macuñ, warm against your ribs, has carried you home.',
+    'El duodécimo anillo se cierra a tu espalda como un aliento contenido que al fin se suelta. ' +
+    'Abajo, en la orilla negra de Quicaví, se abre una puerta que también es piedra: la reunión te espera. ' +
+    'Pliegas el aire de la noche y desciendes. El macuñ, tibio contra tus costillas, te ha traído a casa.',
   loseMoon:
-    'La luna se hunde, and the channel goes dark from one end to the other. ' +
-    'Without her light the macuñ is only skin, and skin does not fly. ' +
-    'Somewhere below, the water accepts you quietly.',
+    'La luna se hunde y el canal se apaga de punta a punta. ' +
+    'Sin su luz el macuñ es solo piel, y la piel no vuela. ' +
+    'En alguna parte, abajo, el agua te recibe sin ruido.',
   loseTorn:
-    'The third fall is the one the macuñ does not forgive. The seams of skin split ' +
-    'mid-air — se rasga el macuñ — and the night lets go of you. ' +
-    'The brujos will find another wearer. They always do.',
+    'La tercera caída es la que el macuñ no perdona. Las costuras de piel se abren ' +
+    'en pleno vuelo —se rasga el macuñ— y la noche te suelta. ' +
+    'Los brujos encontrarán a otro que lo vista. Siempre lo hacen.',
   replay: 'VOLAR DE NUEVO',
 }
 

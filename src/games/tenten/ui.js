@@ -10,17 +10,17 @@ import { NEED_SAVED, LOSE_LOST } from './sim.js';
 const ROMAN = ['I', 'II', 'III'];
 
 const INTRO =
-  'When the world was young, <em>Caicai Vilu</em>, serpent of the sea, rose in fury to drown ' +
-  'the land and everyone who walked it. Against her climbed <em>Tenten Vilu</em>, serpent of ' +
-  'the earth, lifting the hills tile by tile so la gente could reach her light. Those the ' +
-  'water touched were not drowned — they were changed, into lobos marinos and fish, and they ' +
-  'forgot their names.';
+  'Cuando el mundo era joven, <em>Caicai Vilu</em>, serpiente del mar, se alzó furiosa para ' +
+  'ahogar la tierra y a cuantos la caminaban. Contra ella subió <em>Tenten Vilu</em>, ' +
+  'serpiente de la tierra, levantando los cerros terrón a terrón para que la gente alcanzara ' +
+  'su luz. A los que el agua tocó no los ahogó: los cambió, en lobos marinos y en peces, ' +
+  'y olvidaron sus nombres.';
 
-const HELP = 'click · raise the land (3 per turn) — then the people walk · U undo · enter end turn · M silence';
+const HELP = 'clic alzar la tierra (3 por turno) · luego la gente camina · U deshacer · Enter terminar turno · M sonido';
 
 const LOSE_TEXT = {
-  gente: 'Too many names were taken. The ones who reached the water’s edge are seals now — they watch the island from the swells, and they do not remember why.',
-  cumbre: 'The sea closed over the summit and Tenten’s light went out beneath it. Caicai keeps what she covers.',
+  gente: 'Demasiados nombres fueron tomados. Los que llegaron al borde del agua ahora son lobos marinos: miran la isla desde la marejada y no recuerdan por qué.',
+  cumbre: 'El mar se cerró sobre la cumbre y la luz de Tenten se apagó debajo. Lo que Caicai cubre, Caicai lo guarda.',
 };
 
 export function createUI(root, handlers) {
@@ -161,7 +161,7 @@ export function createUI(root, handlers) {
     }
     const noteEl = el('p', 'level-note', LEVELS[selected - 1].note);
     const help = el('p', 'help', HELP);
-    const begin = el('button', 'btn', 'BEGIN');
+    const begin = el('button', 'btn', 'COMENZAR');
     begin.addEventListener('click', () => handlers.onBegin());
     titleCard.append(lvlRow, noteEl, help, begin);
     titleOv.style.display = 'flex';
@@ -173,13 +173,13 @@ export function createUI(root, handlers) {
     const sub = isFinal ? 'la serpiente del mar se repliega' : LEVELS[level - 1].epithet;
     let body;
     if (isFinal) {
-      body = 'Three islands held. The water fell back grumbling into the channels, and on every ' +
-        'summit a light kept burning. The people came down slowly, counting each other, ' +
-        'saying their own names out loud — <em>' + saved + ' reached the light</em>' +
-        (lost ? ', and ' + lost + ' watch from the sea, sleek and changed, not unhappy' : '') + '.';
+      body = 'Tres islas resistieron. El agua retrocedió rezongando hacia los canales, y en cada ' +
+        'cumbre una luz siguió ardiendo. La gente bajó despacio, contándose, diciendo sus ' +
+        'nombres en voz alta — <em>' + saved + ' alcanzaron la luz</em>' +
+        (lost ? ', y ' + lost + ' miran desde el mar, lustrosos y cambiados, sin pena' : '') + '.';
     } else {
-      body = '<em>' + saved + '</em> of six reached Tenten’s light before Caicai could close her coil' +
-        (lost ? ' — ' + lost + ' now swim the channels as lobos marinos, and the old people leave fish for them on the rocks' : '') + '.';
+      body = '<em>' + saved + '</em> de seis alcanzaron la luz de Tenten antes de que Caicai cerrara el cerco' +
+        (lost ? ' — ' + lost + ' nadan ahora los canales como lobos marinos, y los antiguos les dejan pescado sobre las rocas' : '') + '.';
     }
     endCard.append(
       el('div', 'charm', '✦'),

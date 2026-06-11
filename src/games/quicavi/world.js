@@ -8,6 +8,7 @@
 // are allocation-free.
 
 import * as THREE from 'three'
+import { getTextures } from './textures.js'
 
 export const BOUND = 130 // fence half-size
 export const WALK_BOUND = 126.5 // player clamp
@@ -86,6 +87,10 @@ export function createWorld(scene) {
   const group = new THREE.Group()
   scene.add(group)
 
+  // boot-time procedural texture bundle (null members if canvas2d failed —
+  // every use below is guarded, so the look degrades to flat colors)
+  const T = getTextures()
+
   const candidates = buildCandidates()
 
   // ---------------- obstacles (static circle grid) --------------------------
@@ -108,6 +113,9 @@ export function createWorld(scene) {
     geo.rotateX(-Math.PI / 2)
     const pos = geo.attributes.position
     const colors = new Float32Array(pos.count * 3)
+    // the litter map averages ~0.81 of white — lift the vertex tones to keep
+    // the established overall value (no lift when the texture is absent)
+    const lift = T.ground ? 1.22 : 1
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i)
       const z = pos.getZ(i)
@@ -115,19 +123,29 @@ export function createWorld(scene) {
       pos.setY(i, h)
       const n = vnoise(x * 0.13 + 51, z * 0.13 + 17)
       const wet = Math.max(0, -h) * 0.18
-      colors[i * 3] = 0.05 + n * 0.025 - wet * 0.4
-      colors[i * 3 + 1] = 0.068 + n * 0.034 - wet * 0.3
-      colors[i * 3 + 2] = 0.046 + n * 0.02
+      colors[i * 3] = (0.05 + n * 0.025 - wet * 0.4) * lift
+      colors[i * 3 + 1] = (0.068 + n * 0.034 - wet * 0.3) * lift
+      colors[i * 3 + 2] = (0.046 + n * 0.02) * lift
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     geo.computeVertexNormals()
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })
+    if (T.ground) {
+      mat.map = T.ground
+      mat.bumpMap = T.ground // litter grain doubles as relief under the farol
+      mat.bumpScale = 0.9
+    }
     const ground = new THREE.Mesh(geo, mat)
     group.add(ground)
   }
 
   // ---------------- ruined huts (fill hut candidates) ------------------------
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x241e16, roughness: 1 })
+  if (T.plank) {
+    wallMat.map = T.plank
+    wallMat.bumpMap = T.plank
+    wallMat.bumpScale = 0.35
+  }
   function addWall(x, z, len, alongX, h) {
     const geo = alongX ? new THREE.BoxGeometry(len, h, 0.32) : new THREE.BoxGeometry(0.32, h, len)
     const m = new THREE.Mesh(geo, wallMat)
@@ -161,6 +179,11 @@ export function createWorld(scene) {
     ]
     const stoneGeo = new THREE.BoxGeometry(1.15, 2.7, 0.6)
     const stoneMat = new THREE.MeshStandardMaterial({ color: 0x2c3033, roughness: 0.95 })
+    if (T.rock) {
+      stoneMat.map = T.rock
+      stoneMat.bumpMap = T.rock
+      stoneMat.bumpScale = 0.5
+    }
     const all = []
     for (let i = 0; i < candidates.length; i++) {
       if (candidates[i].kind === 'stone') all.push([candidates[i].x, candidates[i].z, Math.atan2(candidates[i].nx, candidates[i].nz)])
@@ -184,6 +207,11 @@ export function createWorld(scene) {
   {
     const trunkGeo = new THREE.CylinderGeometry(0.36, 0.52, 7.6, 7)
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x57493a, roughness: 1 })
+    if (T.bark) {
+      trunkMat.map = T.bark
+      trunkMat.bumpMap = T.bark // vertical fissures stretch gracefully
+      trunkMat.bumpScale = 0.45
+    }
     const crownGeo = new THREE.ConeGeometry(2.7, 7.2, 7)
     const crownMat = new THREE.MeshStandardMaterial({ color: 0x0c1410, roughness: 1, flatShading: true })
     for (let i = 0; i < candidates.length; i++) {
@@ -207,6 +235,11 @@ export function createWorld(scene) {
     const N = 600
     const trunkGeo = new THREE.CylinderGeometry(0.15, 0.3, 4.2, 5)
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x17120d, roughness: 1 })
+    if (T.bark) {
+      trunkMat.map = T.bark
+      trunkMat.bumpMap = T.bark // near-black tint; the bump is what the farol reads
+      trunkMat.bumpScale = 0.4
+    }
     const crownGeo = new THREE.ConeGeometry(2.1, 6.6, 6)
     const crownMat = new THREE.MeshStandardMaterial({ color: 0x0b110d, roughness: 1, flatShading: true })
     const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, N)
@@ -260,6 +293,11 @@ export function createWorld(scene) {
   {
     const postGeo = new THREE.BoxGeometry(0.16, 1.8, 0.16)
     const postMat = new THREE.MeshStandardMaterial({ color: 0x1a150e, roughness: 1 })
+    if (T.bark) {
+      postMat.map = T.bark
+      postMat.bumpMap = T.bark
+      postMat.bumpScale = 0.3
+    }
     const per = []
     for (let v = -BOUND; v <= BOUND; v += 6) {
       per.push([v, -BOUND], [v, BOUND], [-BOUND, v], [BOUND, v])
@@ -294,6 +332,11 @@ export function createWorld(scene) {
   const boatGroup = new THREE.Group()
   {
     const wood = new THREE.MeshStandardMaterial({ color: 0x1f1812, roughness: 1 })
+    if (T.plank) {
+      wood.map = T.plank
+      wood.bumpMap = T.plank
+      wood.bumpScale = 0.3
+    }
     const hull = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 4.4), wood)
     hull.position.y = 0.3
     boatGroup.add(hull)
@@ -401,6 +444,32 @@ export function createWorld(scene) {
   // ---------------- pages -----------------------------------------------------
   const pageGeo = new THREE.PlaneGeometry(0.3, 0.42)
   const pages = []
+  // one shared skin-parchment material: procedural sigil canvas immediately,
+  // silently upgraded by the painted /assets/quicavi/page.png if it loads.
+  // emissiveMap = the same parchment, so the ink markings stay legible in the
+  // page's faint self-glow (and the dark torn edges do not glow).
+  const pageMat = new THREE.MeshStandardMaterial({
+    color: T.parchment ? 0xffffff : 0xe8dcc0,
+    emissive: 0x9a8c60,
+    emissiveIntensity: T.parchment ? 0.52 : 0.42,
+    roughness: 0.9,
+    side: THREE.DoubleSide,
+  })
+  if (T.parchment) {
+    pageMat.map = T.parchment
+    pageMat.emissiveMap = T.parchment
+  }
+  try {
+    new THREE.TextureLoader().load('/assets/quicavi/page.png', (t) => {
+      t.colorSpace = THREE.SRGBColorSpace
+      t.anisotropy = 4
+      pageMat.map = t
+      pageMat.emissiveMap = t
+      pageMat.needsUpdate = true
+    })
+  } catch (e) {
+    /* keep the procedural parchment */
+  }
   function spawnPages(indices) {
     for (let k = 0; k < indices.length; k++) {
       const c = candidates[indices[k]]
@@ -408,14 +477,7 @@ export function createWorld(scene) {
       const px = c.x + c.nx * off
       const pz = c.z + c.nz * off
       const py = terrainHeight(c.x, c.z) + 1.5
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xe8dcc0,
-        emissive: 0x9a8c60,
-        emissiveIntensity: 0.42,
-        roughness: 0.9,
-        side: THREE.DoubleSide,
-      })
-      const mesh = new THREE.Mesh(pageGeo, mat)
+      const mesh = new THREE.Mesh(pageGeo, pageMat)
       mesh.position.set(px, py, pz)
       mesh.rotation.y = Math.atan2(c.nx, c.nz)
       mesh.rotation.z = (Math.random() - 0.5) * 0.16
@@ -440,7 +502,7 @@ export function createWorld(scene) {
         glow.scale.set(2.4, 2.4, 1)
         group.add(glow)
       }
-      pages.push({ x: px, z: pz, y: py, taken: false, mesh, nail, glow, cand: indices[k] })
+      pages.push({ x: px, z: pz, y: py, taken: false, mesh, nail, glow, tilt: mesh.rotation.z, cand: indices[k] })
     }
   }
   function collectPage(i) {
@@ -494,8 +556,10 @@ export function createWorld(scene) {
     }
     for (let i = 0; i < pages.length; i++) {
       const p = pages[i]
-      if (p.taken || !p.glow) continue
-      p.glow.material.opacity = 0.12 + 0.05 * Math.sin(t * 1.9 + i * 1.7)
+      if (p.taken) continue
+      // paper breathing on its nail — a faint flutter, never a flap
+      p.mesh.rotation.z = p.tilt + Math.sin(t * 1.6 + i * 2.3) * 0.05
+      if (p.glow) p.glow.material.opacity = 0.12 + 0.05 * Math.sin(t * 1.9 + i * 1.7)
     }
     shoreHaloMat.opacity = (beaconOn ? 0.3 : 0.18) + 0.05 * Math.sin(t * 0.8)
     if (beaconOn) beaconLight.intensity = 12 + Math.sin(t * 7.3) * 2.5

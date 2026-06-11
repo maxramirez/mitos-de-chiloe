@@ -3,6 +3,10 @@
 // All canvas2d painting: layout, prerendered background (sky,
 // moon, sea, shore), the siren on her rock, five mother-of-pearl
 // shells, soul lanterns, ripples / sparks / churn / shake, HUD.
+// Surfaces are textured procedurally: a small kit of noise /
+// strata / wave-streak canvases is generated once at boot and
+// baked into the prerendered background and rock sprite on
+// resize — the frame loop never generates a texture.
 // Cosmetic timers only — game logic lives in main.js.
 // scene.update(dt) never touches game state, so it is safe to
 // call in any phase. No allocations in update()/render(): pools,
@@ -34,11 +38,102 @@ function makeGlowSprite(r, g, b) {
   return c;
 }
 
+// ---------------- procedural texture kit (boot only) ----------------
+// Small canvases generated once and reused by every background repaint.
+// Nothing here runs in the frame loop.
+
+// soft blotchy value noise: coarse random gray scaled up smooth, two octaves
+function makeNoise(size, cells, contrast) {
+  const small = document.createElement('canvas');
+  small.width = small.height = cells;
+  const sx = small.getContext('2d');
+  const img = sx.createImageData(cells, cells);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (128 + (Math.random() - 0.5) * contrast) | 0;
+    d[i] = d[i + 1] = d[i + 2] = v;
+    d[i + 3] = 255;
+  }
+  sx.putImageData(img, 0, 0);
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const x = c.getContext('2d');
+  x.drawImage(small, 0, 0, size, size);
+  x.globalAlpha = 0.5;
+  const half = size / 2;
+  x.drawImage(small, 0, 0, half, half);
+  x.drawImage(small, half, 0, half, half);
+  x.drawImage(small, 0, half, half, half);
+  x.drawImage(small, half, half, half, half);
+  x.globalAlpha = 1;
+  return c;
+}
+
+// transparent strata + grime speckle, for wet stone surfaces
+function makeStrata(size) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const x = c.getContext('2d');
+  x.lineCap = 'round';
+  for (let i = 0; i < 90; i++) {
+    const y = Math.random() * size;
+    const pale = Math.random() > 0.62;
+    x.strokeStyle = pale ? 'rgba(196,214,206,0.06)' : 'rgba(0,0,0,0.16)';
+    x.lineWidth = 0.5 + Math.random() * 1.8;
+    const x0 = Math.random() * size * 0.5;
+    x.beginPath();
+    x.moveTo(x0, y);
+    x.lineTo(x0 + size * (0.25 + Math.random() * 0.55), y + (Math.random() - 0.5) * size * 0.16);
+    x.stroke();
+  }
+  for (let i = 0; i < 340; i++) {
+    x.fillStyle = Math.random() > 0.74 ? 'rgba(200,216,208,0.07)' : 'rgba(0,0,0,0.12)';
+    const s = 0.5 + Math.random() * 1.4;
+    x.fillRect(Math.random() * size, Math.random() * size, s, s);
+  }
+  return c;
+}
+
+// horizontally-tiling water streaks: small tired waves, pale crests + dark troughs
+function makeStreaks(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const x = c.getContext('2d');
+  x.lineCap = 'round';
+  for (let i = 0; i < 230; i++) {
+    const y = Math.random() * h;
+    const len = 10 + Math.random() * 85;
+    const px = Math.random() * w;
+    const pale = Math.random() > 0.62;
+    x.strokeStyle = pale
+      ? 'rgba(168,200,190,' + (0.05 + Math.random() * 0.09).toFixed(3) + ')'
+      : 'rgba(4,10,14,' + (0.07 + Math.random() * 0.12).toFixed(3) + ')';
+    x.lineWidth = 0.7 + Math.random() * 1.5;
+    const dy = (Math.random() - 0.5) * 3;
+    for (let k = -1; k <= 1; k++) {
+      x.beginPath();
+      x.moveTo(px - len / 2 + k * w, y);
+      x.quadraticCurveTo(px + k * w, y + dy, px + len / 2 + k * w, y);
+      x.stroke();
+    }
+  }
+  return c;
+}
+
+const NACRE = ['rgba(159,255,208,0.09)', 'rgba(189,170,217,0.10)', 'rgba(232,214,168,0.10)'];
+
 export function createScene(canvas) {
   const ctx = canvas.getContext('2d');
   const bg = document.createElement('canvas');
   const glowG = makeGlowSprite(159, 255, 208); // spectral
   const glowW = makeGlowSprite(232, 214, 168); // lantern warm
+  // texture kit — generated once, reused by every repaint
+  const noiseTex = makeNoise(256, 26, 130);
+  const strataTex = makeStrata(256);
+  const streakTex = makeStreaks(512, 256);
+  const rockSpr = document.createElement('canvas'); // prerendered rock, repainted on resize
+  let rockOx = 0, rockOy = 0, rockSw = 0, rockSh = 0;
 
   let W = 0, H = 0, dpr = 1, U = 1;
   let horizon = 0, moonX = 0, moonY = 0, moonR = 0;
@@ -79,6 +174,16 @@ export function createScene(canvas) {
   for (let i = 0; i < NGL; i++) {
     glints[i * 2] = Math.random() * TAU;
     glints[i * 2 + 1] = 0.5 + Math.random() * 0.8;
+  }
+  // stray crests catching the moon far from her column (x frac, y frac, phase, speed)
+  // x kept off the left shore so nothing glints on the headland
+  const NGW = 16;
+  const wglints = new Float32Array(NGW * 4);
+  for (let i = 0; i < NGW; i++) {
+    wglints[i * 4] = 0.3 + Math.random() * 0.68;
+    wglints[i * 4 + 1] = 0.08 + Math.random() * 0.8;
+    wglints[i * 4 + 2] = Math.random() * TAU;
+    wglints[i * 4 + 3] = 0.25 + Math.random() * 0.6;
   }
   const churnPh = new Float32Array(8);
   for (let i = 0; i < 8; i++) churnPh[i] = Math.random() * TAU;
@@ -125,6 +230,7 @@ export function createScene(canvas) {
     }
     glyphFont = Math.round(sr * 0.5) + 'px Georgia';
     bigGlyphFont = Math.round(su * 16) + 'px Georgia';
+    paintRock();
     paintBg();
   }
 
@@ -136,11 +242,82 @@ export function createScene(canvas) {
     return g;
   }
 
+  function rockPath(q, sx, sy) {
+    q.beginPath();
+    for (let i = 0; i < ROCK.length; i += 2) {
+      const px = ROCK[i] * sx;
+      const py = ROCK[i + 1] * sy;
+      if (i === 0) q.moveTo(px, py);
+      else q.lineTo(px, py);
+    }
+    q.closePath();
+  }
+
+  // prerender the siren's rock once per resize: moonlit base gradient,
+  // stone mottle + strata, tide-wet sheen, moon-side rim facets
+  function paintRock() {
+    const sx = rockW * 0.55;
+    const sy = rockW * 0.5;
+    rockSw = Math.ceil(sx * 2) + 8;
+    rockSh = Math.ceil(sy * 0.75) + 8;
+    rockOx = sx + 4;
+    rockOy = sy * 0.43 + 4;
+    rockSpr.width = Math.max(1, Math.floor(rockSw * dpr));
+    rockSpr.height = Math.max(1, Math.floor(rockSh * dpr));
+    const r = rockSpr.getContext('2d');
+    r.setTransform(dpr, 0, 0, dpr, 0, 0);
+    r.translate(rockOx, rockOy);
+    rockPath(r, sx, sy);
+    let g = r.createLinearGradient(-sx, -sy * 0.4, sx * 0.8, sy * 0.32);
+    g.addColorStop(0, '#0e171d');
+    g.addColorStop(0.45, '#070d12');
+    g.addColorStop(1, '#03060a');
+    r.fillStyle = g;
+    r.fill();
+    r.save();
+    r.clip();
+    // wet stone mottle, lit from the moon side
+    r.globalCompositeOperation = 'screen';
+    r.globalAlpha = 0.1;
+    r.drawImage(noiseTex, -sx, -sy * 0.5, sx * 2, sy);
+    r.globalAlpha = 1;
+    r.globalCompositeOperation = 'source-over';
+    // strata and barnacle grime
+    r.globalAlpha = 0.6;
+    r.drawImage(strataTex, -sx, -sy * 0.5, sx * 2, sy);
+    r.globalAlpha = 1;
+    // tide-wet sheen near the waterline
+    g = r.createLinearGradient(0, 0, 0, sy * 0.34);
+    g.addColorStop(0, 'rgba(159,255,208,0)');
+    g.addColorStop(1, 'rgba(159,255,208,0.08)');
+    r.fillStyle = g;
+    r.fillRect(-sx, 0, sx * 2, sy * 0.34);
+    r.restore();
+    // silhouette edge + moonlit facets on her side
+    r.strokeStyle = 'rgba(159,255,208,0.07)';
+    r.lineWidth = 1;
+    rockPath(r, sx, sy);
+    r.stroke();
+    r.strokeStyle = 'rgba(196,220,208,0.10)';
+    r.beginPath();
+    r.moveTo(-sx, sy * 0.16);
+    r.lineTo(-sx * 0.8, -sy * 0.1);
+    r.lineTo(-sx * 0.52, -sy * 0.3);
+    r.lineTo(-sx * 0.2, -sy * 0.43);
+    r.stroke();
+  }
+
   function paintBg() {
     bg.width = Math.max(1, Math.floor(W * dpr));
     bg.height = Math.max(1, Math.floor(H * dpr));
     const b = bg.getContext('2d');
     b.setTransform(dpr, 0, 0, dpr, 0, 0);
+    function headPath(q) {
+      q.moveTo(0, H * 0.50);
+      q.bezierCurveTo(W * 0.08, H * 0.53, W * 0.15, H * 0.60, W * 0.21, H * 0.67);
+      q.quadraticCurveTo(W * 0.26, H * 0.78, W * 0.28, H);
+      q.lineTo(0, H);
+    }
     // sky
     let g = b.createLinearGradient(0, 0, 0, horizon);
     g.addColorStop(0, '#04070c');
@@ -148,6 +325,37 @@ export function createScene(canvas) {
     g.addColorStop(1, '#101e26');
     b.fillStyle = g;
     b.fillRect(0, 0, W, horizon + 1);
+    // night haze — two octaves of blotch noise breathed over the sky
+    b.globalCompositeOperation = 'screen';
+    b.globalAlpha = 0.05;
+    b.drawImage(noiseTex, 0, 0, W, horizon * 1.04);
+    b.globalAlpha = 0.035;
+    b.drawImage(noiseTex, -W * 0.35, -horizon * 0.3, W * 1.7, horizon * 1.5);
+    b.globalAlpha = 1;
+    b.globalCompositeOperation = 'source-over';
+    // low cloud banks, ink on ink
+    b.save();
+    b.translate(W * 0.30, horizon * 0.42);
+    b.scale(5.2, 1);
+    g = b.createRadialGradient(0, 0, 0, 0, 0, horizon * 0.16);
+    g.addColorStop(0, 'rgba(6,11,16,0.55)');
+    g.addColorStop(1, 'rgba(6,11,16,0)');
+    b.fillStyle = g;
+    b.beginPath();
+    b.arc(0, 0, horizon * 0.16, 0, TAU);
+    b.fill();
+    b.restore();
+    b.save();
+    b.translate(W * 0.72, horizon * 0.68);
+    b.scale(6.5, 1);
+    g = b.createRadialGradient(0, 0, 0, 0, 0, horizon * 0.13);
+    g.addColorStop(0, 'rgba(8,14,19,0.5)');
+    g.addColorStop(1, 'rgba(8,14,19,0)');
+    b.fillStyle = g;
+    b.beginPath();
+    b.arc(0, 0, horizon * 0.13, 0, TAU);
+    b.fill();
+    b.restore();
     // far ridge behind the ship
     b.fillStyle = '#060c11';
     b.beginPath();
@@ -157,6 +365,13 @@ export function createScene(canvas) {
     b.lineTo(W, horizon + 1);
     b.closePath();
     b.fill();
+    // moonlight grazing its crest
+    b.strokeStyle = 'rgba(159,255,208,0.05)';
+    b.lineWidth = 1;
+    b.beginPath();
+    b.moveTo(W * 0.56, horizon + 0.5);
+    b.quadraticCurveTo(W * 0.72, horizon - H * 0.028, W * 0.88, horizon - H * 0.012);
+    b.stroke();
     // sea
     g = b.createLinearGradient(0, horizon, 0, H);
     g.addColorStop(0, '#0c1b22');
@@ -164,9 +379,37 @@ export function createScene(canvas) {
     g.addColorStop(1, '#020507');
     b.fillStyle = g;
     b.fillRect(0, horizon, W, H - horizon);
+    // water of small tired waves — streak texture in perspective bands,
+    // scaled up toward the viewer
+    b.save();
+    b.beginPath();
+    b.rect(0, horizon, W, H - horizon);
+    b.clip();
+    let wy = horizon;
+    let ws = 0.45;
+    let wrow = 0;
+    while (wy < H) {
+      const tw = streakTex.width * ws;
+      const th = streakTex.height * ws * 0.55;
+      b.globalAlpha = Math.min(0.11, 0.05 + ws * 0.025);
+      for (let wx = -((wrow * 137) % tw); wx < W; wx += tw) {
+        b.drawImage(streakTex, wx, wy, tw, th);
+      }
+      wy += th * 0.85;
+      ws *= 1.55;
+      wrow++;
+    }
+    b.restore();
+    b.globalAlpha = 1;
     // horizon breath
     b.fillStyle = 'rgba(159,255,208,0.05)';
     b.fillRect(0, horizon - 1, W, 2);
+    // airglow — a spectral breath where sky meets water
+    g = b.createLinearGradient(0, horizon - 24, 0, horizon);
+    g.addColorStop(0, 'rgba(159,255,208,0)');
+    g.addColorStop(1, 'rgba(159,255,208,0.05)');
+    b.fillStyle = g;
+    b.fillRect(0, horizon - 24, W, 24);
     // moon halo + disc
     g = b.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 5.5);
     g.addColorStop(0, 'rgba(214,226,210,0.20)');
@@ -179,26 +422,71 @@ export function createScene(canvas) {
     b.beginPath();
     b.arc(moonX, moonY, moonR, 0, TAU);
     b.fill();
+    // maria
     b.fillStyle = 'rgba(120,135,125,0.14)';
     b.beginPath();
     b.arc(moonX - moonR * 0.3, moonY - moonR * 0.15, moonR * 0.3, 0, TAU);
     b.arc(moonX + moonR * 0.25, moonY + moonR * 0.3, moonR * 0.2, 0, TAU);
     b.fill();
-    // moonlight column on the water
-    g = b.createLinearGradient(0, horizon, 0, H * 0.88);
-    g.addColorStop(0, 'rgba(214,226,210,0.08)');
+    b.fillStyle = 'rgba(120,135,125,0.10)';
+    b.beginPath();
+    b.arc(moonX + moonR * 0.05, moonY - moonR * 0.45, moonR * 0.14, 0, TAU);
+    b.arc(moonX - moonR * 0.45, moonY + moonR * 0.32, moonR * 0.17, 0, TAU);
+    b.fill();
+    // limb shading — the disc becomes a sphere
+    g = b.createRadialGradient(
+      moonX - moonR * 0.4, moonY - moonR * 0.35, moonR * 0.1, moonX, moonY, moonR * 1.02);
+    g.addColorStop(0, 'rgba(248,252,240,0.12)');
+    g.addColorStop(0.65, 'rgba(120,135,125,0)');
+    g.addColorStop(1, 'rgba(30,46,44,0.30)');
+    b.fillStyle = g;
+    b.beginPath();
+    b.arc(moonX, moonY, moonR, 0, TAU);
+    b.fill();
+    // moonlight column on the water — soft-edged, fading with distance
+    b.save();
+    b.beginPath();
+    b.rect(0, horizon, W, H - horizon);
+    b.clip();
+    b.translate(moonX, horizon);
+    b.scale(1, 7.5);
+    g = b.createRadialGradient(0, 0, 0, 0, 0, moonR * 2.1);
+    g.addColorStop(0, 'rgba(214,226,210,0.10)');
+    g.addColorStop(0.55, 'rgba(214,226,210,0.04)');
     g.addColorStop(1, 'rgba(214,226,210,0)');
     b.fillStyle = g;
-    b.fillRect(moonX - moonR * 1.7, horizon, moonR * 3.4, H * 0.48);
+    b.beginPath();
+    b.arc(0, 0, moonR * 2.1, 0, TAU);
+    b.fill();
+    b.restore();
     // shore headland, bottom-left — where the ánimas wait
     b.fillStyle = '#04070a';
     b.beginPath();
-    b.moveTo(0, H * 0.50);
-    b.bezierCurveTo(W * 0.08, H * 0.53, W * 0.15, H * 0.60, W * 0.21, H * 0.67);
-    b.quadraticCurveTo(W * 0.26, H * 0.78, W * 0.28, H);
-    b.lineTo(0, H);
+    headPath(b);
     b.closePath();
     b.fill();
+    b.save();
+    b.beginPath();
+    headPath(b);
+    b.closePath();
+    b.clip();
+    // stone mottle + strata grime on the slope
+    b.globalCompositeOperation = 'screen';
+    b.globalAlpha = 0.06;
+    b.drawImage(noiseTex, -W * 0.02, H * 0.46, W * 0.34, H * 0.6);
+    b.globalAlpha = 1;
+    b.globalCompositeOperation = 'source-over';
+    b.globalAlpha = 0.55;
+    b.drawImage(strataTex, 0, H * 0.47, W * 0.32, H * 0.58);
+    b.globalAlpha = 1;
+    // moon-side wet sheen down the slope
+    g = b.createLinearGradient(0, H * 0.5, W * 0.2, H * 0.68);
+    g.addColorStop(0, 'rgba(159,255,208,0.05)');
+    g.addColorStop(1, 'rgba(159,255,208,0)');
+    b.fillStyle = g;
+    b.fillRect(0, H * 0.48, W * 0.3, H * 0.55);
+    b.restore();
+    // ridge light along the crest
     b.strokeStyle = 'rgba(159,255,208,0.05)';
     b.lineWidth = 1;
     b.beginPath();
@@ -320,6 +608,15 @@ export function createScene(canvas) {
       ctx.globalAlpha = 0.05 + 0.04 * Math.sin(t * sp * 1.3 + ph);
       ctx.fillRect(moonX + xo - w * 0.5, y, w, 1.5);
     }
+    // stray wave-crests catching the moon far from her column
+    for (let i = 0; i < NGW; i++) {
+      const a = Math.sin(t * wglints[i * 4 + 3] + wglints[i * 4 + 2]);
+      if (a <= 0.2) continue;
+      const yf = wglints[i * 4 + 1];
+      ctx.globalAlpha = (a - 0.2) * 0.055;
+      const w = (5 + 14 * yf) * U;
+      ctx.fillRect(wglints[i * 4] * W - w * 0.5, horizon + yf * (H - horizon), w, 1.2);
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -346,6 +643,9 @@ export function createScene(canvas) {
     ctx.fillStyle = GLOW;
     ctx.globalAlpha = 0.9;
     ctx.fillRect(x - 9.5 * U, y - 33 * U, 2 * U, 2 * U);
+    // its reflection, stretched thin on the swell, flickering with the light
+    ctx.globalAlpha = a * 0.14;
+    ctx.drawImage(glowG, x - 15.5 * U, y + 5 * U, 14 * U, 70 * U);
     ctx.globalAlpha = 1;
   }
 
@@ -365,24 +665,17 @@ export function createScene(canvas) {
   }
 
   function drawRock() {
-    ctx.beginPath();
-    for (let i = 0; i < ROCK.length; i += 2) {
-      const px = rockX + ROCK[i] * rockW * 0.55;
-      const py = rockY + ROCK[i + 1] * rockW * 0.5;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fillStyle = '#04070a';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(159,255,208,0.07)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    // prerendered: textured stone, wet sheen, moonlit facets (paintRock)
+    ctx.drawImage(rockSpr, rockX - rockOx, rockY - rockOy, rockSw, rockSh);
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = '#020405';
     ctx.beginPath();
     ctx.ellipse(rockX, rockY + rockW * 0.30, rockW * 0.62, rockW * 0.10, 0, 0, TAU);
     ctx.fill();
+    // the tide breathing against the stone
+    ctx.globalAlpha = 0.05 + 0.04 * Math.sin(t * 1.2);
+    ctx.fillStyle = '#cfe0d8';
+    ctx.fillRect(rockX - rockW * 0.5, rockY + rockW * 0.15, rockW, 1.2);
     ctx.globalAlpha = 1;
   }
 
@@ -566,6 +859,9 @@ export function createScene(canvas) {
         ctx.globalAlpha = 1;
       }
       ctx.rotate(s.rot);
+      // press / sing bop — a breath of scale that eases back with the shimmer
+      const pop = 1 + sh * 0.05 - dn * 0.03;
+      ctx.scale(pop, pop);
       // mother-of-pearl fan
       ctx.beginPath();
       ctx.moveTo(0, r * 0.55);
@@ -588,6 +884,19 @@ export function createScene(canvas) {
         ctx.lineTo(Math.sin(a) * r * 0.8, r * 0.5 - Math.cos(a) * r * 1.35);
       }
       ctx.stroke();
+      // nacre sheen — faint iridescent bands swept across the fan
+      ctx.lineWidth = r * 0.085;
+      for (let k = 0; k < 3; k++) {
+        ctx.strokeStyle = NACRE[k];
+        ctx.beginPath();
+        ctx.arc(0, r * 0.5, r * (0.52 + k * 0.24), -Math.PI / 2 - 0.72, -Math.PI / 2 + 0.72);
+        ctx.stroke();
+      }
+      // moonlight catching the lip
+      ctx.fillStyle = 'rgba(226,236,228,0.13)';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.34, -r * 0.42, r * 0.16, r * 0.07, 0.5, 0, TAU);
+      ctx.fill();
       // glyph — lights up with the note (works with sound off)
       ctx.fillStyle = sh > 0.05 ? GLOW : 'rgba(10,15,18,0.8)';
       ctx.font = glyphFont;

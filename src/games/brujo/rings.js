@@ -42,8 +42,16 @@ export function createRings(scene) {
   })
 
   let active = 0
+  /* one-shot bloom on the ring just threaded: quick scale-out + fade */
+  let bloom = null
+  let bloomT = 0
+  let lastT = 0
 
   function setActive(n) {
+    if (n === active + 1 && n > 0) {
+      bloom = rings[n - 1]
+      bloomT = 0.7
+    }
     active = n
     for (let i = 0; i < rings.length; i++) {
       const rg = rings[i]
@@ -66,6 +74,20 @@ export function createRings(scene) {
   setActive(0)
 
   function update(t) {
+    const dt = Math.min(Math.max(t - lastT, 0), 0.1)
+    lastT = t
+    if (bloom) {
+      bloomT -= dt
+      if (bloomT <= 0) {
+        bloom.torus.scale.setScalar(1)
+        bloom.mat.opacity = 0.05 /* settle into the passed-ring look */
+        bloom = null
+      } else {
+        const k = 1 - bloomT / 0.7
+        bloom.torus.scale.setScalar(1 + k * 1.1)
+        bloom.mat.opacity = 0.9 * (1 - k) * (1 - k) + 0.05
+      }
+    }
     const rg = rings[active]
     if (rg) {
       const pulse = 0.78 + Math.sin(t * 3.1) * 0.22

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -104,31 +104,31 @@
     <script>
       const GAMES = [
         { id: 'caleuche', title: 'CALEUCHE', sub: 'La niebla no devuelve lo que toma', tag: 'horror · exploración', flagship: true,
-          blurb: 'Your brother’s boat came back empty. Walk the island in the dark, take the señas of its six beings, and board the ghost ship that took him.' },
+          blurb: 'El bote de tu hermano volvió vacío. Recorre la isla a oscuras, recibe las señas de sus seis seres y aborda el barco fantasma que se lo llevó.' },
         { id: 'pincoya', title: 'LA PINCOYA', sub: 'Marea alta', tag: 'pesca · timing',
-          blurb: 'She dances on the beach and the sea obeys. Cast your nets only when she faces the water — and fill the hold before dawn.' },
+          blurb: 'Ella danza en la playa y el mar obedece. Lanza las redes solo cuando mire hacia el agua — y llena la bodega antes del alba.' },
         { id: 'trauco', title: 'EL TRAUCO', sub: 'No le sostengas la mirada', tag: 'sigilo',
-          blurb: 'Gather quilineja in his forest. Stay out of his gaze, or your will bends like green wood.' },
+          blurb: 'Junta quilineja en su bosque. Quédate fuera de su mirada, o tu voluntad se dobla como madera verde.' },
         { id: 'camahueto', title: 'EL CAMAHUETO', sub: 'La bajada', tag: 'carrera',
-          blurb: 'The one-horned calf is tearing its way down to the sea tonight. Ride the gully behind it and live.' },
+          blurb: 'El ternero de un cuerno baja esta noche rasgando la tierra hacia el mar. Corre la quebrada tras él y sobrevive.' },
         { id: 'sirena', title: 'LA SIRENA', sub: 'El canto', tag: 'memoria · música',
-          blurb: 'She sings the names of the drowned across the water. Repeat her song, note for note, and guide them home.' },
+          blurb: 'Ella canta sobre el agua los nombres de los ahogados. Repite su canto, nota por nota, y guíalos a casa.' },
         { id: 'invunche', title: 'EL INVUNCHE', sub: 'La cueva de Quicaví', tag: 'horror · laberinto',
-          blurb: 'One candle, a cave that was never mapped, and the thing the brujos made so it would never leave.' },
+          blurb: 'Una vela, una cueva que nadie ha trazado, y la cosa que los brujos hicieron para que nunca saliera.' },
         { id: 'basilisco', title: 'EL BASILISCO', sub: 'La noche del huevo', tag: 'defensa',
-          blurb: 'Something hatched under the floorboards and it drinks sleepers’ breath. Keep the fires lit. Find the egg.' },
+          blurb: 'Algo salió del cascarón bajo el entablado y bebe el aliento de los que duermen. Mantén los fuegos encendidos. Encuentra el huevo.' },
         { id: 'tenten', title: 'TENTEN Y CAICAI', sub: 'Las dos serpientes', tag: 'puzzle',
-          blurb: 'Caicai Vilu raises the sea against the land. Help Tenten Vilu lift the hills before the water takes the villagers.' },
+          blurb: 'Caicai Vilu alza el mar contra la tierra. Ayuda a Tenten Vilu a levantar los cerros antes de que el agua se lleve a los isleños.' },
         { id: 'brujo', title: 'EL VUELO DEL BRUJO', sub: 'Macuñ', tag: 'vuelo',
-          blurb: 'Wear the skin vest and fly the night channels. The reunión at Quicaví will not wait past moonset.' },
+          blurb: 'Ponte el chaleco de piel y vuela los canales de la noche. La reunión en Quicaví no espera más allá de la puesta de la luna.' },
         { id: 'cuchivilu', title: 'EL CUCHIVILU', sub: 'El corral roto', tag: 'arcade',
-          blurb: 'The tide brings the fish and the pig-snake breaks the corral. Herd one, fight the other, finish by dawn.' },
+          blurb: 'La marea trae los peces y la culebra-chancho rompe el corral. Arrea a unos, pelea con la otra, termina antes del alba.' },
         { id: 'fiura', title: 'LA FIURA', sub: 'El pantanal', tag: 'plataforma',
-          blurb: 'Cross her swamp log by sinking log, time your runs between her charm pulses, and bring the machi five herbs.' },
+          blurb: 'Cruza su pantano de tronco en tronco que se hunde, corre entre los pulsos de su embrujo y trae a la machi las cinco hierbas.' },
         { id: 'quicavi', title: 'EL BRUJO DE QUICAVÍ', sub: 'Las siete páginas', tag: 'horror · páginas',
-          blurb: 'Seven skin-parchment pages are nailed to the black forest. Something keeps them, and it is always behind you.' },
+          blurb: 'Siete páginas de pergamino de piel están clavadas en el bosque negro. Algo las cuida, y siempre está detrás de ti.' },
         { id: 'piuchen', title: 'EL PIUCHÉN', sub: 'La majada', tag: 'arcade · puntería',
-          blurb: 'The winged serpent dives for your sheep out of the stars. One sling, five waves, dawn or nothing.' },
+          blurb: 'La serpiente alada cae desde las estrellas por tus ovejas. Una honda, cinco oleadas, el alba o nada.' },
       ]
       const grid = document.getElementById('grid')
       let done = 0

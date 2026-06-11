@@ -541,6 +541,7 @@ function repairUpdate(dt) {
       sg.broken = false
       sg.fix = 0
       audio.cue('repaired')
+      spawnP('ring', sg.mx, sg.my, 0, 0, 0.6, 4)
       burst('stone', sg.mx, sg.my, 8, 60, 0.7, 2.6)
       burst('glow', sg.mx, sg.my, 5, 50, 0.6, 2)
       toastFirst('fixed', 'Muro en pie otra vez — el corral respira', 'good', 2)
@@ -600,6 +601,7 @@ function doBreak(i) {
   seg.fix = 0
   S.shake = 0.85
   audio.cue('crunch')
+  spawnP('ring', seg.mx, seg.my, 0, 0, 0.55, 8)
   burst('debris', seg.mx, seg.my, 12, 90, 0.9, 3)
   burst('splash', seg.mx, seg.my, 8, 70, 0.6, 2.4)
   toastFirst('break', '¡Rompió el muro! Embístelo a todo remo, repara con E', 'bad', 2, 3500)
@@ -612,6 +614,7 @@ function ramHit(nx, ny) {
   audio.cue('ram')
   audio.cue('squeal')
   S.shake = 0.8
+  spawnP('ring', sp.x, sp.y, 0, 0, 0.6, 6)
   burst('splash', sp.x, sp.y, 16, 140, 0.8, 2.6)
   burst('glow', sp.x, sp.y, 6, 70, 0.6, 2.2)
   const b = S.boat
@@ -873,20 +876,20 @@ function win() {
   ui.setHUDVisible(false)
   const walls =
     S.standing === SEGN
-      ? 'every wall standing or mended by your own cold hands'
-      : 'the walls that still stand patched by your own cold hands, the rest left to the tide'
+      ? 'cada muro en pie o remendado por tus propias manos frías'
+      : 'los muros que aún quedan en pie remendados por tus propias manos frías; el resto, entregado a la marea'
   ui.showEnd({
     won: true,
     title: 'El corral lleno',
     charms: '✦ ' + S.penned + ' / ' + GOAL + ' ✦',
     body:
-      'Dawn comes up grey and merciful, and the corral is shivering with silver — ' +
+      'El alba llega gris y piadosa, y el corral tirita de plata: ' +
       S.penned +
-      ' fish behind your grandfathers’ stones, ' +
+      ' peces tras las piedras de tus abuelos, ' +
       walls +
-      '. Far out past the mouth, El Cuchivilu drags his snout under the ' +
-      'marea baja, beaten, his squeal thinning across the flats. This winter no one ' +
-      'at your table looks at an empty plate: donde el corral se cuida, el hambre no entra.',
+      '. Lejos, pasada la boca, el Cuchivilu arrastra el hocico bajo la marea ' +
+      'baja, vencido, y su chillido se adelgaza sobre el bajío. Este invierno ' +
+      'nadie en tu mesa mira un plato vacío: donde el corral se cuida, el hambre no entra.',
   })
 }
 
@@ -902,11 +905,11 @@ function lose(reason) {
       title: 'El corral roto',
       charms: '✕ ' + S.standing + ' / ' + SEGN,
       body:
-        'The wall your grandfathers raised stone by stone is rubble under the tide, ' +
-        'and the sea walks through it like a door without a house. El Cuchivilu rolls ' +
-        'in the breach, snout to the moon, scattering the silver back into the channel — ' +
-        'donde se revuelca el chancho-serpiente, no entra más pez. There is nothing ' +
-        'left to mend tonight.',
+        'El muro que tus abuelos levantaron piedra por piedra es escombro bajo ' +
+        'la marea, y el mar lo cruza como una puerta sin casa. El Cuchivilu se ' +
+        'revuelca en la brecha, hocico a la luna, devolviendo la plata al canal — ' +
+        'donde se revuelca el chancho-serpiente, no entra más pez. Esta noche ' +
+        'ya no queda nada que remendar.',
     })
   } else {
     ui.showEnd({
@@ -914,12 +917,13 @@ function lose(reason) {
       title: 'El alba',
       charms: '✦ ' + S.penned + ' / ' + GOAL,
       body:
-        'The light finds only ' +
+        'La luz encuentra apenas ' +
         S.penned +
-        ' fish circling the pool — the rest the sea kept, or the snout took through ' +
-        'broken stone. Your family will measure this winter in thin soup and borrowed ' +
-        'flour, while out on the far flats El Cuchivilu wallows, slow and full. ' +
-        'La familia pasa hambre, and the corral remembers who failed to hold it.',
+        ' peces girando en la poza — el resto se lo quedó el mar, o se lo llevó ' +
+        'el hocico por la piedra rota. Tu familia medirá este invierno en sopa ' +
+        'aguada y harina prestada, mientras allá en el bajío el Cuchivilu se ' +
+        'revuelca, lento y harto. La familia pasa hambre, y el corral recuerda ' +
+        'quién no supo cuidarlo.',
     })
   }
 }

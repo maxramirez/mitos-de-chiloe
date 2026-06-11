@@ -122,6 +122,23 @@ body {
 .card::before { top: 10px; left: 14px; }
 .card::after { bottom: 8px; right: 14px; }
 
+/* painted portrait bleeding to the card edges, drowned into the ink below */
+.card-art {
+  margin: -44px -52px 22px;
+  overflow: hidden;
+}
+.card-art img {
+  display: block;
+  width: 100%;
+  height: clamp(110px, 24vh, 200px);
+  object-fit: cover;
+  object-position: 50% 30%;
+  filter: saturate(0.88) brightness(0.92);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  user-select: none;
+}
+
 .charm {
   font-size: 24px;
   color: var(--glow);
@@ -379,5 +396,7 @@ body {
 
 @media (max-width: 600px) {
   .card { padding: 32px 24px 28px; }
+  .card-art { margin: -32px -24px 18px; }
+  .card-art img { height: 140px; }
   .game-title { letter-spacing: 0.26em; text-indent: 0.26em; }
 }

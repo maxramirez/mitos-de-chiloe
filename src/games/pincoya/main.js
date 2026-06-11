@@ -155,10 +155,10 @@ function win() {
     title: 'Marea alta',
     charms: '✦ ' + GOAL + ' / ' + GOAL + ' ✦',
     body:
-      'The hold is heavy with silver and the rope bites your palms like a blessing. ' +
-      'On the beach La Pincoya is still dancing, arms high, face to the water — ' +
-      'la abundancia, freely given and easily lost. Row home before she remembers ' +
-      'you, fisher: the sea was generous tonight because she willed it so.',
+      'La bodega pesa de plata y la cuerda muerde tus palmas como una bendición. ' +
+      'En la playa La Pincoya sigue danzando, los brazos en alto, la cara hacia el agua: ' +
+      'la abundancia, dada de gracia y fácil de perder. Rema a casa antes de que ella ' +
+      'te recuerde, pescador: el mar fue generoso esta noche porque ella así lo quiso.',
   })
 }
 
@@ -173,10 +173,10 @@ function lose(reason) {
       title: 'Redes rotas',
       charms: '✕ ✕ ✕',
       body:
-        'Three casts against her back, and the third came up in ribbons. ' +
-        'La Pincoya has turned her face from you, and the bay closes like a fist. ' +
-        'Row home with empty hands and mend what the sea has unmade — ' +
-        'she does not forgive a greedy net, esta noche no.',
+        'Tres redes contra su espalda, y la tercera subió hecha jirones. ' +
+        'La Pincoya te ha vuelto la cara, y la bahía se cierra como un puño. ' +
+        'Rema a casa con las manos vacías y remienda lo que el mar deshizo — ' +
+        'ella no perdona una red codiciosa; esta noche, no.',
     })
   } else {
     ui.showEnd({
@@ -184,10 +184,10 @@ function lose(reason) {
       title: 'El alba',
       charms: '✦ ' + S.fish + ' / ' + GOAL,
       body:
-        'The moon touched the horizon and the dance ended mid-turn. ' +
-        S.fish + ' fish shine in the hold — not enough, and the buyers at Castro ' +
-        'count what the sea would not give. La Pincoya walks into the foam without ' +
-        'looking back, and the marea baja carries off everything you still needed.',
+        'La luna tocó el horizonte y la danza se cortó a media vuelta. ' +
+        S.fish + ' pescados brillan en la bodega — no alcanzan, y los compradores ' +
+        'de Castro cuentan lo que el mar no quiso dar. La Pincoya entra en la espuma ' +
+        'sin mirar atrás, y la marea baja se lleva todo lo que aún te faltaba.',
     })
   }
 }

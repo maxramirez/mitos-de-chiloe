@@ -7,15 +7,16 @@ const STR = {
   title: 'EL CUCHIVILU',
   subtitle: 'El corral roto',
   intro:
-    'For three generations your family’s corral de pesca has drunk the tide at ' +
-    'Quetalco — a half-moon of grey stones that keeps whatever silver the sea ' +
-    'forgets. Tonight something is wallowing out in the shallows: El Cuchivilu, ' +
-    'the serpent with a pig’s snout, who roots corrales open stone by stone and ' +
-    'leaves hunger in the mud where he rolls. Herd the schools in while la marea ' +
-    'runs high, mend what he breaks, and meet him bow-first at full stroke — if ' +
-    'fewer than twenty-five fish see the dawn behind stone, la familia pasa hambre.',
-  help: 'w a s d · remar — e · reparar la brecha (mantén) — embístelo a todo remo — m · sonido',
-  begin: 'Begin',
+    'Hace tres generaciones que el corral de pesca de tu familia bebe la marea ' +
+    'en Quetalco: una media luna de piedras grises que guarda la plata que el ' +
+    'mar olvida. Esta noche algo chapotea allá en el bajío: el Cuchivilu, la ' +
+    'serpiente con hocico de chancho, que abre los corrales hozando piedra por ' +
+    'piedra y deja hambre en el fango donde se revuelca. Arrea los cardúmenes ' +
+    'adentro mientras la marea corre alta, repara lo que él rompa y sal a su ' +
+    'encuentro de proa, a todo remo — si menos de veinticinco peces ven el alba ' +
+    'tras la piedra, la familia pasa hambre.',
+  help: 'WASD o flechas remar · E reparar la brecha (mantén) · embístelo a todo remo · M sonido',
+  begin: 'Comenzar',
   replay: 'Otra noche',
   toHub: '⌂ volver al archipiélago',
 }
@@ -91,6 +92,16 @@ function showTitle(onBegin) {
   const ui = document.getElementById('ui')
   overlayEl = el('div', 'overlay')
   const card = el('div', 'card')
+  // painted portrait of the beast over the flats; if the asset is missing the
+  // wrapper removes itself and the card falls back to the text-only layout
+  const art = el('div', 'card-art')
+  const img = document.createElement('img')
+  img.alt = ''
+  img.draggable = false
+  img.onerror = () => art.remove()
+  img.src = '/assets/cuchivilu/portrait.png'
+  art.appendChild(img)
+  card.appendChild(art)
   card.appendChild(el('div', 'charm', '✦'))
   card.appendChild(el('h1', 'game-title', STR.title))
   card.appendChild(el('div', 'game-subtitle', STR.subtitle))

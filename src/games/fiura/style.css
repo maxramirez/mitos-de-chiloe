@@ -73,6 +73,15 @@ body::after {
   0%, 100% { text-shadow: 0 0 7px var(--glow-soft), 0 0 18px var(--glow-faint); }
   50% { text-shadow: 0 0 11px var(--glow-soft), 0 0 30px var(--glow-soft); }
 }
+@keyframes herb-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.22); color: var(--glow); text-shadow: 0 0 12px var(--glow-soft); }
+  100% { transform: scale(1); }
+}
+@keyframes luz-out {
+  0% { color: #ff7a50; text-shadow: 0 0 16px rgba(255, 122, 80, 0.55); }
+  100% { color: rgba(232, 220, 192, 0.14); text-shadow: none; }
+}
 
 /* ============================================================
    Overlays — a page from the storybook
@@ -219,6 +228,7 @@ body::after {
 .luz-lost {
   color: rgba(232, 220, 192, 0.14);
   text-shadow: none;
+  animation: luz-out 0.9s ease;
 }
 
 .hud-herbs {
@@ -227,6 +237,10 @@ body::after {
   font-variant: small-caps;
   color: var(--ink-dim);
   transition: color 0.6s ease;
+  transform-origin: right center;
+}
+.herbs-pop {
+  animation: herb-pop 0.7s ease;
 }
 .herbs-done {
   color: var(--glow);

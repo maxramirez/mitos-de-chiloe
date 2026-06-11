@@ -113,10 +113,10 @@ let gateDenyT = 0
 let tAmb = 0
 
 // hint strings precomputed (no per-frame string building)
-const HINT_CLICK = 'click para mirar · wasd to walk'
-const HINT_BREAK = 'rompe su línea de visión — put a trunk between you'
-const HINT_GATE = 'la puerta — two leaning trunks, a wisp burning above'
-const HINT_SEEK = 'la quilineja glows pale among the trunks'
+const HINT_CLICK = 'click para mirar · WASD moverse'
+const HINT_BREAK = 'rompe su línea de visión — pon un tronco entre los dos'
+const HINT_GATE = 'la puerta — dos troncos inclinados, una lumbre encendida encima'
+const HINT_SEEK = 'la quilineja brilla pálida entre los troncos'
 const HINT_LOCKED = []
 for (let i = 0; i <= VINE_TOTAL; i++) {
   HINT_LOCKED.push('la puerta no cede — quilineja ' + i + '/' + VINE_TOTAL)

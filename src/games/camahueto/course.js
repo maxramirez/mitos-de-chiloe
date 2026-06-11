@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { TRACK_LEN, SLOPE, BANK_X, groundY, mulberry32, clamp01 } from './consts.js';
+import { rockTex, woodTex } from './textures.js';
 
 export const T_BOULDER = 0;
 export const T_LOG = 1;
@@ -19,8 +20,15 @@ export function buildCourse(scene, seed = 20260610) {
 
   // ---------- shared geometry & materials ----------
   const boulderGeo = new THREE.IcosahedronGeometry(1, 0);
-  const boulderMat = new THREE.MeshStandardMaterial({ color: 0x756a5e, roughness: 0.85, flatShading: true });
-  const logMat = new THREE.MeshStandardMaterial({ color: 0x6b5234, roughness: 0.95, flatShading: true });
+  // base colours lifted ~12% to offset the textures' sub-white average
+  const boulderMat = new THREE.MeshStandardMaterial({
+    color: 0x83786c, roughness: 0.85, flatShading: true,
+    map: rockTex, bumpMap: rockTex, bumpScale: 0.45,
+  });
+  const logMat = new THREE.MeshStandardMaterial({
+    color: 0x7a5e3c, roughness: 0.95, flatShading: true,
+    map: woodTex, bumpMap: woodTex, bumpScale: 0.3,
+  });
   const glintGeo = new THREE.OctahedronGeometry(0.3, 0);
   const glintMat = new THREE.MeshBasicMaterial({
     color: 0xdff4ff, transparent: true, opacity: 0.9,

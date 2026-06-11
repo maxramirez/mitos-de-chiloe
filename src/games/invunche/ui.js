@@ -7,22 +7,23 @@ const STRINGS = {
   title: 'EL INVUNCHE',
   epithet: 'La cueva de Quicaví',
   intro:
-    'In the cave at Quicaví the brujos keep their guardián: a firstborn remade ' +
-    '— la cabeza vuelta hacia atrás, one leg folded against the spine — so that ' +
-    'nothing enters and nothing leaves. Your candle holds three minutes of wax; ' +
-    'the cold seam of daylight will not open without los tres sellos. He cannot ' +
-    'see far, but he listens — y la cueva escucha con él.',
-  controls: 'wasd — walk · mouse / arrows — look · shift — run, he hears it · m — sonido',
-  begin: 'BEGIN',
+    'En la cueva de Quicaví los brujos guardan a su guardián: un primogénito ' +
+    'rehecho — la cabeza vuelta hacia atrás, una pierna doblada contra el ' +
+    'espinazo — para que nada entre y nada salga. Tu vela guarda tres minutos ' +
+    'de cera; la rendija fría del día no se abrirá sin los tres sellos. Él no ' +
+    've lejos, pero escucha — y la cueva escucha con él.',
+  controls: 'WASD moverse · mouse o flechas mirar · Shift correr, él lo oye · M sonido',
+  begin: 'COMENZAR',
   won: {
     charm: '✦',
     title: 'EL AMANECER',
     sub: 'la puerta del día',
     body:
-      'You put your shoulder to the stone and the day comes in cold and gray, ' +
-      'smelling of rain and seaweed. Behind you the shuffling stops at the edge ' +
-      'of the light — lo que los brujos hicieron no puede seguirte aquí. The ' +
-      'seals crumble to ash in your pocket; Quicaví keeps its cave, but not you.',
+      'Empujas la piedra con el hombro y el día entra frío y gris, oliendo a ' +
+      'lluvia y a algas. A tu espalda, el arrastre se detiene en el borde de ' +
+      'la luz — lo que los brujos hicieron no puede seguirte aquí. Los sellos ' +
+      'se deshacen en ceniza dentro de tu bolsillo; Quicaví se queda con su ' +
+      'cueva, pero no contigo.',
     charms: '✦ ✦ ✦',
     btn: 'VOLVER A LA ISLA',
   },
@@ -31,9 +32,9 @@ const STRINGS = {
     title: 'LA CARA VUELTA',
     sub: 'te encontró',
     body:
-      'The last thing the candle finds is a face turned the wrong way on its ' +
-      'shoulders, close enough to share your breath. The brujos will have use ' +
-      'for you — en la cueva siempre falta quien sirva. La cueva no devuelve lo que toma.',
+      'Lo último que encuentra la vela es una cara vuelta al revés sobre sus ' +
+      'hombros, tan cerca que comparte tu aliento. Los brujos sabrán darte ' +
+      'uso — en la cueva siempre falta quien sirva. La cueva no devuelve lo que toma.',
     charms: '',
     btn: 'OTRA VELA',
   },
@@ -42,9 +43,9 @@ const STRINGS = {
     title: 'LA VELA MUERTA',
     sub: 'a oscuras',
     body:
-      'The wick drowns in its own wax and the dark of Quicaví settles on you ' +
-      'like wet wool. Somewhere near, something drags itself closer without ' +
-      'hurry — ya no necesita correr. Nadie encuentra la puerta a oscuras.',
+      'El pabilo se ahoga en su propia cera y la oscuridad de Quicaví se posa ' +
+      'sobre ti como lana mojada. Cerca, algo se arrastra hacia ti sin apuro ' +
+      '— ya no necesita correr. Nadie encuentra la puerta a oscuras.',
     charms: '',
     btn: 'OTRA VELA',
   },
@@ -110,6 +111,13 @@ export const ui = {
     this.root.appendChild(el)
     this.titleEl = el
     document.getElementById('begin-btn').addEventListener('click', onBegin)
+    // painted cave backdrop — applied only once the PNG actually arrives, so a
+    // missing/failed asset leaves the plain gradient overlay untouched.
+    const art = new Image()
+    art.onload = () => {
+      if (this.titleEl === el) el.classList.add('has-art')
+    }
+    art.src = '/assets/invunche/title.png'
   },
 
   closeTitle() {

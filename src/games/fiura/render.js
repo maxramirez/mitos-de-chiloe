@@ -3,9 +3,11 @@
 // every layer has a procedural fallback generated at init so the game looks
 // complete with zero assets. Layers scroll at factors 0.05/0.2/0.5/1.15 and
 // repeat by MIRROR tiling (every odd tile flipped) so seams never show.
-// draw() is allocation-free: glow sprites, gradients, decor and color strings
-// are all prebuilt at init.
-import { PLATFORMS, HERBS, CHECKPOINTS, AMBUSHES, WATER_Y, HUT_X } from './level.js'
+// draw() is allocation-free: glow sprites, gradients, decor, color strings,
+// surface textures (mud/wood-grain patterns, water sparkle strip, mist
+// sprite) and the mote/mist atmosphere fields are all prebuilt at init;
+// screen-space gradients rebuild only on resize.
+import { PLATFORMS, HERBS, CHECKPOINTS, AMBUSHES, WATER_Y, HUT_X, LEVEL_END } from './level.js'
 
 const VIEW_H = 11.5 // meters of world visible vertically
 const LAYER_W = 1536
@@ -173,6 +175,110 @@ function makeReedLayer() {
   return c
 }
 
+// ---------- procedural surface textures (built once at boot) ----------
+// mud + moss speckle for the ground islands — low-contrast overlay pattern
+function makeMudPattern() {
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 256
+  const g = c.getContext('2d')
+  const rng = mulberry32(3301)
+  // faint sediment streaks (endpoints share y so the tile wraps clean)
+  g.lineWidth = 1
+  for (let i = 0; i < 26; i++) {
+    const y = rng() * 256
+    g.strokeStyle = 'rgba(0,0,0,' + (0.06 + rng() * 0.08).toFixed(3) + ')'
+    g.beginPath()
+    g.moveTo(0, y)
+    g.quadraticCurveTo(128, y + (rng() - 0.5) * 9, 256, y)
+    g.stroke()
+  }
+  // dark mud speckle
+  for (let i = 0; i < 420; i++) {
+    g.fillStyle = 'rgba(0,0,0,' + (0.06 + rng() * 0.14).toFixed(3) + ')'
+    g.fillRect(rng() * 254, rng() * 254, 1 + rng() * 2, 1 + rng() * 2)
+  }
+  // moss flecks
+  for (let i = 0; i < 150; i++) {
+    g.fillStyle = 'rgba(70,110,75,' + (0.05 + rng() * 0.09).toFixed(3) + ')'
+    g.fillRect(rng() * 254, rng() * 254, 1 + rng() * 2, 1 + rng() * 2)
+  }
+  // sparse pale grit catching the moon
+  for (let i = 0; i < 70; i++) {
+    g.fillStyle = 'rgba(232,220,192,' + (0.03 + rng() * 0.05).toFixed(3) + ')'
+    g.fillRect(rng() * 254, rng() * 254, 1, 1)
+  }
+  return c
+}
+
+// horizontal wood grain for logs and the hut's planks
+function makeGrainPattern() {
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 64
+  const g = c.getContext('2d')
+  const rng = mulberry32(7717)
+  for (let y = 2; y < 62; y += 3 + rng() * 5) {
+    const a = 0.05 + rng() * 0.12
+    g.strokeStyle = rng() < 0.22 ? 'rgba(232,220,192,' + (a * 0.5).toFixed(3) + ')' : 'rgba(0,0,0,' + a.toFixed(3) + ')'
+    g.lineWidth = 0.7 + rng() * 1.1
+    g.beginPath()
+    g.moveTo(0, y)
+    g.quadraticCurveTo(64 + rng() * 128, y + (rng() - 0.5) * 4, 256, y)
+    g.stroke()
+  }
+  // a few knots
+  g.strokeStyle = 'rgba(0,0,0,0.18)'
+  g.lineWidth = 1
+  for (let i = 0; i < 3; i++) {
+    const kx = 30 + rng() * 200
+    const ky = 10 + rng() * 44
+    for (let r = 2; r < 7; r += 2) {
+      g.beginPath()
+      g.ellipse(kx, ky, r * 1.6, r, 0, 0, Math.PI * 2)
+      g.stroke()
+    }
+  }
+  return c
+}
+
+// thin strip of moon-glints for the water surface (drawn drifting, tiled)
+function makeSparkleStrip() {
+  const c = document.createElement('canvas')
+  c.width = 512
+  c.height = 48
+  const g = c.getContext('2d')
+  const rng = mulberry32(2024)
+  for (let i = 0; i < 90; i++) {
+    const y = Math.pow(rng(), 1.7) * 46 // denser near the surface
+    const w = 2 + rng() * 9
+    const a = (0.04 + rng() * 0.12) * (1 - y / 60)
+    g.fillStyle = rng() < 0.4 ? 'rgba(159,255,208,' + a.toFixed(3) + ')' : 'rgba(205,222,205,' + a.toFixed(3) + ')'
+    const x = rng() * 512
+    g.fillRect(x, y, w, 1)
+    if (x + w > 512) g.fillRect(x - 512, y, w, 1) // wrap the tile seam
+  }
+  return c
+}
+
+// soft mist blob, drawn very faint and wide over the waterline
+function makeMistSprite() {
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 96
+  const g = c.getContext('2d')
+  const grad = g.createRadialGradient(128, 48, 4, 128, 48, 120)
+  grad.addColorStop(0, 'rgba(170,200,185,0.55)')
+  grad.addColorStop(0.5, 'rgba(150,180,170,0.22)')
+  grad.addColorStop(1, 'rgba(150,180,170,0)')
+  g.translate(128, 48)
+  g.scale(1, 0.38)
+  g.translate(-128, -48)
+  g.fillStyle = grad
+  g.fillRect(-120, -240, 500, 580)
+  return c
+}
+
 function makeGlow(r, gC, b) {
   const c = document.createElement('canvas')
   c.width = 128
@@ -242,6 +348,45 @@ export function createRender(canvas, refs) {
   const glowCool = makeGlow(159, 255, 208)
   const glowRed = makeGlow(255, 90, 60)
 
+  // surface textures — generated once; patterns are anchored per surface at
+  // draw time (translate before fill) so they never swim against the camera
+  const mudPat = ctx.createPattern(makeMudPattern(), 'repeat')
+  const grainPat = ctx.createPattern(makeGrainPattern(), 'repeat')
+  const sparkle = makeSparkleStrip()
+  const mistSprite = makeMistSprite()
+
+  // swamp atmosphere — fixed mote/mist fields, drifted by pure functions of t
+  // (zero allocation per frame; positions are world-space so parallax is real)
+  const motes = []
+  const mists = []
+  {
+    const rng = mulberry32(909)
+    for (let i = 0; i < 42; i++)
+      motes.push({
+        x: 4 + rng() * (LEVEL_END - 8),
+        y: 0.3 + rng() * 2.8,
+        r: 0.5 + rng() * 0.9,
+        p1: rng() * 6.283,
+        p2: rng() * 6.283,
+        s1: 0.1 + rng() * 0.3,
+        s2: 0.12 + rng() * 0.25,
+        amp: 0.5 + rng() * 1.0,
+      })
+    for (let i = 0; i < 10; i++)
+      mists.push({
+        x: 6 + rng() * (LEVEL_END - 12),
+        y: -0.15 + rng() * 0.8,
+        w: 5 + rng() * 7,
+        sp: 0.04 + rng() * 0.1,
+        ph: rng() * 6.283,
+        layer: rng() < 0.3 ? 1 : 0, // 1 = in front of the action, fainter
+      })
+  }
+
+  // screen-space gradients, rebuilt only on resize and translated into place
+  let waterGrad = null
+  let depthGrad = null
+
   // pregenerated decor (grass tufts on grounds, blades on tussocks)
   const decor = []
   {
@@ -269,6 +414,14 @@ export function createRender(canvas, refs) {
     H = canvas.height = window.innerHeight
     ppm = H / VIEW_H
     horizonY = H * 0.55 // play line sits above the foreground reed fringe
+    waterGrad = ctx.createLinearGradient(0, 0, 0, H * 0.4)
+    waterGrad.addColorStop(0, '#08141a') // cold teal cast at the surface
+    waterGrad.addColorStop(0.25, '#040b10')
+    waterGrad.addColorStop(1, '#010304') // true black down deep
+    depthGrad = ctx.createLinearGradient(0, 0, 0, 5 * ppm)
+    depthGrad.addColorStop(0, 'rgba(0,0,0,0)')
+    depthGrad.addColorStop(0.4, 'rgba(0,0,0,0.18)')
+    depthGrad.addColorStop(1, 'rgba(0,0,0,0.55)')
   }
   window.addEventListener('resize', resize)
   resize()
@@ -313,8 +466,24 @@ export function createRender(canvas, refs) {
   function drawWater(t) {
     const wy = sy(WATER_Y)
     if (wy < H) {
-      ctx.fillStyle = '#020509'
-      ctx.fillRect(0, wy, W, H - wy)
+      // depth gradient — cold teal cast at the surface, true black below
+      ctx.save()
+      ctx.translate(0, wy)
+      ctx.fillStyle = waterGrad
+      ctx.fillRect(0, 0, W, H - wy)
+      ctx.restore()
+      // pale surface line
+      ctx.fillStyle = 'rgba(150,195,175,0.12)'
+      ctx.fillRect(0, wy, W, 1)
+      // drifting moon-glint bands (prebuilt strip, two counter-drifting tiles)
+      const base = cx * ppm
+      let xd = -((((base - t * 12) % 512) + 512) % 512)
+      ctx.globalAlpha = 0.55
+      for (let x = xd; x < W; x += 512) ctx.drawImage(sparkle, x, wy + 1)
+      xd = -((((base + t * 8) % 512) + 512) % 512)
+      ctx.globalAlpha = 0.3
+      for (let x = xd; x < W; x += 512) ctx.drawImage(sparkle, x, wy + 10, 512, 30)
+      ctx.globalAlpha = 1
       // moving shimmer lines
       ctx.strokeStyle = 'rgba(120,170,150,0.07)'
       ctx.lineWidth = 1
@@ -342,13 +511,31 @@ export function createRender(canvas, refs) {
     if (x1 < -40 || x0 > W + 40) return
     const yT = sy(top)
     if (p.t === 'ground') {
+      const pw = x1 - x0
       ctx.fillStyle = '#0c1410'
-      ctx.fillRect(x0, yT, x1 - x0, H - yT)
-      ctx.fillStyle = '#16241a' // mossy rim
-      ctx.fillRect(x0, yT, x1 - x0, 4)
+      ctx.fillRect(x0, yT, pw, H - yT)
+      // mud + moss grain, anchored to the island so it never swims
+      ctx.save()
+      ctx.translate(x0, yT)
+      ctx.fillStyle = mudPat
+      ctx.fillRect(0, 0, pw, H - yT)
+      ctx.fillStyle = depthGrad // body fades to black underwater
+      ctx.fillRect(0, 0, pw, H - yT)
+      ctx.restore()
+      // side shading so islands read as rounded masses
+      ctx.fillStyle = 'rgba(0,0,0,0.32)'
+      ctx.fillRect(x0, yT, 3, H - yT)
+      ctx.fillRect(x1 - 3, yT, 3, H - yT)
+      // mossy rim: moonlit top edge + soil shadow beneath
+      ctx.fillStyle = '#1c3022'
+      ctx.fillRect(x0, yT, pw, 3)
+      ctx.fillStyle = 'rgba(159,255,208,0.10)'
+      ctx.fillRect(x0, yT, pw, 1)
+      ctx.fillStyle = 'rgba(0,0,0,0.30)'
+      ctx.fillRect(x0, yT + 3, pw, 2)
       ctx.fillStyle = 'rgba(2,5,9,0.5)' // waterline stain
       const wl = sy(WATER_Y + 0.18)
-      if (wl > yT) ctx.fillRect(x0, wl, x1 - x0, 3)
+      if (wl > yT) ctx.fillRect(x0, wl, pw, 3)
     } else if (p.t === 'tussock') {
       const cxm = (x0 + x1) / 2
       const squash = 1 - 0.45 * live.bounceT
@@ -380,13 +567,25 @@ export function createRender(canvas, refs) {
       ctx.lineTo(x0 + 4, yT + hPix)
       ctx.quadraticCurveTo(x0 - 5, yT + hPix / 2, x0 + 4, yT)
       ctx.fill()
+      // wood grain overlay, clipped to the log silhouette, anchored to the log
+      ctx.save()
+      ctx.clip()
+      ctx.translate(x0, yT)
+      ctx.fillStyle = grainPat
+      ctx.fillRect(-10, -4, x1 - x0 + 20, hPix + 8)
+      ctx.restore()
       ctx.fillStyle = 'rgba(232,220,192,0.10)' // top sheen
       ctx.fillRect(x0 + 4, yT, x1 - x0 - 8, 2)
+      ctx.fillStyle = 'rgba(0,0,0,0.30)' // waterlogged belly
+      ctx.fillRect(x0 + 5, yT + hPix - 3, x1 - x0 - 10, 3)
       // end rings
       ctx.strokeStyle = 'rgba(232,220,192,0.09)'
       ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.ellipse(x1 - 4, yT + hPix / 2, 4, hPix / 2 - 2, 0, 0, Math.PI * 2)
+      ctx.ellipse(x1 - 4, yT + hPix / 2, 4, Math.max(0.5, hPix / 2 - 2), 0, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.ellipse(x1 - 4, yT + hPix / 2, 1.8, Math.max(0.4, hPix / 4 - 1), 0, 0, Math.PI * 2)
       ctx.stroke()
       if (p.t === 'sink' && live.off < -0.02) {
         // waterline lapping over a sinking log
@@ -455,6 +654,17 @@ export function createRender(canvas, refs) {
     // body
     ctx.fillStyle = '#100d0a'
     ctx.fillRect(x - w / 2, base - hh, w, hh)
+    // weathered plank grain
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(x - w / 2, base - hh, w, hh)
+    ctx.clip()
+    ctx.translate(x - w / 2, base - hh)
+    ctx.globalAlpha = 0.8
+    ctx.fillStyle = grainPat
+    ctx.fillRect(0, 0, w, hh)
+    ctx.globalAlpha = 1
+    ctx.restore()
     // shingle lines
     ctx.strokeStyle = 'rgba(232,220,192,0.05)'
     ctx.lineWidth = 1
@@ -472,10 +682,21 @@ export function createRender(canvas, refs) {
     ctx.lineTo(x + w * 0.62, base - hh)
     ctx.closePath()
     ctx.fill()
+    // moonlit ridge line on the roof
+    ctx.strokeStyle = 'rgba(232,220,192,0.10)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(x - w * 0.62, base - hh)
+    ctx.lineTo(x, base - hh - 1.7 * ppm)
+    ctx.stroke()
     // chimney + smoke hint when ready
     ctx.fillStyle = '#0d0a08'
     ctx.fillRect(x + w * 0.22, base - hh - 1.2 * ppm, 0.3 * ppm, 0.7 * ppm)
-    // window (always a faint ember)
+    // window (always a faint ember, breathing warm light onto the wall)
+    const wgs = 2.0 * ppm
+    ctx.globalAlpha = 0.35 + 0.06 * Math.sin(t * 1.7)
+    ctx.drawImage(glowWarm, x - w * 0.3 + 0.25 * ppm - wgs / 2, base - hh * 0.62 + 0.25 * ppm - wgs / 2, wgs, wgs)
+    ctx.globalAlpha = 1
     ctx.fillStyle = 'rgba(255,180,110,0.25)'
     ctx.fillRect(x - w * 0.3, base - hh * 0.62, 0.5 * ppm, 0.5 * ppm)
     // the door — dark until all herbs are carried
@@ -690,6 +911,37 @@ export function createRender(canvas, refs) {
     if (blink) ctx.globalAlpha = 1
   }
 
+  // drifting spirit motes — world-anchored fireflies of the pantanal
+  function drawMotes(t) {
+    for (let i = 0; i < motes.length; i++) {
+      const m = motes[i]
+      const x = sx(m.x + Math.sin(t * m.s1 + m.p1) * m.amp)
+      if (x < -24 || x > W + 24) continue
+      const y = sy(m.y + Math.sin(t * m.s2 + m.p2) * 0.45)
+      const a = 0.09 + 0.09 * Math.sin(t * (0.6 + m.s2) + m.p1)
+      if (a < 0.02) continue
+      ctx.globalAlpha = a
+      const gs = 0.55 * ppm * m.r
+      ctx.drawImage(glowCool, x - gs / 2, y - gs / 2, gs, gs)
+    }
+    ctx.globalAlpha = 1
+  }
+
+  // low mist banks crawling over the waterline (layer 0 behind, 1 in front)
+  function drawMist(t, layer) {
+    for (let i = 0; i < mists.length; i++) {
+      const m = mists[i]
+      if (m.layer !== layer) continue
+      const mw = m.w * ppm
+      const x = sx(m.x + Math.sin(t * m.sp + m.ph) * 1.8)
+      if (x < -mw || x > W + mw) continue
+      const y = sy(m.y)
+      ctx.globalAlpha = (layer === 1 ? 0.045 : 0.07) + 0.02 * Math.sin(t * 0.23 + m.ph)
+      ctx.drawImage(mistSprite, x - mw / 2, y - mw * 0.17, mw, mw * 0.34)
+    }
+    ctx.globalAlpha = 1
+  }
+
   function drawParticles() {
     const pool = refs.particles
     for (let i = 0; i < pool.length; i++) {
@@ -767,7 +1019,9 @@ export function createRender(canvas, refs) {
     drawLayer(1)
     drawLayer(2)
     drawWater(t)
+    drawMist(t, 0)
     for (let i = 0; i < PLATFORMS.length; i++) drawPlatform(i, t)
+    drawMotes(t)
     for (let i = 1; i < CHECKPOINTS.length; i++) drawLantern(i, t)
     drawHut(t)
     for (let i = 0; i < HERBS.length; i++) drawHerb(i, t)
@@ -775,6 +1029,7 @@ export function createRender(canvas, refs) {
     drawRings()
     drawPlayer(t)
     drawParticles()
+    drawMist(t, 1)
     drawLayer(3) // foreground reeds in front of everything
     if (fx.flashT > 0) {
       const q = Math.min(20, (fx.flashT * 20) | 0)

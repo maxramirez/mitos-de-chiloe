@@ -89,6 +89,25 @@ body {
     rgba(4, 8, 11, 0.96) 52%,
     rgba(1, 2, 4, 1) 100%);
 }
+/* painted cave of Quicaví behind the title card. The art lives on a ::before
+   layer beneath the card and fades in only when ui.js adds .has-art (after
+   the PNG load event) — a missing or failed asset leaves the plain gradient
+   overlay above as the complete, untouched fallback. */
+.title-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 115% 85% at 50% 40%,
+      rgba(8, 14, 18, 0.42) 0%,
+      rgba(4, 8, 11, 0.7) 52%,
+      rgba(1, 2, 4, 0.93) 100%),
+    url('/assets/invunche/title.png') center / cover no-repeat;
+  opacity: 0;
+  transition: opacity 2.2s ease;
+}
+.title-overlay.has-art::before { opacity: 1; }
 
 .card {
   position: relative;

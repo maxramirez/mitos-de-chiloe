@@ -6,27 +6,28 @@ export const STRINGS = {
   title: 'LA FIURA',
   subtitle: 'la señora feroz del pantano',
   intro:
-    'In the black marshes of Chiloé waits la Fiura, the Trauco’s tiny and ' +
-    'ferocious mate — a wild hag in red whose aliento twists bodies and whose ' +
-    'encanto bends minds. The machi needs five hierbas that glow along the ' +
-    'drowned paths of el pantanal; carry all five to his hut before your three ' +
-    'luces gutter out. When she draws breath she is about to charm — cross ' +
-    'her ground between the pulses, never during.',
-  help: 'a/d or ←/→ move · space/w/↑ jump (release to cut) · m mute',
-  begin: 'BEGIN',
+    'En los pantanos negros de Chiloé espera la Fiura, la pareja pequeña y ' +
+    'feroz del Trauco: una salvaje vestida de rojo cuyo aliento tuerce los ' +
+    'cuerpos y cuyo encanto dobla las voluntades. El machi necesita cinco ' +
+    'hierbas que brillan por las sendas anegadas del pantanal; llévale las ' +
+    'cinco a su cabaña antes de que se apaguen tus tres luces. Cuando ella ' +
+    'toma aire está por encantar: cruza su terreno entre pulso y pulso, ' +
+    'nunca durante.',
+  help: 'A/D o ←/→ moverse · espacio/W/↑ saltar (suelta para cortar) · M sonido',
+  begin: 'COMENZAR',
   winTitle: 'EL MACHI ENCIENDE SU PUERTA',
   winText:
-    'Five hierbas, still glowing with the cold light of the swamp, and the door ' +
-    'opens on woodsmoke and warmth. Far behind you something small in red stamps ' +
-    'her feet in the reeds and screams at the moon — but the charm cannot cross ' +
-    'a machi’s threshold. Esta noche, el pantanal no te quedó.',
+    'Cinco hierbas, todavía encendidas con la luz fría del pantano, y la puerta ' +
+    'se abre a humo de leña y abrigo. Allá atrás, algo pequeño y de rojo ' +
+    'patalea entre los juncos y le grita a la luna — pero el encanto no cruza ' +
+    'el umbral de un machi. Esta noche, el pantanal no te quedó.',
   winReplay: 'OTRA NOCHE',
   loseTitle: 'EL PANTANAL TE QUEDÓ',
   loseText:
-    'Your last luz guttered out among the reeds, and the black water settled as if ' +
-    'no one had ever passed. They say la Fiura combs her hair with the charm of ' +
-    'the drowned. Time her breath — cross between the pulses, and trust the ' +
-    'lantern checkpoints to hold your place.',
+    'Tu última luz se apagó entre los juncos, y el agua negra se asentó como si ' +
+    'nadie hubiera pasado jamás. Dicen que la Fiura se peina con el encanto de ' +
+    'los ahogados. Mide su aliento — cruza entre pulso y pulso, y confía en los ' +
+    'faroles: ellos guardan tu paso.',
   loseReplay: 'INTENTAR DE NUEVO',
 }
 
@@ -34,10 +35,10 @@ export const STRINGS = {
 const HERB_STR = []
 for (let i = 0; i <= HERB_TOTAL; i++) HERB_STR.push('hierbas ' + i + ' / ' + HERB_TOTAL)
 export const HINTS = {
-  start: 'las hierbas brillan en las ramas — five before the hut',
-  inhale: 'ella inhala — el encanto viene, do not be near',
-  sink: 'el tronco se hunde — keep moving',
-  allHerbs: 'cinco hierbas — la cabaña del machi waits at the end',
+  start: 'las hierbas brillan en las ramas — cinco antes de la cabaña',
+  inhale: 'ella inhala — viene el encanto, no estés cerca',
+  sink: 'el tronco se hunde — no te detengas',
+  allHerbs: 'cinco hierbas — la cabaña del machi espera al final',
   locked: [],
 }
 for (let i = 0; i <= HERB_TOTAL; i++)
@@ -162,8 +163,15 @@ export const ui = {
       for (let i = 0; i < 3; i++) lucesEls[i].className = i < luces ? 'luz' : 'luz luz-lost'
     }
     if (herbs !== lastHerbs) {
+      const wasInit = lastHerbs === -1
       lastHerbs = herbs
       herbsEl.textContent = HERB_STR[herbs]
+      if (!wasInit && herbs > 0) {
+        // retrigger the pickup pop (pickup-only; never runs per frame)
+        herbsEl.classList.remove('herbs-pop')
+        void herbsEl.offsetWidth
+        herbsEl.classList.add('herbs-pop')
+      }
       if (herbs === HERB_TOTAL) herbsEl.classList.add('herbs-done')
     }
     if (hint !== lastHint) {

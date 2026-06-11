@@ -47,6 +47,112 @@ function grimeTexture(rng) {
   return tex
 }
 
+// grayscale relief for bumpMap use (linear space, red channel sampled):
+// soft lumps up and down plus a few hairline cracks — quiet, never noisy.
+function reliefTexture(rng) {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')
+  g.fillStyle = '#808080'
+  g.fillRect(0, 0, 256, 256)
+  for (let i = 0; i < 380; i++) {
+    const x = rng() * 256
+    const y = rng() * 256
+    const r = 3 + rng() * 17
+    const v = rng() > 0.5 ? 255 : 0
+    const grad = g.createRadialGradient(x, y, 1, x, y, r)
+    grad.addColorStop(0, 'rgba(' + v + ',' + v + ',' + v + ',' + (0.09 + rng() * 0.15).toFixed(2) + ')')
+    grad.addColorStop(1, 'rgba(' + v + ',' + v + ',' + v + ',0)')
+    g.fillStyle = grad
+    g.beginPath()
+    g.arc(x, y, r, 0, 6.3)
+    g.fill()
+  }
+  // hairline cracks (shallow dark grooves)
+  g.strokeStyle = 'rgba(40,40,40,0.5)'
+  g.lineWidth = 1.2
+  for (let i = 0; i < 14; i++) {
+    let x = rng() * 256
+    let y = rng() * 256
+    g.beginPath()
+    g.moveTo(x, y)
+    for (let s = 0; s < 5; s++) {
+      x += (rng() - 0.5) * 46
+      y += (rng() - 0.3) * 40
+      g.lineTo(x, y)
+    }
+    g.stroke()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  return tex
+}
+
+// roughness map for the floor: dry rock stays matte, puddle blobs go glassy —
+// the candle sparkles in them as you walk. Linear space, red channel.
+function puddleRoughnessTexture(rng) {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')
+  g.fillStyle = '#c2c2c2' // dry rock ≈ 0.76 roughness
+  g.fillRect(0, 0, 256, 256)
+  // broad damp patches
+  for (let i = 0; i < 26; i++) {
+    const x = rng() * 256
+    const y = rng() * 256
+    const r = 18 + rng() * 44
+    const grad = g.createRadialGradient(x, y, 2, x, y, r)
+    grad.addColorStop(0, 'rgba(110,110,110,0.55)')
+    grad.addColorStop(1, 'rgba(110,110,110,0)')
+    g.fillStyle = grad
+    g.beginPath()
+    g.arc(x, y, r, 0, 6.3)
+    g.fill()
+  }
+  // standing puddles — small, sharp, near-mirror
+  for (let i = 0; i < 15; i++) {
+    const x = rng() * 256
+    const y = rng() * 256
+    const r = 7 + rng() * 17
+    const grad = g.createRadialGradient(x, y, 1, x, y, r)
+    grad.addColorStop(0, 'rgba(22,22,22,0.95)')
+    grad.addColorStop(0.72, 'rgba(30,30,30,0.85)')
+    grad.addColorStop(1, 'rgba(60,60,60,0)')
+    g.fillStyle = grad
+    g.save()
+    g.translate(x, y)
+    g.scale(1, 0.55 + rng() * 0.7)
+    g.beginPath()
+    g.arc(0, 0, r, 0, 6.3)
+    g.fill()
+    g.restore()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  return tex
+}
+
+// soft daylight gradient for the door glow plane — misty cold light, not a
+// flat quad: near-white low center sinking to a deep grey-blue at the edges.
+function daylightTexture() {
+  const c = document.createElement('canvas')
+  c.width = 128
+  c.height = 128
+  const g = c.getContext('2d')
+  g.fillStyle = '#8fa9bf'
+  g.fillRect(0, 0, 128, 128)
+  const grad = g.createRadialGradient(64, 86, 4, 64, 80, 95)
+  grad.addColorStop(0, '#ffffff')
+  grad.addColorStop(0.35, '#e9f3fb')
+  grad.addColorStop(0.7, '#bdd3e4')
+  grad.addColorStop(1, '#8fa9bf')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 128, 128)
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
 function flameTexture() {
   const c = document.createElement('canvas')
   c.width = c.height = 64
@@ -153,6 +259,8 @@ function mapTexture(wall) {
 export function createWorld(scene, wall, layout, rng) {
   const grime = grimeTexture(rng)
   grime.repeat.set(1, 1)
+  const relief = reliefTexture(rng)
+  relief.repeat.set(1, 1)
   const flameTex = flameTexture()
 
   // --- instanced walls with vertex-color grime ---
@@ -178,6 +286,8 @@ export function createWorld(scene, wall, layout, rng) {
 
   const wallMat = new THREE.MeshStandardMaterial({
     map: grime,
+    bumpMap: relief,
+    bumpScale: 0.6,
     color: 0x97a39a,
     roughness: 0.72,
     metalness: 0.04,
@@ -203,14 +313,27 @@ export function createWorld(scene, wall, layout, rng) {
   if (walls.instanceColor) walls.instanceColor.needsUpdate = true
   scene.add(walls)
 
-  // --- floor (wet sheen) + ceiling ---
+  // --- floor (puddle-mapped wet sheen) + ceiling ---
   const SIZE = TILES * TILE
   const floorTex = grime.clone()
   floorTex.needsUpdate = true
   floorTex.repeat.set(22, 22)
+  const floorBump = relief.clone()
+  floorBump.needsUpdate = true
+  floorBump.repeat.set(22, 22)
+  const puddles = puddleRoughnessTexture(rng)
+  puddles.repeat.set(9, 9) // off-step with the grime so repeats never lock
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(SIZE, SIZE),
-    new THREE.MeshStandardMaterial({ map: floorTex, color: 0x47544e, roughness: 0.3, metalness: 0.08 })
+    new THREE.MeshStandardMaterial({
+      map: floorTex,
+      bumpMap: floorBump,
+      bumpScale: 0.4,
+      roughnessMap: puddles,
+      color: 0x47544e,
+      roughness: 1.0, // texel-driven: dry rock matte, puddles near-mirror
+      metalness: 0.14,
+    })
   )
   floor.rotation.x = -Math.PI / 2
   floor.position.set(SIZE / 2, 0, SIZE / 2)
@@ -219,13 +342,69 @@ export function createWorld(scene, wall, layout, rng) {
   const ceilTex = grime.clone()
   ceilTex.needsUpdate = true
   ceilTex.repeat.set(18, 18)
+  const ceilBump = relief.clone()
+  ceilBump.needsUpdate = true
+  ceilBump.repeat.set(18, 18)
   const ceiling = new THREE.Mesh(
     new THREE.PlaneGeometry(SIZE, SIZE),
-    new THREE.MeshStandardMaterial({ map: ceilTex, color: 0x39433e, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ map: ceilTex, bumpMap: ceilBump, bumpScale: 0.5, color: 0x39433e, roughness: 0.95 })
   )
   ceiling.rotation.x = Math.PI / 2
   ceiling.position.set(SIZE / 2, WALL_H - 0.02, SIZE / 2)
   scene.add(ceiling)
+
+  // --- stalactites: one instanced mesh, open tiles only, tips ≥ 2.6 m so the
+  // player never clips them. Built once at boot; zero per-frame cost.
+  const stalSpots = []
+  for (let tz = 0; tz < TILES; tz++) {
+    for (let tx = 0; tx < TILES; tx++) {
+      if (wall[tileIndex(tx, tz)] !== 0) continue
+      if (rng() > 0.34) continue
+      stalSpots.push(
+        (tx + 0.22 + rng() * 0.56) * TILE, // jittered, kept off wall faces
+        (tz + 0.22 + rng() * 0.56) * TILE,
+        0.3 + rng() * 0.65, // length
+        0.6 + rng() * 0.9, // girth scale
+        rng() * 0.4 + 0.72 // shade
+      )
+    }
+  }
+  const stalGeo = new THREE.ConeGeometry(0.13, 1, 7)
+  stalGeo.rotateX(Math.PI) // point down
+  stalGeo.translate(0, -0.5, 0) // base (ceiling attachment) at y = 0
+  const stalMat = new THREE.MeshStandardMaterial({
+    map: grime,
+    bumpMap: relief,
+    bumpScale: 0.4,
+    color: 0x717d76,
+    roughness: 0.62,
+    metalness: 0.05,
+  })
+  const stalCount = stalSpots.length / 5
+  const stalactites = new THREE.InstancedMesh(stalGeo, stalMat, stalCount)
+  const _sm = new THREE.Matrix4()
+  const _sq = new THREE.Quaternion()
+  const _sv = new THREE.Vector3()
+  const _ss = new THREE.Vector3()
+  const _se = new THREE.Euler()
+  for (let i = 0; i < stalCount; i++) {
+    const sx = stalSpots[i * 5]
+    const sz = stalSpots[i * 5 + 1]
+    const h = stalSpots[i * 5 + 2]
+    const w = stalSpots[i * 5 + 3]
+    _se.set((rng() - 0.5) * 0.12, rng() * Math.PI * 2, (rng() - 0.5) * 0.12)
+    _sq.setFromEuler(_se)
+    _sv.set(sx, WALL_H - 0.01, sz)
+    _ss.set(w, h, w)
+    _sm.compose(_sv, _sq, _ss)
+    stalactites.setMatrixAt(i, _sm)
+    const sh = stalSpots[i * 5 + 4]
+    _c.setRGB(sh * 0.92, sh, sh * 0.96)
+    stalactites.setColorAt(i, _c)
+  }
+  stalactites.instanceMatrix.needsUpdate = true
+  if (stalactites.instanceColor) stalactites.instanceColor.needsUpdate = true
+  scene.add(stalactites)
 
   // --- map fragment on the wall near spawn (maze shape only) ---
   const mapMesh = new THREE.Mesh(
@@ -343,7 +522,7 @@ export function createWorld(scene, wall, layout, rng) {
   // the cold seam of daylight — and the whole plane when the door sinks.
   const glow = new THREE.Mesh(
     new THREE.PlaneGeometry(TILE - 0.02, WALL_H),
-    new THREE.MeshBasicMaterial({ color: 0xdfeefc, fog: false, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ map: daylightTexture(), fog: false, side: THREE.DoubleSide })
   )
   glow.position.set(doorCx + dirX * 0.42, WALL_H / 2, doorCz + dirZ * 0.42)
   glow.rotation.y = yawForDir

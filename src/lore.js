@@ -5,100 +5,103 @@
 export const LORE = {
   pincoya: {
     name: 'La Pincoya',
-    title: 'Dancer of the Tides',
+    title: 'La que danza con la marea',
     lore:
-      'You crest the dune and she is already dancing — La Pincoya, barefoot ' +
-      'where the foam unravels, golden hair heavy with salt, her dress woven of ' +
-      'sargazo. The old people say her dance fills or empties the nets. They do ' +
-      'not say what you see now: that every turn is a tally. Toward the sea for ' +
-      'each boat that came home. Toward the hills for each that did not. She ' +
-      'turns toward the hills, once, slowly, holding your eyes the whole way ' +
-      'round, smiling like someone keeping a promise. The foam holds the print ' +
-      'of her feet long after she has moved. None of the prints lead away.',
+      'Coronas la duna y ella ya está danzando: la Pincoya, descalza donde la ' +
+      'espuma se deshace, el pelo dorado pesado de sal, el vestido tejido de ' +
+      'sargazo. Los viejos dicen que su danza llena o vacía las redes. No ' +
+      'dicen lo que ves ahora: que cada vuelta es una cuenta. Hacia el mar por ' +
+      'cada bote que volvió. Hacia los cerros por cada uno que no. Gira hacia ' +
+      'los cerros, una vez, despacio, sosteniéndote la mirada la vuelta ' +
+      'entera, sonriendo como quien cumple una promesa. La espuma guarda la ' +
+      'huella de sus pies mucho después de que ella se ha movido. Ninguna de ' +
+      'las huellas se aleja.',
     blessing:
-      'La Pincoya has seen you. The sea will not refuse you now.',
+      'La Pincoya te ha visto. El mar ya no sabrá negarte.',
   },
 
   trauco: {
     name: 'El Trauco',
-    title: 'Crooked Watcher of the Woods',
+    title: 'Vigía torcido del bosque',
     lore:
-      'The forest goes quiet the way a room goes quiet when you enter it. He is ' +
-      'between the trees — waist-high, stump-footed, ragged poncho of quilineja, ' +
-      'conical hat, leaning on the stone hatchet that fells a tree in three ' +
-      'blows. El Trauco. You know the rule as well as your own name: do ' +
-      'not hold his gaze. His eyes find yours anyway, and for one long moment ' +
-      'something in your spine bends like green wood. Then he lowers his eyes — ' +
-      'not in defeat. The way a man lowers a knife he no longer needs to show. ' +
-      'He steps aside, and the path he leaves you is the one he chose.',
+      'El bosque se calla como se calla una pieza cuando entras. Está entre ' +
+      'los árboles: no más alto que tu cintura, los pies como muñones, poncho ' +
+      'raído de quilineja, sombrero cónico, apoyado en el hacha de piedra que ' +
+      'voltea un árbol en tres golpes. El Trauco. Conoces la regla como tu ' +
+      'propio nombre: no le sostengas la mirada. Sus ojos encuentran los ' +
+      'tuyos igual, y por un momento largo algo en tu espinazo se dobla como ' +
+      'madera verde. Después baja los ojos — no por derrota. Como baja un ' +
+      'hombre el cuchillo que ya no necesita mostrar. Se aparta, y el sendero ' +
+      'que te deja es el que él eligió.',
     blessing:
-      'El Trauco has measured you. The forest lets you pass — it always knows where you are.',
+      'El Trauco te ha medido. El bosque te deja pasar — y siempre sabe dónde estás.',
   },
 
   camahueto: {
     name: 'El Camahueto',
-    title: 'Golden-Horned Calf of the Gullies',
+    title: 'Ternero de cuerno dorado de las quebradas',
     lore:
-      'The ravine is freshly torn — earth opened in one long wound running to ' +
-      'the sea — and at the head of it stands the thing that did the ' +
-      'tearing. El Camahueto: a calf of impossible silver, one horn of living ' +
-      'gold upon its brow. Born in a hidden pool, it waits years for a ' +
-      'storm-flooded night to gouge its way to the water. Tonight the ground ' +
-      'under your boots is loose, and the rain is close. It lowers its bright ' +
-      'head. A curl of golden shaving drops glowing at your feet, and you pick ' +
-      'it up, because you are meant to. Behind you the hillside settles, like ' +
-      'something breathing in.',
+      'La quebrada está recién abierta — la tierra rasgada en una sola herida ' +
+      'larga que corre hacia el mar — y en su cabecera está parado lo que la ' +
+      'rasgó. El Camahueto: un ternero de plata imposible, un cuerno de oro ' +
+      'vivo sobre la frente. Nace en un pozón escondido y espera años una ' +
+      'noche de temporal para abrirse paso hasta el agua. Esta noche el suelo ' +
+      'bajo tus botas está suelto, y la lluvia anda cerca. Baja la cabeza ' +
+      'luminosa. Una viruta de oro cae brillando a tus pies, y la recoges, ' +
+      'porque para eso estaba. A tu espalda la ladera se asienta, como algo ' +
+      'que toma aire.',
     blessing:
-      'The shaving burns warm in your fist. The Camahueto’s strength is lent to your blood — and the island collects what it lends.',
+      'La viruta arde tibia en tu puño. La fuerza del Camahueto se presta a tu sangre — y la isla cobra lo que presta.',
   },
 
   invunche: {
     name: 'El Invunche',
-    title: 'Guardian of the Cave of Quicaví',
+    title: 'Guardián de la cueva de Quicaví',
     lore:
-      'A cold breath comes out of the rock, and its keeper drags himself into ' +
-      'the moonlight. You know what he was. A firstborn, carried to the cave of ' +
-      'Quicaví before his baptism; raised in the dark on what the brujos fed ' +
-      'him; his head turned full around upon his neck, one leg folded and grown ' +
-      'fast against his back, so he goes on one foot and his hands. They made ' +
-      'him into a door, and a door does not forgive being made. He regards you ' +
-      'with his backward face for a long time. The cry he gives is almost a ' +
-      'word — and the word is almost your brother’s name.',
+      'Un aliento frío sale de la roca, y su guardián se arrastra hacia la ' +
+      'luz de la luna. Sabes lo que fue. Un primogénito, llevado a la cueva ' +
+      'de Quicaví antes de su bautismo; criado en lo oscuro con lo que los ' +
+      'brujos le daban; la cabeza vuelta entera sobre el cuello, una pierna ' +
+      'doblada y pegada contra la espalda, de modo que anda en un pie y las ' +
+      'manos. Lo hicieron puerta, y una puerta no perdona que la hagan. Te ' +
+      'observa largo rato con su cara al revés. El grito que da es casi una ' +
+      'palabra — y la palabra es casi el nombre de tu hermano.',
     blessing:
-      'El Invunche has cried your coming into the hidden ways. The doors of the brujos know you now.',
+      'El Invunche ha gritado tu llegada por los caminos escondidos. Las puertas de los brujos ya te conocen.',
   },
 
   millalobo: {
     name: 'El Millalobo',
-    title: 'Golden King of the Seas',
+    title: 'Rey dorado de los mares',
     lore:
-      'He does not rise to meet you. Kings do not. El Millalobo sits the ' +
-      'shallows on his rock throne, half man, half lobo marino, furred in old ' +
-      'gold — sovereign of every wave since Caicai Vilu drove the sea against ' +
-      'the land. The water is at your ankles before you understand what you ' +
-      'have done: his court has no walls and no gate, only a tideline, and you ' +
-      'have crossed it. He weighs you the way a man weighs a coin — briefly, ' +
-      'because the weight was never in doubt. Whatever walks back up this ' +
-      'beach belongs, from tonight, partly to him.',
+      'No se levanta a recibirte. Los reyes no lo hacen. El Millalobo ocupa ' +
+      'su trono de roca en la bajamar, mitad hombre, mitad lobo marino, con ' +
+      'pelaje de oro viejo — soberano de cada ola desde que Caicai Vilu lanzó ' +
+      'el mar contra la tierra. El agua te llega a los tobillos antes de que ' +
+      'entiendas lo que has hecho: su corte no tiene muros ni portón, solo ' +
+      'una línea de marea, y la has cruzado. Te pesa como un hombre pesa una ' +
+      'moneda — apenas un instante, porque el peso nunca estuvo en duda. Lo ' +
+      'que vuelva a subir por esta playa será, desde esta noche, en parte ' +
+      'suyo.',
     blessing:
-      'El Millalobo has claimed you. No wave of his will rise against you — what is his comes home on its own.',
+      'El Millalobo te ha reclamado. Ninguna ola suya se alzará en tu contra — lo que es suyo vuelve solo a casa.',
   },
 
   sirena: {
     name: 'La Sirena Chilota',
-    title: 'Herder of the Drowned',
+    title: 'Pastora de los ahogados',
     lore:
-      'On a black rock sits la Sirena Chilota, combing her long hair while her ' +
-      'pearl-bright tail stirs the kelp. She is the gentlest of her father’s ' +
-      'daughters: hers is the gathering of drowned sailors, carried tenderly ' +
-      'out to el Caleuche to wake and sail forever. As she combs, she counts ' +
-      'under her breath — a long, patient number, and you understand all at ' +
-      'once that the number is names. She does not pause when she reaches one ' +
-      'you know. She only looks up, sets down her comb, and sings a single ' +
-      'note out into the fog. The note carries far. Somewhere in the channel, ' +
-      'something answers it.',
+      'Sobre una roca negra la Sirena chilota se peina el pelo largo, ' +
+      'mientras su cola de brillo de perla mece los huiros. Es la más dulce ' +
+      'de las hijas de su padre: a ella le toca recoger a los marineros ' +
+      'ahogados y llevarlos con cuidado hasta el Caleuche, donde despiertan y ' +
+      'navegan para siempre. Mientras se peina, cuenta entre dientes — un ' +
+      'número largo, paciente, y comprendes de golpe que el número son ' +
+      'nombres. No se detiene cuando llega a uno que conoces. Solo levanta la ' +
+      'vista, deja la peineta y canta una sola nota hacia la niebla. La nota ' +
+      'llega lejos. En algún punto del canal, algo le responde.',
     blessing:
-      'La Sirena has added your name to the count. El Caleuche will come to the old dock for what is its.',
+      'La Sirena ha sumado tu nombre a la cuenta. El Caleuche vendrá al muelle viejo por lo que es suyo.',
   },
 }
 
@@ -106,42 +109,42 @@ export const STRINGS = {
   title: 'CALEUCHE',
   subtitle: 'La niebla no devuelve lo que toma',
   intro:
-    'A month ago your brother’s boat came back through the fog without him — ' +
-    'sails set, nets dry, not a soul aboard. The old people will not say his ' +
-    'name; when you ask, they look at the niebla and cross themselves. Tonight ' +
-    'you stopped asking. You walk into the fog to find him, and the island is ' +
-    'awake: six beings move out there in the dark, and each one that finds you ' +
-    'will leave its seña on you.',
-  help: 'WASD move · mouse or arrow keys look · Shift run · Tab señas · M sound',
-  beginLabel: 'Step Into the Fog',
-  continueLabel: 'Continue',
-  resumeLabel: 'Return to the Night',
+    'Hace un mes el bote de tu hermano volvió por la niebla sin él: velas ' +
+    'izadas, redes secas, ni un alma a bordo. Los viejos no dicen su nombre; ' +
+    'cuando preguntas, miran la niebla y se persignan. Esta noche dejaste de ' +
+    'preguntar. Caminas hacia la niebla a buscarlo, y la isla está despierta: ' +
+    'seis seres se mueven allá afuera en lo oscuro, y cada uno que te ' +
+    'encuentre dejará su seña en ti.',
+  help: 'WASD moverse · mouse o flechas mirar · Shift correr · Tab señas · M sonido',
+  beginLabel: 'Entrar en la niebla',
+  continueLabel: 'Continuar',
+  resumeLabel: 'Volver a la noche',
   hudLabel: 'Señas',
-  hint: '✦ Algo cerca te está mirando… something close is looking at you',
+  hint: '✦ Algo cerca te está mirando…',
   banner:
-    'El Caleuche ha venido… the ghost ship turns for the old dock on the ' +
-    'eastern shore. It has not come empty.',
+    'El Caleuche ha venido… el barco fantasma vira hacia el muelle viejo de ' +
+    'la costa este. No viene vacío.',
   sailHint:
-    '✦ El Caleuche se acerca al muelle del este… it is making for the old dock. For you.',
+    '✦ El Caleuche se acerca al muelle del este… viene por ti.',
   boardHint:
-    '✦ El Caleuche espera en el muelle. La pasarela está abajo — the gangplank is down, and it is waiting.',
-  replayLabel: 'Walk Into the Fog Again',
-  winTitle: 'Among the Crew',
+    '✦ El Caleuche espera en el muelle. La pasarela está abajo — y no la bajaron para nadie más.',
+  replayLabel: 'Caminar de nuevo hacia la niebla',
+  winTitle: 'Entre la tripulación',
   winText:
-    'There is no plank of pale light. There are the wet stones of the dock, ' +
-    'the ship’s cold patience, and six señas burning under your skin like ' +
-    'hooks. You climb aboard because there is nowhere on the island left to ' +
-    'stand. The music below decks is a waltz played slightly wrong. The crew ' +
-    'turn to you with the unhurried eyes of the drowned — and among them your ' +
-    'brother lifts his head. He is not surprised. He holds out his hand the ' +
-    'way he did when you were small, and behind you the fog closes over the ' +
-    'channel. The old people were right about one thing: they will not say ' +
-    'your name now either.',
+    'No hay tablón de luz pálida. Hay las piedras mojadas del muelle, la ' +
+    'paciencia fría del barco y seis señas ardiendo bajo tu piel como ' +
+    'anzuelos. Subes a bordo porque en la isla ya no queda dónde estar. La ' +
+    'música bajo cubierta es un vals tocado apenas mal. La tripulación se ' +
+    'vuelve hacia ti con los ojos sin apuro de los ahogados — y entre ellos ' +
+    'tu hermano levanta la cabeza. No está sorprendido. Te tiende la mano ' +
+    'como cuando eras chico, y a tu espalda la niebla se cierra sobre el ' +
+    'canal. En una cosa los viejos tenían razón: ahora tampoco dirán tu ' +
+    'nombre.',
   bestiaryTitle: 'Señas de la Isla',
   bestiaryLockedName: '— ¿…? —',
-  bestiaryLockedText: 'Aún no hallado… not yet found.',
+  bestiaryLockedText: 'Aún no hallado…',
   bestiaryHint: 'Tab · Señas',
-  closeLabel: 'Close',
+  closeLabel: 'Cerrar',
   blackoutText:
-    'La niebla te tomó. You wake on cold sand, and something has your scent.',
+    'La niebla te tomó. Despiertas sobre la arena fría, y algo tiene tu olor.',
 }

@@ -4,24 +4,26 @@ export const STRINGS = {
   title: 'EL TRAUCO',
   subtitle: 'No le sostengas la mirada',
   intro:
-    'In the deep woods of Chiloé lives el Trauco, a squat old power dressed in ' +
-    'woven quilineja vine, with a stone hatchet that fells the thickest tree in three blows. ' +
-    'It is not the hatchet you should fear — it is his mirada, which bends a grown ' +
-    'man like green wood. Gather seven strands of glowing quilineja and slip out ' +
-    'through the old gate, and whatever you hear in the fog, do not hold his gaze.',
-  help: 'wasd walk · shift sprint (loud) · mouse look · m mute',
-  begin: 'BEGIN',
+    'En lo hondo del bosque de Chiloé vive el Trauco, un poder viejo y rechoncho ' +
+    'vestido de quilineja trenzada, con un hacha de piedra que voltea el árbol más ' +
+    'grueso en tres golpes. No es el hacha lo que debes temer: es su mirada, que ' +
+    'dobla a un hombre hecho como vara verde. Junta siete hebras de quilineja ' +
+    'encendida y escapa por la puerta vieja, y oigas lo que oigas en la niebla, ' +
+    'no le sostengas la mirada.',
+  help: 'WASD moverse · mouse mirar · Shift correr (hace ruido) · M sonido',
+  begin: 'COMENZAR',
   winTitle: 'EL BOSQUE TE SUELTA',
   winText:
-    'Seven strands of quilineja, cut from the very vine that dresses him. As you ' +
-    'pass between the leaning trunks the wisp gutters out like a candle, and behind ' +
-    'you something small stamps twice in the fog — and lets you go. No mires atrás.',
+    'Siete hebras de quilineja, cortadas de la misma enredadera que lo viste. Al ' +
+    'cruzar entre los troncos inclinados la lumbre tiembla y se apaga como una vela, ' +
+    'y a tu espalda algo pequeño zapatea dos veces en la niebla — y te suelta. ' +
+    'No mires atrás.',
   winReplay: 'OTRA NOCHE',
   loseTitle: 'TE DOBLÓ LA MIRADA',
   loseText:
-    'You held his gaze a heartbeat too long, and your will bent the way quilineja ' +
-    'bends — without breaking, and without ever springing back. The fog keeps what ' +
-    'it charms. Next time, put a trunk between your eyes and his.',
+    'Le sostuviste la mirada un latido de más, y tu voluntad se dobló como se dobla ' +
+    'la quilineja: sin quebrarse, y sin enderezarse nunca. La niebla se queda con lo ' +
+    'que encanta. La próxima vez, pon un tronco entre tus ojos y los suyos.',
   loseReplay: 'INTENTAR DE NUEVO',
   hudVines: 'quilineja',
   charmLabel: 'la mirada',
@@ -30,6 +32,18 @@ export const STRINGS = {
 let root = null
 let modalEl = null
 let primaryBtn = null
+
+// painted overlay backdrop (gpt-image-1, /assets/trauco/title.png).
+// The 'art' class is ONLY added once the image has actually loaded — if the
+// file is missing or fails, no class is added and the overlays keep their
+// original pure-gradient look (exact pre-art behavior).
+let artOk = false
+const artImg = new Image()
+artImg.onload = () => {
+  artOk = true
+  if (modalEl) modalEl.classList.add('art')
+}
+artImg.src = '/assets/trauco/title.png'
 
 let vinesEl, hintEl, charmWrap, charmFill, gazeVig, flashEl, muteEl
 let hudShown = false
@@ -48,6 +62,7 @@ function el(tag, className, text) {
 }
 
 function openModal(overlay, btn, onPrimary) {
+  if (artOk) overlay.classList.add('art')
   modalEl = overlay
   primaryBtn = btn
   let done = false
@@ -136,8 +151,14 @@ export const ui = {
       vinesEl.classList.add('visible')
     }
     if (vines !== lastVines) {
+      const wasCollect = lastVines !== -1 // not the initial HUD reveal
       lastVines = vines
       vinesEl.textContent = vineTexts[vines] || STRINGS.hudVines + ' ✦ ' + vines + '/' + total
+      if (wasCollect) {
+        vinesEl.classList.remove('pop')
+        void vinesEl.offsetWidth // restart the pop animation
+        vinesEl.classList.add('pop')
+      }
     }
     const c = Math.round(charm * 100) / 100
     if (c !== lastCharm) {

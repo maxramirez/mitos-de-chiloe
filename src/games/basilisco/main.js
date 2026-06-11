@@ -72,8 +72,8 @@ const hFire = hud.querySelector('#h-fire')
 const hBreath = hud.querySelector('#h-breath')
 const toastEl = el('div', '', '', ui)
 toastEl.id = 'toast'
-const HINT_BASE = 'wasd mover · space espantar / abrir tabla · e clavar · r leña · '
-const hint = el('div', '', HINT_BASE + 'm sonido', ui)
+const HINT_BASE = 'WASD moverse · ESPACIO espantar / levantar tabla · E clavar · R leña · '
+const hint = el('div', '', HINT_BASE + 'M sonido', ui)
 hint.id = 'hint'
 
 let toastTimer = null
@@ -102,9 +102,9 @@ function card(title, epithet, body, controls, btnLabel, onClick) {
 const titleCard = card(
   'EL BASILISCO',
   'La noche del huevo',
-  'When a hen grows old and crows like a rooster, she lays one misshapen egg — and something coils inside it. Hatched in secret beneath the floorboards of the palafito, <i>el basilisco</i> climbs up through the cracks at night to drink the breath of the sleeping, <i>el aliento</i>, until the house goes thin and quiet. You are the eldest child, the only one awake: keep the braziers fed, board the cracks, and listen when it squeals — it always cries toward its egg.',
-  'WASD move &nbsp;·&nbsp; SPACE shoo / hold 3&thinsp;s on a loose tile to pry &nbsp;·&nbsp; E board a crack &nbsp;·&nbsp; R feed a brazier &nbsp;·&nbsp; M sonido',
-  'BEGIN',
+  'Cuando una gallina envejece y canta como gallo, pone un solo huevo deforme — y algo se enrosca adentro. Empollado en secreto bajo las tablas del palafito, <i>el basilisco</i> sube de noche por las grietas a beber el aliento de los que duermen, hasta que la casa queda delgada y callada. Eres el mayor de la casa, el único despierto: alimenta los braseros, clava las grietas y escucha cuando chille — siempre llora hacia su huevo.',
+  'WASD moverse &nbsp;·&nbsp; ESPACIO espantar / mantener 3&thinsp;s sobre una tabla suelta para levantarla &nbsp;·&nbsp; E clavar una grieta &nbsp;·&nbsp; R alimentar el brasero &nbsp;·&nbsp; M sonido',
+  'COMENZAR',
   () => begin()
 )
 
@@ -275,7 +275,7 @@ function win() {
     showEnd(
       'EL HUEVO ROTO',
       'Amaneció',
-      'The shell bursts like wet ash under your heel. Beneath the boards something thrashes once, twice — and then the sea under the stilts is only the sea. At dawn the braziers gutter out on their own, and the family wakes, breathing. <i>Seña</i> earned: the island remembers who kept the fire.',
+      'La cáscara revienta como ceniza mojada bajo tu talón. Bajo las tablas algo se sacude una vez, dos — y después el mar bajo los pilotes vuelve a ser solo el mar. Al alba los braseros se apagan solos y la familia despierta, respirando. <i>Seña</i> ganada: la isla recuerda a quien cuidó el fuego.',
       'OTRA NOCHE'
     )
   }, 1100)
@@ -293,12 +293,12 @@ function lose(reason) {
     sleepers: [
       'LA CASA CALLA',
       'Dos alientos perdidos',
-      'Two breaths taken, and the silence under the floor is fatter now. The basilisco drank deep while the braziers hissed in the rain. In Chiloé there is only one cure left for a house like this: they will burn it down to the stilts.',
+      'Dos alientos bebidos, y el silencio bajo el piso ahora pesa más. El basilisco bebió hondo mientras los braseros siseaban bajo la lluvia. En Chiloé queda un solo remedio para una casa así: la quemarán hasta los pilotes.',
     ],
     dawn: [
       'EL ALBA',
       'La noche no alcanzó',
-      'Dawn comes grey through the rain and the egg still lies warm beneath the boards. Tonight it learned the shape of every room — tomorrow it will be faster. Find the egg next time: its squeal always points home.',
+      'El alba llega gris entre la lluvia y el huevo sigue tibio bajo las tablas. Esta noche aprendió la forma de cada pieza — mañana será más rápido. Encuentra el huevo la próxima vez: su chillido siempre apunta a casa.',
     ],
   }
   const t = texts[reason] || texts.dawn
@@ -624,7 +624,7 @@ function keyEvent(code, down, repeat) {
   } else if (code === 'KeyM' && down) {
     const m = audio.toggleMute()
     toast(m ? 'silencio' : 'sonido')
-    hint.textContent = HINT_BASE + (m ? 'm silencio' : 'm sonido')
+    hint.textContent = HINT_BASE + (m ? 'M silencio' : 'M sonido')
   }
 }
 window.addEventListener('keydown', (e) => {
