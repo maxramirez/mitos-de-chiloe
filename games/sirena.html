@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>La Sirena — Mitos de Chiloé</title>
+    <link rel="stylesheet" href="/src/games/sirena/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div class="vignette"></div>
+    <a href="/" id="hub-link" style="position: fixed; top: 14px; left: 16px; z-index: 60; color: #9a917c; text-decoration: none; font-family: Georgia, serif; font-size: 13px; letter-spacing: 0.18em; opacity: 0.75">⌂ MITOS</a>
+    <div id="mute-hint">1–5 · m — silencio</div>
+
+    <div class="overlay" id="title-overlay">
+      <div class="card">
+        <div class="charm">✦</div>
+        <h1 class="game-title">LA SIRENA</h1>
+        <div class="game-subtitle">El canto</div>
+        <div class="rule"></div>
+        <p class="intro">
+          On a black rock off Quicaví she combs her hair and sings the names of
+          the drowned. Six ánimas wait on your shore for passage to the
+          Caleuche, and the channel will carry them only if her song comes back
+          true, note for note. Listen well — el agua no guarda dos veces un
+          nombre.
+        </p>
+        <p class="help">click the shells or press 1–5 · m — silence</p>
+        <button class="btn" id="begin-btn">BEGIN</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="win-overlay">
+      <div class="card">
+        <div class="charm">✦</div>
+        <h1 class="game-title small">EL CANTO CUMPLIDO</h1>
+        <div class="game-subtitle">seis ánimas cruzan el canal</div>
+        <div class="rule"></div>
+        <p class="intro">
+          The last lantern settles on the Caleuche's deck and the ship dips its
+          lights once — gracias, or warning. La Sirena returns to her combing,
+          facing you now; the channel keeps your song, note for note, and for
+          one night the water gives back what it took.
+        </p>
+        <div class="win-charms">✦ ✦ ✦ ✦ ✦ ✦</div>
+        <button class="btn" id="replay-win">VOLVER A CANTAR</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="lose-overlay">
+      <div class="card">
+        <div class="charm dim">✦</div>
+        <h1 class="game-title small">EL CANAL OLVIDA</h1>
+        <div class="game-subtitle">…un nombre que nadie volverá a cantar</div>
+        <div class="rule"></div>
+        <p class="intro">
+          Three notes lost beneath the surface, y el canal olvida un nombre. On
+          your shore the lanterns gutter out one by one. She does not stop
+          singing — she only stops singing to you.
+        </p>
+        <button class="btn" id="replay-lose">ESCUCHAR DE NUEVO</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/games/sirena/main.js"></script>
+  </body>
+</html>
