@@ -93,11 +93,11 @@ function mulberry32(a) {
 /*  createTerrain                                                      */
 /* ------------------------------------------------------------------ */
 
-const C_SILT = new THREE.Color(0x23211c) // deep underwater silt
-const C_WETSAND = new THREE.Color(0x4a4434) // wet sand at the waterline
-const C_SAND = new THREE.Color(0x6b6049) // dry sand
-const C_GRASS = new THREE.Color(0x26371f) // dark coastal grass
-const C_MOSS = new THREE.Color(0x18271c) // wetter moss
+const C_SILT = new THREE.Color(0x21201c) // deep underwater silt
+const C_WETSAND = new THREE.Color(0x423f36) // wet sand at the waterline — greyed
+const C_SAND = new THREE.Color(0x5e5a4e) // dry sand — slightly grey
+const C_GRASS = new THREE.Color(0x28342a) // coastal grass — desaturated, colder
+const C_MOSS = new THREE.Color(0x1a2621) // wetter moss — desaturated, colder
 const C_ROCK = new THREE.Color(0x575b60) // grey rock, high ground
 const C_ROCKDK = new THREE.Color(0x383d44) // dark rock on steep faces
 
@@ -156,6 +156,7 @@ export function createTerrain() {
       metalness: 0.0,
     })
   )
+  ground.receiveShadow = true
   group.add(ground)
 
   /* ---- cypress-like trees: tall narrow cones + trunks ---- */
@@ -178,6 +179,8 @@ export function createTerrain() {
 
   const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, MAX_TREES)
   const crowns = new THREE.InstancedMesh(crownGeo, crownMat, MAX_TREES)
+  trunks.castShadow = true
+  crowns.castShadow = true
 
   const rng = mulberry32(987654321)
   const m = new THREE.Matrix4()
@@ -242,7 +245,7 @@ export function createTerrain() {
     m.compose(p, q, sc)
     crowns.setMatrixAt(placed, m)
 
-    tint.setHSL(0.34 + rng() * 0.06, 0.26 + rng() * 0.14, 0.09 + rng() * 0.07)
+    tint.setHSL(0.38 + rng() * 0.06, 0.2 + rng() * 0.11, 0.08 + rng() * 0.06)
     crowns.setColorAt(placed, tint)
     placed++
   }
@@ -263,6 +266,7 @@ export function createTerrain() {
     roughness: 0.9,
   })
   const rocks = new THREE.InstancedMesh(rockGeo, rockMat, MAX_ROCKS)
+  rocks.castShadow = true
   let rPlaced = 0
   for (let i = 0; i < 600 && rPlaced < MAX_ROCKS; i++) {
     const a = rng() * Math.PI * 2
@@ -283,6 +287,83 @@ export function createTerrain() {
   rocks.count = rPlaced
   rocks.instanceMatrix.needsUpdate = true
   group.add(rocks)
+
+  /* ---- ~18 seeded dead trees: bare leaning trunks + skeletal branches ---- */
+  const DEAD_TREES = 18
+  const deadTrunkGeo = new THREE.CylinderGeometry(0.08, 0.26, 1, 5)
+  deadTrunkGeo.translate(0, 0.5, 0)
+  const deadBranchGeo = new THREE.CylinderGeometry(0.025, 0.08, 1, 4)
+  deadBranchGeo.translate(0, 0.5, 0)
+  const deadMat = new THREE.MeshStandardMaterial({
+    color: 0x0d0c0b, // near-black bark
+    flatShading: true,
+    roughness: 1,
+  })
+  const deadTrunks = new THREE.InstancedMesh(deadTrunkGeo, deadMat, DEAD_TREES)
+  const deadBranches = new THREE.InstancedMesh(deadBranchGeo, deadMat, DEAD_TREES * 3)
+  deadTrunks.castShadow = true
+  deadBranches.castShadow = true
+
+  const dRng = mulberry32(246813579)
+  const up = new THREE.Vector3()
+  const bp = new THREE.Vector3()
+  let dPlaced = 0
+  let bPlaced = 0
+  for (let i = 0; i < 4000 && dPlaced < DEAD_TREES; i++) {
+    const a = dRng() * Math.PI * 2
+    const rad = Math.sqrt(dRng()) * 200
+    const x = Math.cos(a) * rad
+    const z = Math.sin(a) * rad
+    const h = terrainHeight(x, z)
+    if (h <= 2 || h >= 24) continue
+    if (slopeAt(x, z) > 0.45) continue
+    let inClearing = false
+    for (let c = 0; c < CLEARINGS.length; c++) {
+      const dx = x - CLEARINGS[c][0]
+      const dz = z - CLEARINGS[c][1]
+      if (dx * dx + dz * dz < CLEARINGS[c][2] * CLEARINGS[c][2]) {
+        inClearing = true
+        break
+      }
+    }
+    if (inClearing) continue
+
+    const yaw = dRng() * Math.PI * 2
+    const leanX = (dRng() - 0.5) * 0.3 // slight lean
+    const leanZ = (dRng() - 0.5) * 0.3
+    const s = 0.8 + dRng() * 0.6
+    const trunkH = 3.5 + dRng() * 3.0
+
+    eul.set(leanX, yaw, leanZ, 'XYZ')
+    q.setFromEuler(eul)
+    p.set(x, h - 0.15, z)
+    sc.set(s, trunkH, s)
+    m.compose(p, q, sc)
+    deadTrunks.setMatrixAt(dPlaced, m)
+
+    // 2–3 bare branches along the leaned trunk axis
+    up.set(0, 1, 0).applyQuaternion(q)
+    const nb = 2 + (dRng() < 0.5 ? 0 : 1)
+    for (let b = 0; b < nb; b++) {
+      const frac = 0.45 + dRng() * 0.4
+      bp.copy(p).addScaledVector(up, frac * trunkH)
+      eul.set(0.9 + dRng() * 0.6, dRng() * Math.PI * 2, 0, 'YXZ')
+      q.setFromEuler(eul)
+      const bl = 1.0 + dRng() * 1.3
+      const bs = 0.7 + dRng() * 0.5
+      sc.set(bs, bl, bs)
+      m.compose(bp, q, sc)
+      deadBranches.setMatrixAt(bPlaced, m)
+      bPlaced++
+    }
+    dPlaced++
+  }
+  deadTrunks.count = dPlaced
+  deadBranches.count = bPlaced
+  deadTrunks.instanceMatrix.needsUpdate = true
+  deadBranches.instanceMatrix.needsUpdate = true
+  group.add(deadTrunks)
+  group.add(deadBranches)
 
   return group
 }

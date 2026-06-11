@@ -30,15 +30,36 @@ Global conventions
 ## src/world/water.js
 - `export function createWater(): { object3d, update(t) }` — dark green-blue sea
   plane (~2000×2000) at y ≈ 0, transparent (opacity ~0.85), subtle vertex ripple
-  or shimmer in `update(t)`. Cheap.
+  or shimmer in `update(t)`. Cheap. Horror grade: color toward 0x0a2226,
+  emissive floor 0x031014 — the sea reads as ink.
 
-## src/world/sky.js
-- `export function createSky(scene): { update(t) }` — sets
-  `scene.fog = new THREE.FogExp2(…)` (#0d1b26-ish, density ~0.011) and a matching
-  `scene.background`; adds HemisphereLight (~0.5), bluish moon DirectionalLight
-  (~0.7) from high in the sky, a visible emissive moon disc far away toward
-  (-400, 350, -300), and ~1500 star Points on a ~900-radius dome (slight twinkle
-  in update). ALL global scene lighting lives here.
+## HORROR shadow flags (terrain.js edit)
+- `terrainHeight` MUST NOT CHANGE (saves, registry, physics depend on it).
+- ground mesh: `receiveShadow = true`. Tree/rock InstancedMeshes:
+  `castShadow = true` (crowns + trunks; receiveShadow false is fine).
+- Palette: pull grass/moss saturation down ~20% and a touch colder; sand
+  slightly grey. Add ~18 seeded DEAD trees (bare trunk + 2–3 branch
+  cylinders, near-black bark, slight lean, castShadow) scattered where
+  2 < h < 24, avoiding the CLEARINGS list.
+
+## src/world/sky.js — HORROR relight + shadows
+- `export function createSky(scene): { update(t, focus?) }` — sets
+  `scene.fog = new THREE.FogExp2(…)` and a matching `scene.background`; adds
+  HemisphereLight, a moon DirectionalLight, a visible emissive moon disc far
+  away toward (-400, 350, -300), and ~1500 star Points on a ~900-radius dome
+  (slight twinkle in update). ALL global scene lighting lives here.
+- Horror palette: fog #0a161a-ish (colder, faintly green), density ~0.0125;
+  hemisphere ~(sky 0x4a6280, ground 0x1c2620, 2.4); moon light 0xb8c8e8 at
+  ~2.0. Keep the island READABLE — horror comes from contrast and the fx
+  pass, not mud.
+- SHADOWS: the moon DirectionalLight has castShadow = true, 2048×2048 map,
+  OrthographicCamera frustum ±75 m, bias ≈ -0.0008, normalBias ≈ 0.6. In
+  `update(t, focus)` (focus = player position Vector3, may be undefined on
+  early frames) move the light and its target so the shadow frustum stays
+  centered on the player (light offset along its fixed direction; call
+  light.target.updateMatrixWorld()).
+- Add 4–6 vast slow cloud silhouettes (dark, transparent planes high up,
+  drifting barely) so the sky is not empty.
 
 ## src/beings/<id>.js — six files
 `pincoya.js, trauco.js, camahueto.js, invunche.js, millalobo.js, sirena.js`
@@ -126,6 +147,147 @@ Global conventions
   animations. Overlays use `pointer-events: auto` only on interactive elements;
   HUD is `pointer-events: none`. `#app canvas { display:block; position:fixed;
   inset:0 }`. `#ui` children positioned fixed above the canvas.
+
+## src/audio.js — HORROR soundscape
+- `export function createAudio(): { unlock(), update(dt, ctx), stinger(name),
+  toggleMute(): boolean, get state() }`
+- 100% procedural WebAudio — no assets. Lazy AudioContext created inside
+  `unlock()` (first user gesture); every method is a safe no-op before unlock
+  or if WebAudio is unavailable. Master gain ~0.3 with a gentle compressor.
+  All level changes via setTargetAtTime (no clicks). CPU-light: one shared
+  noise buffer, few persistent nodes.
+- `update(dt, ctx)` with `ctx = { moving: boolean, run: boolean,
+  playerHeight: number, nearestDist: number, caleucheDist: number|null,
+  dread: number (0..1), stalker: null|'hidden'|'lurk'|'stalk'|'rush',
+  stalkerDist: number|null, won: boolean }`. Layers:
+  - wind — filtered noise, slow LFO wander, always on; thins out (high-passes,
+    quietens) as `nearestDist` drops under ~25 m — the island holds its breath
+    near a being.
+  - surf — low rumbling noise swells (8–12 s period), louder as playerHeight
+    drops toward the waterline (full below ~2 m, faded out above ~10 m).
+  - footsteps — soft noise taps when moving, cadence ~2.2 Hz walking / 3.2 Hz
+    running, randomized pitch/level.
+  - dread drone — detuned dark cluster (2–3 saw/sine osc, heavy lowpass),
+    gain ≈ dread² × 0.22; barely there under 0.4, oppressive near 1.
+  - heartbeat — soft sub thumps, starts when dread > 0.55 OR stalker is
+    'rush', rate 60→110 bpm with dread.
+  - the Caleuche's ghost waltz — when `caleucheDist` is non-null: a faint 3/4
+    loop (triangle melody + root-fifth bass, ~96 bpm, minor), heavily
+    low-passed through a feedback delay, and ALWAYS slightly detuned/warbling
+    (±8 cents LFO) — festive music that is wrong. Volume scales with distance
+    (audible < ~250 m). After `won` it grows louder but MORE detuned.
+- `stinger(name)`: 'encounter' (low bell toll + airy whisper-noise swell),
+  'summon' (deep horn + distant bell), 'stalker' (sub thump + close breath),
+  'blackout' (reversed cymbal-like noise swell into silence),
+  'win' (hollow unresolved chord that decays into the waltz).
+- `get state()` returns { unlocked, muted, contextState } for tests.
+
+## src/world/wisps.js
+- `export function createWisps(): { group, update(t, guideTarget) }` — ~24
+  faint blue-green motes (additive Points, depthWrite false, no lights)
+  drifting 0.5–3 m above `terrainHeight` across the island (import it).
+  When `guideTarget` (Vector3 or null) is set, the few wisps nearest the
+  camera drift with a gentle bias toward it — a suggestion, not a beeline.
+  Wisps far below sea level or outside radius ~230 respawn near the player.
+- Chilote flavor: these are luces — keep them dim (they must never compete
+  with the beings' glows).
+
+## src/world/mist.js
+- `export function createMist(): { group, update(t) }` — 10–14 large
+  (30–80 m) very faint additive quads at y 1–4, slowly drifting/rotating,
+  opacity 0.03–0.08, `fog: false`, `depthWrite: false`, double-sided,
+  concentrated over the coast ring (radius 150–230). Subtle; never blooms.
+
+## src/fx.js — post-processing ("HD" pipeline)
+- `export function createFX(renderer, scene, camera): { render(dt),
+  resize(width, height), set dread(v), get dread() }`
+- Uses the postprocessing addons shipped inside the installed `three` package
+  (`import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'`
+  etc. — verify the path against node_modules). Chain:
+  1. RenderPass
+  2. UnrealBloomPass — strength ~0.5, radius ~0.55, threshold ~0.6 (tuned so
+     being-glows/lanterns/sails bloom but the dark scene does not milk out)
+  3. Final custom ShaderPass: vignette (base 0.35, +0.35×dread), animated film
+     grain (base 0.035, +0.05×dread), subtle chromatic aberration at screen
+     edges (scaled by dread), slight desaturation + cold green-teal grade as
+     dread rises, and at dread > 0.7 a slow ~1 Hz darkening pulse.
+- Create the composer with a multisampled render target (samples: 4) so MSAA
+  is not lost. `resize` must handle size AND pixel ratio (cap 2). `render(dt)`
+  advances the grain/time uniform and renders the chain (replaces
+  renderer.render in main).
+
+## src/stalker.js — El Brujo (the stalker)
+- `export function createStalker(): { group, update(dt, ctx), get state(),
+  get position(), set active(v), reset(), forceSpawn(distance?),
+  consumeStrike(): boolean }`
+- `import { terrainHeight } from './world/terrain.js'`. ctx = { playerPos:
+  Vector3, playerForward: Vector3 (unit, XZ) }.
+- A gaunt ~2.6 m pitch-dark figure (procedural primitives, near-black
+  MeshStandardMaterial, long limbs, wide-brim hat silhouette — a brujo de
+  Chiloé), two small pale-green emissive eyes. NO PointLight (light-count
+  rule). Optional ≤40-point dark particle drip. castShadow on its meshes.
+- State machine (timers randomized within ranges):
+  - 'hidden' — group invisible BY POSITION (parked at y −60 under the island
+    center, NOT visible=false — it has no lights but keep the pattern
+    consistent); cooldown 25–50 s while `active`.
+  - 'lurk' — rises/appears 55–85 m from the player, biased to the side or
+    behind; stands swaying. If the player's forward vector points within ~18°
+    of it for a cumulative ~1.4 s → it freezes 3–4 s, then sinks away →
+    'hidden'. If not observed within 6–10 s → 'stalk'.
+  - 'stalk' — glides toward the player at ~2.3 m/s following terrain. Being
+    observed freezes it (it does not advance while watched). Within 11 m →
+    'rush'.
+  - 'rush' — 6.5 m/s straight in, ignores observation. Within 1.8 m →
+    'strike': records a pending strike (consumeStrike() returns true once),
+    then immediately sinks → 'hidden' + cooldown.
+  - reset() → 'hidden' + fresh cooldown. forceSpawn(d) → immediate 'lurk' at
+    distance d (default 60) in front of the player (for tests).
+- update is allocation-free; sway/glide bob in-place; eye emissive flickers.
+
+## ui.js / lore.js additions (bestiary + continue + blackout)
+- `ui.showTitle(onStart, resume?)` — backward compatible; when
+  `resume = { label, onResume }` is provided render a second button under
+  Begin that calls onResume.
+- `ui.showBestiary(entries, onClose)` — entries: all six in registry order,
+  `{ name, title, lore, blessing, found }`. Found entries render their full
+  card text (compact list/grid); unfound render as locked silhouettes using
+  STRINGS.bestiaryLockedName / STRINGS.bestiaryLockedText. One Close button
+  (STRINGS.closeLabel) → onClose. `closeModal()` must also close an open
+  bestiary. `isModalOpen()` true while open.
+- `ui.setBestiaryHint(visible: boolean)` — toggles a small fixed hint
+  (STRINGS.bestiaryHint) at the bottom-right of the HUD.
+- `ui.showBlackout(text, onDone)` — full-screen black overlay that cuts in
+  fast (~0.15 s), holds ~1.6 s showing `text` as a faint centered whisper,
+  fades out ~1 s, removes itself, then calls onDone. NOT a modal (closeModal
+  must ignore it); it must sit visually ABOVE every other overlay.
+- New STRINGS keys (exact names): `resumeLabel: 'Return to the Night'`,
+  `bestiaryTitle: 'Señas de la Isla'`, `bestiaryLockedName: '— ¿…? —'`,
+  `bestiaryLockedText: 'Aún no hallado… not yet found.'`,
+  `bestiaryHint: 'Tab · Señas'`, `closeLabel: 'Close'`,
+  `blackoutText: 'La niebla te tomó. You wake on cold sand, and something
+  has your scent.'`; update STRINGS.help to
+  'WASD move · mouse or arrow keys look · Shift run · Tab señas · M sound'.
+
+## lore.js — HORROR REWRITE
+The game is now a horror experience. Rewrite ALL user-facing prose in
+lore.js (every LORE entry and most STRINGS) to match, while staying
+mythologically faithful. The new premise: your brother's boat came back
+empty last month. The old people will not say his name. Tonight you walked
+into the fog to look for him — and the island is awake. The six beings do
+not bless you: they MARK you (each `blessing` line becomes a mark/seña,
+e.g. 'La Pincoya has seen you. The sea will not refuse you now.'). The
+HUD label STRINGS.hudLabel becomes 'Señas'. STRINGS.subtitle becomes
+'La niebla no devuelve lo que toma'. The win is dark and quiet: you board
+the Caleuche because by then there is nowhere else left to go — among the
+crew of the drowned stands your brother, and the text leaves whether this
+is rescue or surrender deliberately unresolved (STRINGS.winTitle/winText).
+Lore entries: keep each being's canonical attributes but let them be
+frightening (the Invunche's making, the Trauco's gaze you must not hold,
+the Sirena counting the drowned, the Camahueto tearing the hillside, the
+Millalobo as a king who owns you the moment you wade into his water, the
+Pincoya dancing a tally of boats). Second person, present tense, restrained
+— dread over gore. 60–110 words per lore entry. Keep banner/sailHint/
+boardHint/hint keys but rewrite them in the new register.
 
 ## src/player.js
 - `export function createPlayer(camera, domElement, opts)` where

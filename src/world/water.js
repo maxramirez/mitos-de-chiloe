@@ -23,14 +23,14 @@ export function createWater() {
   }
 
   const mat = new THREE.MeshStandardMaterial({
-    color: 0x0d2f38,
+    color: 0x0a2226,
     roughness: 0.32,
     metalness: 0.55,
     transparent: true,
     opacity: 0.85,
     flatShading: true,
     depthWrite: false,
-    emissive: 0x04161c,
+    emissive: 0x031014,
     emissiveIntensity: 0.5,
   })
 

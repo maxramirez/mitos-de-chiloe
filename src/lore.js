@@ -1,128 +1,147 @@
 // CALEUCHE — Mitos de Chiloé · lore & strings
-// All player-facing text lives here. English prose, Spanish names kept.
+// All player-facing text lives here. English prose, Spanish woven through.
+// Register: horror — dread over gore. The beings do not bless you. They mark you.
 
 export const LORE = {
   pincoya: {
     name: 'La Pincoya',
     title: 'Dancer of the Tides',
     lore:
-      'You crest the dune and there she is — La Pincoya, dancing barefoot where ' +
-      'the foam unravels, golden hair heavy with salt, her dress woven of sargazo ' +
-      'and moonlight. Daughter of el Millalobo and the woman Huenchula, she alone ' +
-      'decides what the sea will give. Watch the turn of her body: when she dances ' +
-      'facing the open water, the boats come home low with mariscos and silver ' +
-      'fish; when she turns to face the hills, the nets rise empty and the beaches ' +
-      'go quiet for a season. Tonight she dances toward the sea — and she has ' +
-      'seen you.',
+      'You crest the dune and she is already dancing — La Pincoya, barefoot ' +
+      'where the foam unravels, golden hair heavy with salt, her dress woven of ' +
+      'sargazo. The old people say her dance fills or empties the nets. They do ' +
+      'not say what you see now: that every turn is a tally. Toward the sea for ' +
+      'each boat that came home. Toward the hills for each that did not. She ' +
+      'turns toward the hills, once, slowly, holding your eyes the whole way ' +
+      'round, smiling like someone keeping a promise. The foam holds the print ' +
+      'of her feet long after she has moved. None of the prints lead away.',
     blessing:
-      'La Pincoya dances facing the sea: your nets and your luck will come back full.',
+      'La Pincoya has seen you. The sea will not refuse you now.',
   },
 
   trauco: {
     name: 'El Trauco',
     title: 'Crooked Watcher of the Woods',
     lore:
-      'The forest goes silent, and you understand why: El Trauco is watching from ' +
-      'between the trees. Barely waist-high, stump-footed, wrapped in a ragged ' +
-      'quilineja poncho beneath his conical hat, he leans on the stone hatchet ' +
-      'with which he can fell any tree in three blows. His face is hideous, but ' +
-      'his eyes are the true danger — a single fixed gaze bewitches, bends the ' +
-      'will, and can leave the strongest islander twisted like old wood. He ' +
-      'studies you for a long, cold moment… then, strangely, lowers his eyes ' +
-      'and steps aside.',
+      'The forest goes quiet the way a room goes quiet when you enter it. He is ' +
+      'between the trees — waist-high, stump-footed, ragged poncho of quilineja, ' +
+      'conical hat, leaning on the stone hatchet that fells a tree in three ' +
+      'blows. El Trauco. You know the rule as well as your own name: do ' +
+      'not hold his gaze. His eyes find yours anyway, and for one long moment ' +
+      'something in your spine bends like green wood. Then he lowers his eyes — ' +
+      'not in defeat. The way a man lowers a knife he no longer needs to show. ' +
+      'He steps aside, and the path he leaves you is the one he chose.',
     blessing:
-      'El Trauco turns his gaze away — the forests of the island are open to you.',
+      'El Trauco has measured you. The forest lets you pass — it always knows where you are.',
   },
 
   camahueto: {
     name: 'El Camahueto',
     title: 'Golden-Horned Calf of the Gullies',
     lore:
-      'In the wet ravine stands a calf of impossible silver, a single horn of ' +
-      'living gold upon its brow: el Camahueto. Born in a hidden pool, it waits ' +
-      'long years for a storm-flooded night to charge down to the sea, tearing ' +
-      'gullies open as it goes. The machis prize that horn above every remedy — ' +
-      'its shavings, ground fine and drunk, knit broken bodies and pour the ' +
-      'bull-calf’s own strength into the blood. It does not flee from you. It ' +
-      'lowers its bright head, and a curl of golden shaving drops, glowing, at ' +
-      'your feet.',
+      'The ravine is freshly torn — earth opened in one long wound running to ' +
+      'the sea — and at the head of it stands the thing that did the ' +
+      'tearing. El Camahueto: a calf of impossible silver, one horn of living ' +
+      'gold upon its brow. Born in a hidden pool, it waits years for a ' +
+      'storm-flooded night to gouge its way to the water. Tonight the ground ' +
+      'under your boots is loose, and the rain is close. It lowers its bright ' +
+      'head. A curl of golden shaving drops glowing at your feet, and you pick ' +
+      'it up, because you are meant to. Behind you the hillside settles, like ' +
+      'something breathing in.',
     blessing:
-      'A shaving of the golden horn — the Camahueto’s strength runs in your blood tonight.',
+      'The shaving burns warm in your fist. The Camahueto’s strength is lent to your blood — and the island collects what it lends.',
   },
 
   invunche: {
     name: 'El Invunche',
     title: 'Guardian of the Cave of Quicaví',
     lore:
-      'A cold breath issues from the rock, and its keeper drags himself into the ' +
-      'moonlight. El Invunche — taken as a firstborn by the brujos of Quicaví ' +
-      'and raised in the dark of their cave, remade for the door he must guard: ' +
-      'his head turned full around upon his neck, one leg folded and grown fast ' +
-      'against his back, so he moves on one foot and his hands. He knows no ' +
-      'human tongue, only harsh guttural cries that curdle the night. Whoever ' +
-      'meets his eye should be rooted to the spot forever — yet he regards you ' +
-      'with his backward face, and the cry he gives is, almost, a welcome.',
+      'A cold breath comes out of the rock, and its keeper drags himself into ' +
+      'the moonlight. You know what he was. A firstborn, carried to the cave of ' +
+      'Quicaví before his baptism; raised in the dark on what the brujos fed ' +
+      'him; his head turned full around upon his neck, one leg folded and grown ' +
+      'fast against his back, so he goes on one foot and his hands. They made ' +
+      'him into a door, and a door does not forgive being made. He regards you ' +
+      'with his backward face for a long time. The cry he gives is almost a ' +
+      'word — and the word is almost your brother’s name.',
     blessing:
-      'The guardian of Quicaví lets your name pass into the hidden ways unharmed.',
+      'El Invunche has cried your coming into the hidden ways. The doors of the brujos know you now.',
   },
 
   millalobo: {
     name: 'El Millalobo',
     title: 'Golden King of the Seas',
     lore:
-      'He rises from the shallows on his rock throne, half man, half lobo marino, ' +
-      'furred in burnished gold: el Millalobo, sovereign of all the waters. ' +
-      'Conceived in the age of the great flood, when Caicai Vilu drove the sea ' +
-      'against the land, he was given dominion over every wave, every fish and ' +
-      'every storm, and he rules them from the deep with Huenchula at his side. ' +
-      'La Pincoya and la Sirena are his daughters; the tides themselves are his ' +
-      'herds. He weighs you slowly, as a king weighs one small fisherman, and ' +
-      'inclines his enormous head.',
+      'He does not rise to meet you. Kings do not. El Millalobo sits the ' +
+      'shallows on his rock throne, half man, half lobo marino, furred in old ' +
+      'gold — sovereign of every wave since Caicai Vilu drove the sea against ' +
+      'the land. The water is at your ankles before you understand what you ' +
+      'have done: his court has no walls and no gate, only a tideline, and you ' +
+      'have crossed it. He weighs you the way a man weighs a coin — briefly, ' +
+      'because the weight was never in doubt. Whatever walks back up this ' +
+      'beach belongs, from tonight, partly to him.',
     blessing:
-      'El Millalobo grants you fair water — no wave of his will rise against you.',
+      'El Millalobo has claimed you. No wave of his will rise against you — what is his comes home on its own.',
   },
 
   sirena: {
     name: 'La Sirena Chilota',
     title: 'Herder of the Drowned',
     lore:
-      'On a black rock sits la Sirena Chilota, youngest daughter of el Millalobo ' +
-      'and Huenchula, combing her long hair while her pearl-bright tail stirs the ' +
-      'kelp. Hers is the gentlest duty of the deep: she shepherds the fish along ' +
-      'the channels and gathers the bodies of drowned sailors, carrying them ' +
-      'tenderly to el Caleuche, where they wake to sail forever amid lights and ' +
-      'music. She studies you with eyes the color of low tide, sets down her ' +
-      'comb, and sings a single note that travels far out into the fog — a note ' +
-      'with your name in it.',
+      'On a black rock sits la Sirena Chilota, combing her long hair while her ' +
+      'pearl-bright tail stirs the kelp. She is the gentlest of her father’s ' +
+      'daughters: hers is the gathering of drowned sailors, carried tenderly ' +
+      'out to el Caleuche to wake and sail forever. As she combs, she counts ' +
+      'under her breath — a long, patient number, and you understand all at ' +
+      'once that the number is names. She does not pause when she reaches one ' +
+      'you know. She only looks up, sets down her comb, and sings a single ' +
+      'note out into the fog. The note carries far. Somewhere in the channel, ' +
+      'something answers it.',
     blessing:
-      'La Sirena will sing your name to the ghost ship — wait for it at the old dock.',
+      'La Sirena has added your name to the count. El Caleuche will come to the old dock for what is its.',
   },
 }
 
 export const STRINGS = {
   title: 'CALEUCHE',
-  subtitle: 'Mitos de Chiloé',
+  subtitle: 'La niebla no devuelve lo que toma',
   intro:
-    'Fog has shut the channels of Chiloé, and for a month your nets have come up ' +
-    'empty. The old people speak of one remedy: walk the island in the dark and ' +
-    'earn the favor of its six hidden beings. Win all six favores, and el ' +
-    'Caleuche — the ghost ship of the archipelago — will come for you at the ' +
-    'old dock.',
-  help: 'WASD move · mouse or arrow keys look · Shift run',
+    'A month ago your brother’s boat came back through the fog without him — ' +
+    'sails set, nets dry, not a soul aboard. The old people will not say his ' +
+    'name; when you ask, they look at the niebla and cross themselves. Tonight ' +
+    'you stopped asking. You walk into the fog to find him, and the island is ' +
+    'awake: six beings move out there in the dark, and each one that finds you ' +
+    'will leave its seña on you.',
+  help: 'WASD move · mouse or arrow keys look · Shift run · Tab señas · M sound',
   beginLabel: 'Step Into the Fog',
   continueLabel: 'Continue',
-  hudLabel: 'Favores',
-  hint: '✦ Algo se mueve cerca… something stirs nearby',
+  resumeLabel: 'Return to the Night',
+  hudLabel: 'Señas',
+  hint: '✦ Algo cerca te está mirando… something close is looking at you',
   banner:
-    'El Caleuche ha aparecido… the ghost ship makes for the old dock on the ' +
-    'eastern shore. Board it!',
-  sailHint: '✦ El Caleuche se acerca al muelle del este… the ghost ship nears the old dock',
-  boardHint: '✦ El Caleuche espera en el muelle — ¡súbete! Board the ghost ship!',
-  replayLabel: 'Walk the Island Again',
-  winTitle: 'Aboard el Caleuche',
+    'El Caleuche ha venido… the ghost ship turns for the old dock on the ' +
+    'eastern shore. It has not come empty.',
+  sailHint:
+    '✦ El Caleuche se acerca al muelle del este… it is making for the old dock. For you.',
+  boardHint:
+    '✦ El Caleuche espera en el muelle. La pasarela está abajo — the gangplank is down, and it is waiting.',
+  replayLabel: 'Walk Into the Fog Again',
+  winTitle: 'Among the Crew',
   winText:
-    'Six favores glimmer in your hand as a gangplank of pale light comes down. ' +
-    'Music rises from below decks — accordions, laughter, the songs of sailors ' +
-    'the sea never truly took. Tonight you sail with the ship of the brujos, and ' +
-    'tomorrow, the old people say, your nets will never come up empty again.',
+    'There is no plank of pale light. There are the wet stones of the dock, ' +
+    'the ship’s cold patience, and six señas burning under your skin like ' +
+    'hooks. You climb aboard because there is nowhere on the island left to ' +
+    'stand. The music below decks is a waltz played slightly wrong. The crew ' +
+    'turn to you with the unhurried eyes of the drowned — and among them your ' +
+    'brother lifts his head. He is not surprised. He holds out his hand the ' +
+    'way he did when you were small, and behind you the fog closes over the ' +
+    'channel. The old people were right about one thing: they will not say ' +
+    'your name now either.',
+  bestiaryTitle: 'Señas de la Isla',
+  bestiaryLockedName: '— ¿…? —',
+  bestiaryLockedText: 'Aún no hallado… not yet found.',
+  bestiaryHint: 'Tab · Señas',
+  closeLabel: 'Close',
+  blackoutText:
+    'La niebla te tomó. You wake on cold sand, and something has your scent.',
 }

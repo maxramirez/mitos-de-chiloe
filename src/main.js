@@ -7,14 +7,28 @@ import { createCaleuche } from './caleuche.js'
 import { createPlayer } from './player.js'
 import { ui } from './ui.js'
 import { STRINGS } from './lore.js'
+import { createAudio } from './audio.js'
+import { createFX } from './fx.js'
+import { createStalker } from './stalker.js'
+import { createWisps } from './world/wisps.js'
+import { createMist } from './world/mist.js'
+import { createDread } from './dread.js'
 
 const app = document.getElementById('app')
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.3
+renderer.shadowMap.enabled = true
+renderer.shadowMap.type = THREE.PCFSoftShadowMap
 app.appendChild(renderer.domElement)
+
+function enableShadows(obj) {
+  obj.traverse((o) => {
+    if (o.isMesh) o.castShadow = true
+  })
+}
 
 const scene = new THREE.Scene()
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1600)
@@ -23,13 +37,24 @@ const sky = createSky(scene)
 scene.add(createTerrain())
 const water = createWater()
 scene.add(water.object3d)
+const wisps = createWisps()
+scene.add(wisps.group)
+const mist = createMist()
+scene.add(mist.group)
 
 const beings = BEINGS.map((entry) => {
   const inst = entry.factory()
   inst.group.position.copy(entry.position)
+  enableShadows(inst.group)
   scene.add(inst.group)
   return { entry, inst, found: false }
 })
+
+const stalker = createStalker()
+enableShadows(stalker.group)
+scene.add(stalker.group)
+let lastStalkerState = 'hidden'
+let blackoutActive = false
 
 // --- old dock on the eastern shore ---
 let shoreX = 150
@@ -69,7 +94,9 @@ function buildDock(x0) {
   g.add(lamp)
   return g
 }
-scene.add(buildDock(shoreX))
+const dock = buildDock(shoreX)
+enableShadows(dock)
+scene.add(dock)
 
 function onDock(x, z) {
   // must match the deck mesh footprint: x in [shoreX-6, shoreX+DOCK_LEN+4], |z| <= 2.2
@@ -102,6 +129,7 @@ const caleuche = createCaleuche()
 // count constant from boot, so summoning never triggers a shader-recompile hitch.
 const caleucheParked = new THREE.Vector3(shoreX + 650, 0, 520)
 caleuche.group.position.copy(caleucheParked)
+enableShadows(caleuche.group)
 scene.add(caleuche.group)
 const CALEUCHE_SAIL_SECONDS = 50
 const caleucheStart = new THREE.Vector3(shoreX + 330, 0, 190)
@@ -110,14 +138,74 @@ let caleucheProgress = -1 // -1 = not summoned, 0..1 = sailing in
 
 const state = { started: false, won: false, modal: false }
 
+const fx = createFX(renderer, scene, camera)
+const dread = createDread()
+const audio = createAudio()
+const unlockAudio = () => audio.unlock()
+window.addEventListener('pointerdown', unlockAudio, { once: true })
+window.addEventListener('keydown', unlockAudio, { once: true })
+
+// --- save / continue ---
+const SAVE_KEY = 'caleuche-save-v1'
+function saveGame() {
+  try {
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify({
+        found: beings.filter((b) => b.found).map((b) => b.entry.id),
+        pos: [player.position.x, player.position.z],
+        yaw: player.yaw,
+      })
+    )
+  } catch {}
+}
+function loadSave() {
+  try {
+    return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')
+  } catch {
+    return null
+  }
+}
+function clearSave() {
+  try {
+    localStorage.removeItem(SAVE_KEY)
+  } catch {}
+}
+
 ui.init()
-ui.showTitle(beginGame)
+const save0 = loadSave()
+ui.showTitle(
+  beginGame,
+  save0 && Array.isArray(save0.found) && save0.found.length
+    ? { label: STRINGS.resumeLabel, onResume: () => resumeGame(save0) }
+    : undefined
+)
 
 function beginGame() {
   if (state.started) return
   state.started = true
+  clearSave()
+  audio.unlock()
   player.enabled = true
   player.requestLock()
+}
+
+function resumeGame(save) {
+  if (state.started) return
+  state.started = true
+  for (const id of save.found) {
+    const b = beings.find((v) => v.entry.id === id)
+    if (b) b.found = true
+  }
+  if (Array.isArray(save.pos) && save.pos.length === 2) {
+    player.setPosition(save.pos[0], save.pos[1], typeof save.yaw === 'number' ? save.yaw : Math.PI)
+  }
+  audio.unlock()
+  ui.setBestiaryHint(foundCount() > 0)
+  stalker.active = foundCount() >= 2
+  player.enabled = true
+  player.requestLock()
+  if (foundCount() === beings.length && caleucheProgress < 0) summonCaleuche()
 }
 
 const foundCount = () => beings.reduce((n, b) => n + (b.found ? 1 : 0), 0)
@@ -135,8 +223,13 @@ function checkEncounters() {
       try {
         document.exitPointerLock?.() // otherwise the locked pointer can't click Continue
       } catch {}
+      audio.stinger('encounter')
       ui.showEncounter(b.entry, () => {
         state.modal = false
+        saveGame()
+        ui.setBestiaryHint(true)
+        dread.relieve(0.3) // the mark protects, for a while
+        if (foundCount() >= 2) stalker.active = true
         if (!state.won) {
           player.enabled = true
           player.requestLock()
@@ -151,7 +244,25 @@ function checkEncounters() {
 function summonCaleuche() {
   caleucheProgress = 0
   caleuche.group.position.copy(caleucheStart)
+  audio.stinger('summon')
   ui.showBanner(STRINGS.banner)
+}
+
+function triggerBlackout() {
+  blackoutActive = true
+  state.modal = true
+  player.enabled = false
+  audio.stinger('blackout')
+  dread.value = 1
+  // teleport while the screen is fully black, not after the fade-out
+  setTimeout(() => player.setPosition(0, -150, Math.PI), 350)
+  ui.showBlackout(STRINGS.blackoutText, () => {
+    dread.value = 0.55
+    stalker.reset()
+    blackoutActive = false
+    state.modal = false
+    if (!state.won) player.enabled = true
+  })
 }
 
 const _dir = new THREE.Vector3()
@@ -172,6 +283,12 @@ function checkWin() {
     state.won = true
     state.modal = true
     player.enabled = false
+    clearSave()
+    try {
+      localStorage.setItem('chiloe-caleuche-done', '1') // hub completion badge
+    } catch {}
+    ui.setBestiaryHint(false)
+    audio.stinger('win')
     try {
       document.exitPointerLock?.()
     } catch {}
@@ -179,10 +296,11 @@ function checkWin() {
   }
 }
 
-const _fwd = new THREE.Vector3()
-function updateHUD() {
+let guideTarget = boardPoint
+let guideDist = Infinity
+function computeGuide() {
   const p = player.position
-  let target = boardPoint
+  guideTarget = boardPoint
   let bestD2 = Infinity
   for (const b of beings) {
     if (b.found) continue
@@ -191,19 +309,25 @@ function updateHUD() {
     const d2 = dx * dx + dz * dz
     if (d2 < bestD2) {
       bestD2 = d2
-      target = b.entry.position
+      guideTarget = b.entry.position
     }
   }
+  guideDist = bestD2 === Infinity ? Infinity : Math.sqrt(bestD2)
+}
+
+const _fwd = new THREE.Vector3()
+function updateHUD() {
+  const p = player.position
   camera.getWorldDirection(_fwd)
-  const dx = target.x - p.x
-  const dz = target.z - p.z
+  const dx = guideTarget.x - p.x
+  const dz = guideTarget.z - p.z
   // signed angle (around +Y) from camera forward to target; positive = left
   const ang = Math.atan2(_fwd.z * dx - _fwd.x * dz, _fwd.x * dx + _fwd.z * dz)
   const compassDeg = -THREE.MathUtils.radToDeg(ang)
   let hint = ''
   if (caleucheProgress >= 0 && !state.won) {
     hint = caleucheProgress >= 0.95 ? STRINGS.boardHint : STRINGS.sailHint
-  } else if (bestD2 < 28 * 28) {
+  } else if (guideDist < 28) {
     hint = STRINGS.hint
   }
   ui.updateHUD(foundCount(), beings.length, compassDeg, hint)
@@ -212,22 +336,96 @@ function updateHUD() {
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // DPR changes when dragged across displays
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)) // DPR changes when dragged across displays
   renderer.setSize(window.innerWidth, window.innerHeight)
+  fx.resize(window.innerWidth, window.innerHeight)
+})
+
+// --- bestiary (Tab) + mute (M) ---
+let bestiaryOpen = false
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyM') {
+    audio.toggleMute()
+    return
+  }
+  if (e.code !== 'Tab') return
+  e.preventDefault()
+  if (!state.started || state.won || blackoutActive) return
+  if (bestiaryOpen) {
+    ui.closeModal()
+    return
+  }
+  if (state.modal) return
+  bestiaryOpen = true
+  state.modal = true
+  player.enabled = false
+  try {
+    document.exitPointerLock?.()
+  } catch {}
+  ui.showBestiary(
+    beings.map((b) => ({
+      name: b.entry.name,
+      title: b.entry.title,
+      lore: b.entry.lore,
+      blessing: b.entry.blessing,
+      found: b.found,
+    })),
+    () => {
+      bestiaryOpen = false
+      state.modal = false
+      if (!state.won) {
+        player.enabled = true
+        player.requestLock()
+      }
+    }
+  )
 })
 
 let simT = 0
+let _lastX = 0
+let _lastZ = 0
+const _fwdFlat = new THREE.Vector3()
 function frame(dt) {
   simT += dt
   const t = simT
+  computeGuide()
   if (state.started && !state.modal && !state.won) {
     player.update(dt)
+    camera.getWorldDirection(_fwdFlat)
+    _fwdFlat.y = 0
+    _fwdFlat.normalize()
+    stalker.update(dt, { playerPos: player.position, playerForward: _fwdFlat })
+    if (stalker.state === 'rush' && lastStalkerState !== 'rush') audio.stinger('stalker')
+    lastStalkerState = stalker.state
+    if (stalker.consumeStrike()) triggerBlackout()
     checkEncounters()
     checkWin()
   }
-  lantern.intensity = 26 + Math.sin(t * 7.3) * 1.6 + Math.sin(t * 13.1) * 1.1
+
+  const mvx = player.position.x - _lastX
+  const mvz = player.position.z - _lastZ
+  _lastX = player.position.x
+  _lastZ = player.position.z
+  const speed = Math.sqrt(mvx * mvx + mvz * mvz) / Math.max(dt, 1e-4)
+
+  const stalkerDist = stalker.state === 'hidden' ? null : player.position.distanceTo(stalker.position)
+  if (state.started && !state.won && !blackoutActive) {
+    dread.update(dt, { stalker: stalker.state, stalkerDist, nearestDist: guideDist })
+  } else if (state.won) {
+    dread.relieve(dt * 0.06)
+  }
+
+  // the lantern gutters as dread rises
+  lantern.intensity =
+    26 +
+    Math.sin(t * 7.3) * 1.6 +
+    Math.sin(t * 13.1) * 1.1 -
+    dread.value * (8 + Math.sin(t * 23.7) * 4)
+
   water.update(t)
-  sky.update(t)
+  sky.update(t, player.position)
+  wisps.update(t, state.started && !state.won ? guideTarget : null)
+  mist.update(t)
   for (const b of beings) {
     // fog hides everything past ~350 m; skip idle animation for far-off beings
     const dx = b.entry.position.x - player.position.x
@@ -236,7 +434,20 @@ function frame(dt) {
   }
   updateCaleuche(dt, t)
   if (state.started) updateHUD()
-  renderer.render(scene, camera)
+
+  audio.update(dt, {
+    moving: speed > 0.5,
+    run: speed > 14,
+    playerHeight: player.position.y - 1.7,
+    nearestDist: guideDist === Infinity ? 9999 : guideDist,
+    caleucheDist: caleucheProgress >= 0 ? player.position.distanceTo(caleuche.group.position) : null,
+    dread: dread.value,
+    stalker: stalker.state === 'hidden' ? null : stalker.state,
+    stalkerDist,
+    won: state.won,
+  })
+  fx.dread = dread.value
+  fx.render(dt)
 }
 
 const clock = new THREE.Clock()
@@ -274,6 +485,29 @@ window.__game = {
   fastCaleuche: () => {
     if (caleucheProgress >= 0) caleucheProgress = Math.max(caleucheProgress, 0.949)
   },
+  stalker: () => ({
+    state: stalker.state,
+    active: true,
+    pos: [stalker.position.x, stalker.position.y, stalker.position.z],
+  }),
+  forceStalker: (d) => {
+    stalker.active = true
+    stalker.forceSpawn(d)
+  },
+  get dread() {
+    return dread.value
+  },
+  setDread: (v) => {
+    dread.value = v
+  },
+  audioState: () => audio.state,
+  get bestiaryOpen() {
+    return bestiaryOpen
+  },
+  get blackout() {
+    return blackoutActive
+  },
+  saveData: () => loadSave(),
   // deterministic sim advance for tests (rAF is throttled in hidden tabs)
   step: (dt = 1 / 60, steps = 1) => {
     for (let i = 0; i < steps; i++) frame(dt)

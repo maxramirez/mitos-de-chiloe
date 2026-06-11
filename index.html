@@ -3,12 +3,130 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Caleuche — Mitos de Chiloé</title>
-    <link rel="stylesheet" href="/src/style.css" />
+    <title>Mitos de Chiloé — Diez juegos del archipiélago</title>
+    <style>
+      :root {
+        --bg: #06090c;
+        --panel: #0a1014;
+        --ink: #e8dcc0;
+        --ink-dim: #9a917c;
+        --glow: #9fffd0;
+        --line: #2a3a3a;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: radial-gradient(120% 90% at 50% 0%, #0c141a 0%, var(--bg) 60%);
+        color: var(--ink);
+        font-family: Georgia, 'Times New Roman', serif;
+        min-height: 100vh;
+        padding: 48px 24px 80px;
+      }
+      .vignette {
+        position: fixed; inset: 0; pointer-events: none;
+        background: radial-gradient(80% 70% at 50% 45%, transparent 55%, rgba(0,0,0,0.55) 100%);
+      }
+      header { text-align: center; margin-bottom: 10px; }
+      header .charm { color: var(--glow); font-size: 18px; letter-spacing: 8px; }
+      h1 {
+        font-size: clamp(34px, 6vw, 64px);
+        letter-spacing: 0.18em;
+        font-weight: normal;
+        margin: 10px 0 6px;
+        text-shadow: 0 0 24px rgba(159, 255, 208, 0.12);
+      }
+      .sub { color: var(--glow); font-style: italic; letter-spacing: 0.08em; opacity: 0.8; }
+      .count {
+        margin: 18px auto 38px; text-align: center; color: var(--ink-dim);
+        letter-spacing: 0.25em; font-variant: small-caps; font-size: 14px;
+      }
+      .count b { color: var(--glow); font-weight: normal; }
+      .grid {
+        display: grid; gap: 18px; max-width: 1180px; margin: 0 auto;
+        grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+      }
+      a.card {
+        display: block; position: relative; text-decoration: none; color: inherit;
+        background: linear-gradient(160deg, rgba(20,30,34,0.6), rgba(8,12,15,0.9));
+        border: 1px solid var(--line);
+        outline: 1px solid rgba(0,0,0,0.6);
+        outline-offset: 3px;
+        padding: 22px 24px 18px;
+        transition: border-color 0.35s, transform 0.35s, box-shadow 0.35s;
+      }
+      a.card:hover {
+        border-color: var(--glow);
+        transform: translateY(-3px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 24px rgba(159,255,208,0.07);
+      }
+      .card h2 { font-size: 21px; letter-spacing: 0.14em; font-weight: normal; }
+      .card .epithet { color: var(--glow); font-style: italic; font-size: 13.5px; margin: 4px 0 10px; opacity: 0.85; }
+      .card p { color: var(--ink-dim); font-size: 14.5px; line-height: 1.5; min-height: 44px; }
+      .card .tag {
+        display: inline-block; margin-top: 14px; font-size: 11px; letter-spacing: 0.22em;
+        color: var(--ink-dim); border: 1px solid var(--line); padding: 4px 10px;
+        font-variant: small-caps;
+      }
+      .card .done {
+        position: absolute; top: 14px; right: 16px; color: var(--glow);
+        font-size: 18px; text-shadow: 0 0 12px rgba(159,255,208,0.7);
+        display: none;
+      }
+      .card.completed .done { display: block; }
+      .card.flagship { grid-column: 1 / -1; }
+      .card.flagship h2 { font-size: 30px; }
+      .card.flagship p { min-height: 0; max-width: 720px; }
+      footer { text-align: center; margin-top: 48px; color: var(--ink-dim); font-size: 12.5px; letter-spacing: 0.12em; opacity: 0.7; }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
-    <div id="ui"></div>
-    <script type="module" src="/src/main.js"></script>
+    <div class="vignette"></div>
+    <header>
+      <div class="charm">✦</div>
+      <h1>MITOS DE CHILOÉ</h1>
+      <div class="sub">Diez juegos del archipiélago</div>
+    </header>
+    <div class="count" id="count"></div>
+    <main class="grid" id="grid"></main>
+    <footer>Chiloé, Chile · la niebla no devuelve lo que toma</footer>
+    <script>
+      const GAMES = [
+        { id: 'caleuche', title: 'CALEUCHE', sub: 'La niebla no devuelve lo que toma', tag: 'horror · exploración', flagship: true,
+          blurb: 'Your brother’s boat came back empty. Walk the island in the dark, take the señas of its six beings, and board the ghost ship that took him.' },
+        { id: 'pincoya', title: 'LA PINCOYA', sub: 'Marea alta', tag: 'pesca · timing',
+          blurb: 'She dances on the beach and the sea obeys. Cast your nets only when she faces the water — and fill the hold before dawn.' },
+        { id: 'trauco', title: 'EL TRAUCO', sub: 'No le sostengas la mirada', tag: 'sigilo',
+          blurb: 'Gather quilineja in his forest. Stay out of his gaze, or your will bends like green wood.' },
+        { id: 'camahueto', title: 'EL CAMAHUETO', sub: 'La bajada', tag: 'carrera',
+          blurb: 'The one-horned calf is tearing its way down to the sea tonight. Ride the gully behind it and live.' },
+        { id: 'sirena', title: 'LA SIRENA', sub: 'El canto', tag: 'memoria · música',
+          blurb: 'She sings the names of the drowned across the water. Repeat her song, note for note, and guide them home.' },
+        { id: 'invunche', title: 'EL INVUNCHE', sub: 'La cueva de Quicaví', tag: 'horror · laberinto',
+          blurb: 'One candle, a cave that was never mapped, and the thing the brujos made so it would never leave.' },
+        { id: 'basilisco', title: 'EL BASILISCO', sub: 'La noche del huevo', tag: 'defensa',
+          blurb: 'Something hatched under the floorboards and it drinks sleepers’ breath. Keep the fires lit. Find the egg.' },
+        { id: 'tenten', title: 'TENTEN Y CAICAI', sub: 'Las dos serpientes', tag: 'puzzle',
+          blurb: 'Caicai Vilu raises the sea against the land. Help Tenten Vilu lift the hills before the water takes the villagers.' },
+        { id: 'brujo', title: 'EL VUELO DEL BRUJO', sub: 'Macuñ', tag: 'vuelo',
+          blurb: 'Wear the skin vest and fly the night channels. The reunión at Quicaví will not wait past moonset.' },
+        { id: 'cuchivilu', title: 'EL CUCHIVILU', sub: 'El corral roto', tag: 'arcade',
+          blurb: 'The tide brings the fish and the pig-snake breaks the corral. Herd one, fight the other, finish by dawn.' },
+      ]
+      const grid = document.getElementById('grid')
+      let done = 0
+      for (const g of GAMES) {
+        const isDone = localStorage.getItem('chiloe-' + g.id + '-done') === '1'
+        if (isDone) done++
+        const a = document.createElement('a')
+        a.className = 'card' + (g.flagship ? ' flagship' : '') + (isDone ? ' completed' : '')
+        a.href = '/games/' + g.id + '.html'
+        a.innerHTML = '<span class="done">✦</span><h2>' + g.title + '</h2>' +
+          '<div class="epithet">' + g.sub + '</div>' +
+          '<p>' + g.blurb + '</p>' +
+          '<span class="tag">' + g.tag + '</span>'
+        grid.appendChild(a)
+      }
+      document.getElementById('count').innerHTML =
+        'señas <b>✦ ' + done + '/' + GAMES.length + '</b> reunidas'
+    </script>
   </body>
 </html>
