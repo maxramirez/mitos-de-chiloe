@@ -39,7 +39,7 @@ export function createUI(root) {
   // painted card art; if the PNG is missing or fails to decode, the inline
   // onerror removes the <img> and the card renders in its text-only form.
   const art = (name, cls) =>
-    `<img class="card-art${cls ? ' ' + cls : ''}" alt="" src="/assets/camahueto/${name}.png" onerror="this.remove()">`;
+    `<img class="card-art${cls ? ' ' + cls : ''}" alt="" src="../assets/camahueto/${name}.png" onerror="this.remove()">`;
 
   function openOverlay() {
     clearTimeout(closeTO);
@@ -78,7 +78,7 @@ export function createUI(root) {
       de pie en la espuma fría, con <b class="gold">✦ ${shavingCount} virutas de cuerno</b>
       envueltas en el poncho. Las machis pagarán bien.</p>
       <button id="again-btn" class="btn">OTRA VEZ</button>
-      <a class="back" href="/">⌂ volver a los mitos</a>`;
+      <a class="back" href="../">⌂ volver a los mitos</a>`;
     openOverlay();
     card.querySelector('#again-btn').addEventListener('click', () => location.reload());
   }
@@ -95,7 +95,7 @@ export function createUI(root) {
       ${shavingCount > 0 ? `las <b class="gold">${shavingCount} virutas</b> de tus manos abiertas` : 'el oro que nunca juntaste'}.
       <i>La quebrada no perdona.</i></p>
       <button id="again-btn" class="btn">OTRA VEZ</button>
-      <a class="back" href="/">⌂ volver a los mitos</a>`;
+      <a class="back" href="../">⌂ volver a los mitos</a>`;
     openOverlay();
     card.querySelector('#again-btn').addEventListener('click', () => location.reload());
   }

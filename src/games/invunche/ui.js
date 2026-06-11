@@ -117,7 +117,7 @@ export const ui = {
     art.onload = () => {
       if (this.titleEl === el) el.classList.add('has-art')
     }
-    art.src = '/assets/invunche/title.png'
+    art.src = '../assets/invunche/title.png'
   },
 
   closeTitle() {

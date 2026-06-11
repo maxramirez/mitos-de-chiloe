@@ -43,7 +43,7 @@ artImg.onload = () => {
   artOk = true
   if (modalEl) modalEl.classList.add('art')
 }
-artImg.src = '/assets/trauco/title.png'
+artImg.src = '../assets/trauco/title.png'
 
 let vinesEl, hintEl, charmWrap, charmFill, gazeVig, flashEl, muteEl
 let hudShown = false

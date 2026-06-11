@@ -210,7 +210,7 @@ export function createRenderer(canvas) {
       b.drawImage(img, (BWD - img.width * s) / 2, (BHD - img.height * s) / 2, img.width * s, img.height * s);
       paintReadabilityVeil(b);
     };
-    img.src = '/assets/tenten/backdrop.jpg';
+    img.src = '../assets/tenten/backdrop.jpg';
   }
 
   // --- land tile sprites: 6 heights × 5 variants, grain + strata baked.

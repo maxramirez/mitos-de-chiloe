@@ -99,7 +99,7 @@ export function createRenderer(canvas) {
   skyImg.onload = () => {
     if (skyImg.naturalWidth > 0) paintBase(baseCtx, skyImg)
   }
-  skyImg.src = '/assets/piuchen/sky.png'
+  skyImg.src = '../assets/piuchen/sky.png'
 
   const dawnL = document.createElement('canvas')
   dawnL.width = W

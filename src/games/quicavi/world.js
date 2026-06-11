@@ -460,7 +460,7 @@ export function createWorld(scene) {
     pageMat.emissiveMap = T.parchment
   }
   try {
-    new THREE.TextureLoader().load('/assets/quicavi/page.png', (t) => {
+    new THREE.TextureLoader().load('../assets/quicavi/page.png', (t) => {
       t.colorSpace = THREE.SRGBColorSpace
       t.anisotropy = 4
       pageMat.map = t

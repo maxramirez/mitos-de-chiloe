@@ -99,7 +99,7 @@ function showTitle(onBegin) {
   img.alt = ''
   img.draggable = false
   img.onerror = () => art.remove()
-  img.src = '/assets/cuchivilu/portrait.png'
+  img.src = '../assets/cuchivilu/portrait.png'
   art.appendChild(img)
   card.appendChild(art)
   card.appendChild(el('div', 'charm', '✦'))

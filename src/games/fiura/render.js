@@ -341,7 +341,7 @@ export function createRender(canvas, refs) {
       }
     }
     img.onerror = () => {} // keep procedural fallback
-    img.src = '/assets/fiura/bg' + i + '.png'
+    img.src = '../assets/fiura/bg' + i + '.png'
   }
 
   const glowWarm = makeGlow(255, 205, 140)

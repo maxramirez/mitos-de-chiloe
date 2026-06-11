@@ -137,9 +137,9 @@
         if (isDone) done++
         const a = document.createElement('a')
         a.className = 'card' + (g.flagship ? ' flagship' : '') + (isDone ? ' completed' : '')
-        a.href = '/games/' + g.id + '.html'
+        a.href = 'games/' + g.id + '.html'
         a.innerHTML = '<span class="done">✦</span>' +
-          '<div class="card-art" style="--art:url(/assets/cards/' + g.id + '.png)"></div>' +
+          '<div class="card-art" style="--art:url(assets/cards/' + g.id + '.png)"></div>' +
           '<div class="card-body"><h2>' + g.title + '</h2>' +
           '<div class="epithet">' + g.sub + '</div>' +
           '<p>' + g.blurb + '</p>' +
