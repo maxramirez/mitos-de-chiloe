@@ -86,6 +86,7 @@ function winGame() {
   localStorage.setItem('chiloe-camahueto-done', '1');
   audio.bedOff();
   audio.win();
+  audio.voice('win'); // narrator over the win card; no-op if clip missing
   ui.showWin(shavingCount);
 }
 
@@ -94,12 +95,14 @@ function loseGame() {
   phase = 'lost';
   audio.bedOff();
   audio.lose();
+  audio.voice('lose'); // narrator over the lose card; no-op if clip missing
   ui.showLose(shavingCount);
 }
 
 function begin() {
   if (phase !== 'title') return;
   audio.unlock(); // user gesture — no autoplay-policy errors
+  audio.voice('title'); // title-card line, only on BEGIN (plays once decoded)
   ui.hideOverlay();
   ui.setLives(MAX_HITS - hits);
   ui.setMuted(audio.muted);
@@ -119,8 +122,10 @@ function hit() {
   ui.setLives(MAX_HITS - hits);
   ui.flashHit();
   audio.thud();
+  audio.debris(); // stones settling behind the impact
   world.burst(px, groundY(px, pz) + 0.9, pz, 22, 0.55, 0.38, 0.22, 5, 4, 0.7);
   if (hits >= MAX_HITS) loseGame();
+  else if (hits === MAX_HITS - 1) audio.voice('whisper'); // last life: "La quebrada no perdona."
 }
 
 // ---------------------------------------------------------------------------
@@ -290,8 +295,13 @@ requestAnimationFrame(rafLoop);
 // ---------------------------------------------------------------------------
 addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
-  if (k === 'a' || k === 'arrowleft') { keys.left = true; e.preventDefault(); }
-  else if (k === 'd' || k === 'arrowright') { keys.right = true; e.preventDefault(); }
+  if (k === 'a' || k === 'arrowleft') {
+    if (!keys.left && phase === 'playing' && grounded) audio.scrape(); // dirt bites on the cut
+    keys.left = true; e.preventDefault();
+  } else if (k === 'd' || k === 'arrowright') {
+    if (!keys.right && phase === 'playing' && grounded) audio.scrape();
+    keys.right = true; e.preventDefault();
+  }
   else if (k === ' ' || k === 'arrowup' || k === 'w') {
     e.preventDefault();
     if (phase === 'title') begin();

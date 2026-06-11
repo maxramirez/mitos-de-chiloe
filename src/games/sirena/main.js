@@ -160,6 +160,7 @@ function win() {
     /* storage may be unavailable; the night forgives it */
   }
   audio.winSong();
+  audio.playVoice('win');
   hide(titleOv);
   hide(loseOv);
   show(winOv);
@@ -170,6 +171,7 @@ function lose() {
   state.phase = 'lost';
   state.sub = 'done';
   audio.loseFade();
+  audio.playVoice('lose');
   hide(titleOv);
   hide(winOv);
   show(loseOv);
@@ -184,6 +186,7 @@ function wrong() {
     lose();
     return;
   }
+  if (state.mistakes === 1) audio.playVoice('churn'); // one whispered warning, once
   state.sub = 'churn'; // the water settles, then she sings it again — free
   subT = 0;
 }
@@ -237,6 +240,7 @@ function update(dt) {
         state.sub = 'singing';
         singIdx = 0;
         noteT = NOTE_GAP - 0.15; // first note lands a beat after the intro
+        audio.combShimmer(); // she lifts the comb from her hair
       }
       break;
     case 'singing':
@@ -268,6 +272,7 @@ function update(dt) {
       if (soulT >= 1) {
         soulT = 1;
         scene.soulArrive(state.souls); // flare where the lantern settles
+        audio.rockCreak(); // the Caleuche's deck takes the farol's weight
         if (state.souls >= TOTAL_ROUNDS) win();
         else startRound(state.round + 1);
       }
@@ -308,6 +313,7 @@ requestAnimationFrame(function loop(now) {
 
 document.getElementById('begin-btn').addEventListener('click', () => {
   audio.initAudio(); // inside the gesture — autoplay-safe
+  audio.playVoice('intro'); // the old man whispers the opening line
   begin();
 });
 document.getElementById('replay-win').addEventListener('click', () => location.reload());
@@ -318,7 +324,10 @@ canvas.addEventListener('pointerdown', (e) => {
   const i = scene.shellIndexAt(e.clientX, e.clientY);
   if (i < 0) return;
   if (inputOpen()) playInput(i);
-  else scene.denyShell(i); // not your turn yet — dim pulse, not silence
+  else {
+    scene.denyShell(i); // not your turn yet — dim pulse
+    audio.denyLap(); // only low water under your hand
+  }
 });
 
 canvas.addEventListener('pointermove', (e) => {

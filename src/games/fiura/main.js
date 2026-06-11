@@ -132,6 +132,7 @@ let bufferT = 0
 let stepT = 0
 let hint = HINTS.start
 let hintLockT = 0
+let whispered = false // the inhale warning line plays once per night
 
 // ---------- wiring ----------
 const audio = createAudio()
@@ -253,12 +254,14 @@ function win() {
   phase = 'won'
   localStorage.setItem('chiloe-fiura-done', '1')
   audio.win()
+  audio.voice('win') // "Esta noche, el pantanal no te quedó."
   ui.showWin()
 }
 function lose() {
   if (phase !== 'playing' && phase !== 'title') return
   phase = 'lost'
   audio.lose()
+  audio.voice('lose') // "Dicen que la Fiura se peina con el encanto de los ahogados."
   ui.showLose()
 }
 
@@ -498,6 +501,7 @@ function simulate(dt) {
       }
       if (live.stand > 0.5) {
         live.off = Math.max(-2.2, live.off - 0.6 * dt)
+        audio.bubble() // gurgle while the log goes under (self rate-limited)
       }
     } else {
       live.stand = Math.max(0, live.stand - dt * 2)
@@ -524,7 +528,9 @@ function simulate(dt) {
     if (h.taken) continue
     const dx = h.x - pcx
     const dy = h.y - pcy
-    if (dx * dx + dy * dy < 0.7 * 0.7) collectHerb(i)
+    const d2 = dx * dx + dy * dy
+    if (d2 < 0.7 * 0.7) collectHerb(i)
+    else if (d2 < 5) audio.herbNear() // glint when a hierba is close (self rate-limited)
   }
   fx.hutOpen += ((herbsCount >= HERB_TOTAL ? 1 : 0) - fx.hutOpen) * Math.min(1, dt * 3)
 
@@ -565,7 +571,13 @@ function simulate(dt) {
 
   // contextual hint
   if (hintLockT > 0) hint = HINTS.locked[herbsCount]
-  else if (inhaleMax > 0 && inhaleProx > 0.35) hint = HINTS.inhale
+  else if (inhaleMax > 0 && inhaleProx > 0.35) {
+    hint = HINTS.inhale
+    if (!whispered) {
+      whispered = true
+      audio.voice('whisper') // "Ella inhala... viene el encanto... no estés cerca."
+    }
+  }
   else if (player.grounded && player.groundIdx >= 0 && PLATFORMS[player.groundIdx].t === 'sink' && plats[player.groundIdx].stand > 0.3) hint = HINTS.sink
   else if (herbsCount >= HERB_TOTAL) hint = HINTS.allHerbs
   else if (time < 14) hint = HINTS.start
@@ -598,6 +610,7 @@ function begin() {
   if (phase !== 'title') return
   ui.closeOverlay() // no-op when begun via the BEGIN click (already closing)
   audio.unlock()
+  audio.voice('begin') // "En los pantanos negros de Chiloé espera la Fiura..."
   ui.buildHUD()
   phase = 'playing'
 }

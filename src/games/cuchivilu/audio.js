@@ -1,15 +1,25 @@
 // EL CUCHIVILU — audio.js
-// 100% procedural WebAudio. Lazy AudioContext created in unlock() (first user
-// gesture — the BEGIN click); every method is a safe no-op before unlock or
-// without WebAudio, so there are zero autoplay-policy errors. M toggles mute
-// (works pre-unlock via the muted flag).
+// 100% procedural WebAudio plus narrated voice clips. Lazy AudioContext
+// created in unlock() (first user gesture — the BEGIN click); every method is
+// a safe no-op before unlock or without WebAudio, so there are zero
+// autoplay-policy errors. M toggles mute (works pre-unlock via the muted
+// flag). Ambience loops + scheduled night one-shots run through ambBus so a
+// playing voice clip ducks the whole bed to ~40% and back. Voice fetch/decode
+// failures are swallowed: the game behaves identically without the files.
 export function createAudio() {
   let ctx = null
   let master = null
+  let ambBus = null
+  let voiceGain = null
   let noiseBuf = null
   let ready = false
   let muted = false
   const VOL = 0.24
+  const VOICE_FILES = ['intro', 'win', 'lose-corral', 'lose-alba', 'whisper']
+  const voiceBufs = {}
+  let voicesLoading = false
+  let pendingVoice = null // the intro is requested on BEGIN, before decode lands
+  let activeVoices = 0
 
   function makeNoise() {
     const len = ctx.sampleRate * 2
@@ -39,6 +49,16 @@ export function createAudio() {
       master.connect(comp)
       noiseBuf = makeNoise()
 
+      // ambience bed: loops + scheduled night one-shots; voices duck this bus
+      ambBus = ctx.createGain()
+      ambBus.gain.value = 1
+      ambBus.connect(master)
+
+      // voices: dedicated gain into the master/mute chain (M mutes voices too)
+      voiceGain = ctx.createGain()
+      voiceGain.gain.value = 0.8
+      voiceGain.connect(master)
+
       // --- water lap over the flats: looped noise, bandpassed, slow LFOs
       const lapSrc = ctx.createBufferSource()
       lapSrc.buffer = noiseBuf
@@ -59,7 +79,7 @@ export function createAudio() {
       const lfo2g = ctx.createGain()
       lfo2g.gain.value = 0.016
       lfo2.connect(lfo2g).connect(lapGain.gain)
-      lapSrc.connect(lapBP).connect(lapGain).connect(master)
+      lapSrc.connect(lapBP).connect(lapGain).connect(ambBus)
       lapSrc.start()
       lfo1.start()
       lfo2.start()
@@ -74,14 +94,142 @@ export function createAudio() {
       windLP.frequency.value = 220
       const windGain = ctx.createGain()
       windGain.gain.value = 0.024
-      windSrc.connect(windLP).connect(windGain).connect(master)
+      windSrc.connect(windLP).connect(windGain).connect(ambBus)
       windSrc.start()
 
       ready = true
+      loadVoices()
+      scheduleAmbient()
     } catch (e) {
       ctx = null
       ready = false
     }
+  }
+
+  // ---- narrator voices --------------------------------------------------------
+  // Fetch + decode only after the gesture unlock. Any failure (offline, file
+  // missing, decode error) is swallowed: the game behaves identically.
+  function loadVoices() {
+    if (voicesLoading) return
+    voicesLoading = true
+    for (let i = 0; i < VOICE_FILES.length; i++) {
+      const name = VOICE_FILES[i]
+      try {
+        fetch('../assets/voice/cuchivilu/' + name + '.mp3')
+          .then((r) => {
+            if (!r.ok) throw new Error('http')
+            return r.arrayBuffer()
+          })
+          .then((ab) => ctx.decodeAudioData(ab))
+          .then((buf) => {
+            voiceBufs[name] = buf
+            // the title line is requested on BEGIN, before its decode lands
+            if (pendingVoice && pendingVoice.name === name && performance.now() - pendingVoice.at < 8000) {
+              pendingVoice = null
+              voice(name)
+            }
+          })
+          .catch(() => {})
+      } catch (e) { /* silent no-op */ }
+    }
+  }
+
+  function voice(name) {
+    if (!ready) return
+    try {
+      const buf = voiceBufs[name]
+      if (!buf) {
+        pendingVoice = { name, at: performance.now() }
+        return
+      }
+      const t = ctx.currentTime
+      const s = ctx.createBufferSource()
+      s.buffer = buf
+      s.connect(voiceGain)
+      activeVoices++
+      ambBus.gain.setTargetAtTime(0.4, t, 0.2) // duck the bed under the voice
+      s.onended = () => {
+        activeVoices = Math.max(0, activeVoices - 1)
+        if (activeVoices === 0) ambBus.gain.setTargetAtTime(1, ctx.currentTime, 0.5)
+      }
+      s.start(t)
+    } catch (e) { /* silent no-op */ }
+  }
+
+  // ---- scheduled night one-shots (all into ambBus, so voices duck them) -------
+  // mud pops on the flats, wind gusts off the canal, a rare far-off night bird:
+  // one of them every 8–25 s.
+  function mudPop() {
+    const t = ctx.currentTime + 0.02
+    const n = 1 + ((Math.random() * 3) | 0)
+    for (let i = 0; i < n; i++) {
+      const tc = t + i * (0.13 + Math.random() * 0.14)
+      const f = 85 + Math.random() * 80
+      tone('sine', f, tc, 0.11, 0.02 + Math.random() * 0.012, { slideTo: f * 2.6, slideT: 0.07, out: ambBus })
+    }
+    hit(t, 0.4, 0.008, 'lowpass', 350, 140, 0.8, ambBus)
+  }
+
+  function gust() {
+    const t = ctx.currentTime + 0.05
+    const dur = 2.4 + Math.random() * 2
+    const s = ctx.createBufferSource()
+    s.buffer = noiseBuf
+    s.loop = true
+    s.playbackRate.value = 0.55 + Math.random() * 0.2
+    const bp = ctx.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.setValueAtTime(260, t)
+    bp.frequency.linearRampToValueAtTime(620 + Math.random() * 250, t + dur * 0.45)
+    bp.frequency.linearRampToValueAtTime(230, t + dur)
+    bp.Q.value = 0.8
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(0.024 + Math.random() * 0.012, t + dur * 0.4)
+    g.gain.linearRampToValueAtTime(0.0001, t + dur)
+    s.connect(bp).connect(g).connect(ambBus)
+    s.start(t)
+    s.stop(t + dur + 0.1)
+  }
+
+  function nightBird() {
+    const t = ctx.currentTime + 0.05
+    const f0 = 1650 + Math.random() * 500
+    const n = 2 + ((Math.random() * 2) | 0)
+    for (let i = 0; i < n; i++) {
+      const tc = t + i * (0.2 + Math.random() * 0.1)
+      const o = ctx.createOscillator()
+      o.type = 'sine'
+      o.frequency.setValueAtTime(f0 * (1 + Math.random() * 0.06), tc)
+      o.frequency.exponentialRampToValueAtTime(f0 * 0.8, tc + 0.14)
+      const m = ctx.createOscillator() // FM wobble — small, birdlike
+      m.frequency.value = 28 + Math.random() * 12
+      const mg = ctx.createGain()
+      mg.gain.value = 110
+      m.connect(mg).connect(o.frequency)
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(0.0001, tc)
+      g.gain.exponentialRampToValueAtTime(0.011, tc + 0.03)
+      g.gain.exponentialRampToValueAtTime(0.0001, tc + 0.17)
+      o.connect(g).connect(ambBus)
+      o.start(tc)
+      o.stop(tc + 0.22)
+      m.start(tc)
+      m.stop(tc + 0.22)
+    }
+  }
+
+  function scheduleAmbient() {
+    setTimeout(() => {
+      if (!ready) return
+      try {
+        const r = Math.random()
+        if (r < 0.45) mudPop()
+        else if (r < 0.82) gust()
+        else nightBird() // the rare one
+      } catch (e) { /* never let ambience throw */ }
+      scheduleAmbient()
+    }, 8000 + Math.random() * 17000)
   }
 
   // one decaying tone
@@ -106,7 +254,7 @@ export function createAudio() {
       o.connect(f)
       head = f
     }
-    head.connect(g).connect(master)
+    head.connect(g).connect((opts && opts.out) || master)
     if (opts && opts.vib) {
       const v = ctx.createOscillator()
       v.frequency.value = opts.vib
@@ -121,7 +269,7 @@ export function createAudio() {
   }
 
   // one noise hit through a filter (optionally swept)
-  function hit(t0, dur, peak, type, f0, f1, q) {
+  function hit(t0, dur, peak, type, f0, f1, q, out) {
     const s = ctx.createBufferSource()
     s.buffer = noiseBuf
     s.loop = true
@@ -134,7 +282,7 @@ export function createAudio() {
     g.gain.setValueAtTime(0.0001, t0)
     g.gain.exponentialRampToValueAtTime(peak, t0 + 0.02)
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
-    s.connect(f).connect(g).connect(master)
+    s.connect(f).connect(g).connect(out || master)
     s.start(t0)
     s.stop(t0 + dur + 0.1)
   }
@@ -193,6 +341,16 @@ export function createAudio() {
           hit(t, 0.5, 0.08, 'bandpass', 1600, 350, 1)
           tone('sine', 180, t, 0.8, 0.05, { slideTo: 60, slideT: 0.6 })
           break
+        case 'creak': // oars strain in their wooden locks at full row
+          hit(t, 0.3, 0.032, 'bandpass', 1050, 280, 9) // high-Q squeak, pitch drop
+          hit(t + 0.07, 0.18, 0.018, 'bandpass', 720, 230, 7)
+          tone('sine', 120, t, 0.2, 0.022, { slideTo: 70, slideT: 0.18 })
+          break
+        case 'school': // the tide brings silver — faint shimmer offshore
+          hit(t, 0.6, 0.016, 'bandpass', 2400, 3800, 2)
+          tone('triangle', 1568, t + 0.05, 0.18, 0.011)
+          tone('triangle', 1976, t + 0.16, 0.2, 0.009)
+          break
         case 'tick': // a stone set in the wall
           tone('triangle', 290 + Math.random() * 60, t, 0.06, 0.05)
           hit(t, 0.04, 0.03, 'highpass', 2200, 0, 1)
@@ -236,6 +394,7 @@ export function createAudio() {
   return {
     unlock,
     cue,
+    voice,
     toggleMute,
     get state() {
       return { unlocked: ready, muted, contextState: ctx ? ctx.state : 'none' }

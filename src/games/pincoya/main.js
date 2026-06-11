@@ -136,6 +136,7 @@ document.addEventListener('visibilitychange', () => {
 function startGame() {
   if (S.phase !== 'title') return
   audio.unlock()
+  audio.voice('intro') // the old man's opening line — only after the BEGIN gesture
   S.phase = 'playing'
   ui.setHUDVisible(true)
   ui.toast('Cuando ella mire al mar, echa la red — espacio', 'good', 4200)
@@ -148,6 +149,7 @@ function win() {
     localStorage.setItem('chiloe-pincoya-done', '1')
   } catch (e) { /* storage may be unavailable */ }
   audio.cue('win')
+  audio.voice('win')
   world.burstAtPincoya('gold', 26)
   ui.setHUDVisible(false)
   ui.showEnd({
@@ -166,6 +168,7 @@ function lose(reason) {
   if (S.phase === 'won' || S.phase === 'lost') return
   S.phase = 'lost'
   audio.cue('lose')
+  audio.voice(reason === 'redes' ? 'lose-redes' : 'lose-alba')
   ui.setHUDVisible(false)
   if (reason === 'redes') {
     ui.showEnd({
@@ -229,6 +232,7 @@ function castAttempt() {
 
 function resolveCast() {
   S.casting = false
+  audio.cue('drips') // the net breaks the surface wet either way
   const spot = S.spots[S.castSpot]
   if (S.castSea) {
     const n = spot.deep ? 5 + Math.floor(Math.random() * 4) : 3 + Math.floor(Math.random() * 4)
@@ -268,6 +272,7 @@ function flipFacing() {
     world.burstAtPincoya('gold', 8)
     if (hintSea < 2) {
       hintSea++
+      if (hintSea === 1) audio.voice('whisper-sea') // whispered once, with the first hint
       ui.toast('Ella se vuelve al mar — ¡ahora!', 'good', 1800)
     }
   } else {
@@ -306,8 +311,12 @@ function simUpdate(dt) {
     S.boatV = 0
   }
 
-  // nearest spot in catch range
+  // nearest spot in catch range (+ the faintest lantern ping on arrival)
+  const prevRange = S.inRange
   updateInRange()
+  if (S.inRange >= 0 && S.inRange !== prevRange && S.spots[S.inRange].scaredT <= 0) {
+    audio.cue('lantern')
+  }
 
   // the cast
   if (S.casting) {

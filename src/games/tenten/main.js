@@ -48,7 +48,7 @@ import {
 } from './sim.js';
 import { createRenderer } from './render.js';
 import { createUI } from './ui.js';
-import { initAudio, sfx, toggleMute, isMuted } from './audio.js';
+import { initAudio, sfx, playVoice, toggleMute, isMuted } from './audio.js';
 
 const STEP_T = 0.26; // s per villager step (render.js mirrors these)
 const FLOOD_RISE_T = 1.1;
@@ -83,6 +83,7 @@ const game = {
   marchStep: 0,
   floodRising: false,
   endAt: -1, // anim time to show the deferred end overlay (-1 = none)
+  voicedTaken: false,
 };
 
 // stashed args for the deferred win/lose overlay (no allocs per end)
@@ -102,7 +103,7 @@ const ui = createUI(document.getElementById('ui'), {
   onEndPhase: () => endPhase(),
   onNext: () => setLevel(Math.min(3, game.level + 1)),
   onReplay: () => startLevel(game.level),
-  onSelectLevel: (n) => { game.selected = n; },
+  onSelectLevel: (n) => { game.selected = n; sfx('select'); },
 });
 
 // ---------- core flow ----------
@@ -116,6 +117,7 @@ function startLevel(n) {
   game.marchStep = 0;
   game.floodRising = false;
   game.endAt = -1;
+  game.voicedTaken = false; // the 'taken' whisper speaks at most once per level
   renderer.setLevel(game.sim);
   ui.hideOverlays();
   ui.updateHUD(game);
@@ -126,6 +128,7 @@ function startLevel(n) {
 function begin() {
   if (game.phase !== 'title') return;
   startLevel(game.selected);
+  playVoice('intro'); // BEGIN is a real click — audio is already unlocked
 }
 
 function setLevel(n) {
@@ -240,6 +243,10 @@ function commitFlood() {
       sfx('splash');
       renderer.shake(3);
       ui.flash(n === 1 ? 'El agua tomó a uno — ya no camina con la gente' : 'El agua tomó a ' + n);
+      if (!game.voicedTaken) {
+        game.voicedTaken = true;
+        playVoice('taken');
+      }
     }
   }
   const verdict = evaluate(sim);
@@ -250,6 +257,7 @@ function commitFlood() {
   sim.undoStack.length = 0;
   game.sub = 'raise';
   game.t = 0;
+  if (sim.turnsUntilRise === 1) sfx('warn'); // Caicai rises this coming turn
   ui.updateHUD(game);
   refreshHover();
   return undefined;
@@ -297,8 +305,10 @@ function frame(dt = 1 / 60) {
     game.endAt = -1;
     if (pendingEnd.kind === 'win') {
       ui.showWin(pendingEnd.level, pendingEnd.saved, pendingEnd.lost, pendingEnd.isFinal);
+      playVoice('win');
     } else {
       ui.showLose(pendingEnd.reason);
+      playVoice('lose');
     }
   }
   if (game.phase === 'playing') {

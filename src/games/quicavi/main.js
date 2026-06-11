@@ -163,12 +163,14 @@ const PROMPT_TAKE = 'e — tomar la página'
 const PROMPT_PUSH = 'mantén e — empuja el bote'
 let lockedPrompt = ''
 let lockedPromptFor = -1
+let wasNearPage = false // edge-detect: parchment flutter on first approach
 
 // ---------------- handlers (real win/lose/begin paths) -----------------------
 function begin() {
   if (phase !== 'title') return
   phase = 'playing'
   audio.unlock()
+  audio.voice('begin') // "Siete páginas en el bosque… y no lo mires demasiado."
   ui.closeTitle()
   ui.setPages(0)
   player.enabled = true
@@ -185,6 +187,7 @@ function winGame() {
     localStorage.setItem('chiloe-quicavi-done', '1') // hub badge — WIN ONLY
   } catch (e) {}
   audio.stinger('win')
+  audio.voice('win') // "Esta noche, el canal te deja ir."
   fx.burst(BOAT.x, terrainHeight(BOAT.x, BOAT.z) + 1, BOAT.z, 0.62, 1.0, 0.82, 30, 1.6, 1.2)
   ui.flash('rgba(159,255,208,1)', 0.3, 1600)
   ui.hold(-1)
@@ -226,6 +229,7 @@ function updateCinema(dt) {
     try {
       document.exitPointerLock?.()
     } catch (e) {}
+    audio.voice('lose') // "No lo mires: cuenta las páginas, y sigue caminando."
     ui.showEnd('caught')
   }
 }
@@ -347,6 +351,7 @@ function updateBrujo(dt) {
 
     if (burned && !onScreenAny) {
       brujo.vanish()
+      audio.stinger('vanish')
       appearCooldown = 2.2 + 3 * (1 - progress()) + Math.random() * 1.6
       lookT = 0
       burned = false
@@ -392,6 +397,7 @@ function updateBoat(dt) {
         lookT = 0
         burned = false
         audio.stinger('relocate')
+        audio.voice('push') // "No te des vuelta."
         ui.hint('no te des vuelta', 3000)
       }
       holdT += dt
@@ -439,6 +445,8 @@ function updatePrompt(nearBoat) {
       break
     }
   }
+  if (near && !wasNearPage) audio.stinger('flutter') // it stirs on its nail
+  wasNearPage = near
   ui.prompt(near ? PROMPT_TAKE : '')
 }
 

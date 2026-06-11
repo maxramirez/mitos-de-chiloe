@@ -1,10 +1,17 @@
-// audio.js — LA FIURA procedural soundscape. 100% WebAudio, no assets.
+// audio.js — LA FIURA procedural soundscape + narrator voice clips.
 // Swamp night: low wind through reeds, water lap, frog croaks; squelchy
 // footsteps, jump/land taps, herb chimes, checkpoint bells, the Fiura's
 // rising inhale drone while she telegraphs, the charm pulse whoosh, splash,
-// and win/lose stingers.
+// win/lose stingers; ambient swamp one-shots (echoing drips, reed creaks,
+// insect shimmer, ground rumbles, a far night bird) on an 8-25 s scheduler;
+// sink-log bubble pops and a herb proximity glint; and whispered Spanish
+// voice lines (mp3, fetched lazily AFTER the unlock gesture — every fetch
+// or decode failure is a silent no-op, the game is identical without them).
 //
-// Graph: layers -> master gain (0.3) -> DynamicsCompressor -> destination.
+// Graph: ambience layers -> ambBus -> master gain (0.3) ->
+// DynamicsCompressor -> destination. Voices go through voiceGain (0.8) ->
+// master so M mutes them too; while a clip plays ambBus ducks to ~40%
+// (setTargetAtTime) and recovers.
 // Lazy AudioContext created in unlock() (called from the BEGIN click, so no
 // autoplay-policy errors); every call is a safe no-op before unlock.
 // All level changes via setTargetAtTime; update() is allocation-free.
@@ -17,6 +24,7 @@ export function createAudio() {
   let muted = false
 
   let master = null
+  let ambBus = null
   let noiseBuf = null
   let windGain = null
   let lapGain = null
@@ -30,9 +38,28 @@ export function createAudio() {
   let thumpOsc, thumpGain
   let splashGain
 
+  // new swamp one-shots
+  let dripOsc, dripGain
+  let creakOsc, creakBP, creakGain
+  let insectGain
+  let rumbleOsc, rumbleGain
+  let birdOsc, birdGain
+  let bubbleOsc, bubbleGain
+  let glintOsc, glintGain
+
   let croakT = 2.5
   let lastWind = -1
   let lastInhale = -1
+  let ambNext = 7 // first ambient one-shot a beat after BEGIN
+  let bubbleHold = 0
+  let glintHold = 0
+
+  // narrator voice clips (mp3) — loaded after unlock, silent no-op if absent
+  let voiceGain = null
+  const voiceBufs = {}
+  let voiceSrc = null
+  let pendingVoice = null
+  let pendingUntil = 0
 
   const MASTER = 0.3
 
@@ -66,6 +93,11 @@ export function createAudio() {
     master.connect(comp)
     comp.connect(ctx.destination)
 
+    // ambience bus — beds + ambient one-shots; ducks under the narrator
+    ambBus = ctx.createGain()
+    ambBus.gain.value = 1
+    ambBus.connect(master)
+
     // shared noise buffer (2 s white)
     const len = ctx.sampleRate * 2
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate)
@@ -80,7 +112,7 @@ export function createAudio() {
     windGain.gain.value = 0.05
     noiseLoop().connect(windLP)
     windLP.connect(windGain)
-    windGain.connect(master)
+    windGain.connect(ambBus)
     const windLFO = ctx.createOscillator()
     windLFO.type = 'sine'
     windLFO.frequency.value = 0.11
@@ -99,7 +131,7 @@ export function createAudio() {
     lapGain.gain.value = 0.022
     noiseLoop().connect(lapBP)
     lapBP.connect(lapGain)
-    lapGain.connect(master)
+    lapGain.connect(ambBus)
     const lapLFO = ctx.createOscillator()
     lapLFO.type = 'sine'
     lapLFO.frequency.value = 0.23
@@ -120,7 +152,7 @@ export function createAudio() {
     croakLP.frequency.value = 500
     croakOsc.connect(croakLP)
     croakLP.connect(croakGain)
-    croakGain.connect(master)
+    croakGain.connect(ambBus)
     croakOsc.start()
 
     // --- squelchy footsteps ---
@@ -210,7 +242,217 @@ export function createAudio() {
     splashLP.connect(splashGain)
     splashGain.connect(master)
 
+    // --- water drip with echo (sine blip -> feedback delay) ---
+    dripOsc = ctx.createOscillator()
+    dripOsc.type = 'sine'
+    dripOsc.frequency.value = 1050
+    dripGain = ctx.createGain()
+    dripGain.gain.value = 0
+    dripOsc.connect(dripGain)
+    const dripDelay = ctx.createDelay(1)
+    dripDelay.delayTime.value = 0.31
+    const dripFb = ctx.createGain()
+    dripFb.gain.value = 0.34
+    const dripWet = ctx.createGain()
+    dripWet.gain.value = 0.5
+    dripGain.connect(ambBus)
+    dripGain.connect(dripDelay)
+    dripDelay.connect(dripFb)
+    dripFb.connect(dripDelay)
+    dripDelay.connect(dripWet)
+    dripWet.connect(ambBus)
+    dripOsc.start()
+
+    // --- reed / dead-wood creak (sawtooth groan through a narrow bandpass) --
+    creakOsc = ctx.createOscillator()
+    creakOsc.type = 'sawtooth'
+    creakOsc.frequency.value = 130
+    creakBP = ctx.createBiquadFilter()
+    creakBP.type = 'bandpass'
+    creakBP.frequency.value = 420
+    creakBP.Q.value = 7
+    creakGain = ctx.createGain()
+    creakGain.gain.value = 0
+    creakOsc.connect(creakBP)
+    creakBP.connect(creakGain)
+    creakGain.connect(ambBus)
+    creakOsc.start()
+
+    // --- insect shimmer (high narrow noise, micro-taps make the tremolo) ---
+    const insectBP = ctx.createBiquadFilter()
+    insectBP.type = 'bandpass'
+    insectBP.frequency.value = 5200
+    insectBP.Q.value = 6
+    insectGain = ctx.createGain()
+    insectGain.gain.value = 0
+    noiseLoop().connect(insectBP)
+    insectBP.connect(insectGain)
+    insectGain.connect(ambBus)
+
+    // --- low ground rumble (deep sine swell) ---
+    rumbleOsc = ctx.createOscillator()
+    rumbleOsc.type = 'sine'
+    rumbleOsc.frequency.value = 31
+    rumbleGain = ctx.createGain()
+    rumbleGain.gain.value = 0
+    rumbleOsc.connect(rumbleGain)
+    rumbleGain.connect(ambBus)
+    rumbleOsc.start()
+
+    // --- distant night bird (FM chirp, rare) ---
+    birdOsc = ctx.createOscillator()
+    birdOsc.type = 'sine'
+    birdOsc.frequency.value = 1500
+    const birdMod = ctx.createOscillator()
+    birdMod.type = 'sine'
+    birdMod.frequency.value = 22
+    const birdModG = ctx.createGain()
+    birdModG.gain.value = 110
+    birdMod.connect(birdModG)
+    birdModG.connect(birdOsc.frequency)
+    const birdLP = ctx.createBiquadFilter()
+    birdLP.type = 'lowpass'
+    birdLP.frequency.value = 2400
+    birdGain = ctx.createGain()
+    birdGain.gain.value = 0
+    birdOsc.connect(birdLP)
+    birdLP.connect(birdGain)
+    birdGain.connect(ambBus)
+    birdOsc.start()
+    birdMod.start()
+
+    // --- sink-log bubble pop (rising sine blip) ---
+    bubbleOsc = ctx.createOscillator()
+    bubbleOsc.type = 'sine'
+    bubbleOsc.frequency.value = 320
+    bubbleGain = ctx.createGain()
+    bubbleGain.gain.value = 0
+    bubbleOsc.connect(bubbleGain)
+    bubbleGain.connect(ambBus)
+    bubbleOsc.start()
+
+    // --- herb proximity glint (tiny high sine tick) ---
+    glintOsc = ctx.createOscillator()
+    glintOsc.type = 'sine'
+    glintOsc.frequency.value = 1760
+    glintGain = ctx.createGain()
+    glintGain.gain.value = 0
+    glintOsc.connect(glintGain)
+    glintGain.connect(ambBus)
+    glintOsc.start()
+
+    // --- narrator voice bus: clips -> voiceGain -> master (M mutes it too) --
+    voiceGain = ctx.createGain()
+    voiceGain.gain.value = 0.8
+    voiceGain.connect(master)
+
     ready = true
+    loadVoices() // only ever after the user gesture — never on page load
+  }
+
+  // ---------- narrator voice (mp3 clips; every failure is a silent no-op) --
+  function setDuck(v) {
+    if (ready) ambBus.gain.setTargetAtTime(v, ctx.currentTime, 0.35)
+  }
+
+  function playVoice(buf) {
+    try {
+      if (voiceSrc) {
+        try {
+          voiceSrc.stop()
+        } catch {}
+      }
+      const s = ctx.createBufferSource()
+      s.buffer = buf
+      s.connect(voiceGain)
+      voiceSrc = s
+      setDuck(0.4) // the swamp steps back while the old man speaks
+      s.onended = function () {
+        if (voiceSrc === s) {
+          voiceSrc = null
+          setDuck(1)
+        }
+      }
+      s.start()
+    } catch {
+      voiceSrc = null
+      setDuck(1)
+    }
+  }
+
+  function loadVoices() {
+    const names = ['begin', 'win', 'lose', 'whisper']
+    for (let i = 0; i < names.length; i++) {
+      const n = names[i]
+      try {
+        fetch('../assets/voice/fiura/' + n + '.mp3')
+          .then(function (r) {
+            if (!r.ok) throw new Error('http ' + r.status)
+            return r.arrayBuffer()
+          })
+          .then(function (ab) {
+            return new Promise(function (res, rej) {
+              ctx.decodeAudioData(ab, res, rej)
+            })
+          })
+          .then(function (buf) {
+            voiceBufs[n] = buf
+            // the BEGIN line is requested before its fetch settles — honor it
+            if (pendingVoice === n && ctx.currentTime < pendingUntil) {
+              pendingVoice = null
+              playVoice(buf)
+            }
+          })
+          .catch(function () {})
+      } catch {}
+    }
+  }
+
+  function voice(name) {
+    if (!ready) return
+    const buf = voiceBufs[name]
+    if (!buf) {
+      pendingVoice = name
+      pendingUntil = ctx.currentTime + 4
+      return
+    }
+    playVoice(buf)
+  }
+
+  // ---------- ambient swamp one-shots (scheduler-driven) ----------
+  function drip() {
+    const t = ctx.currentTime
+    dripOsc.frequency.setValueAtTime(900 + Math.random() * 400, t)
+    dripOsc.frequency.exponentialRampToValueAtTime(420, t + 0.07)
+    tap(dripGain, t, 0.028, 0.004, 0.03)
+  }
+  function creak() {
+    const t = ctx.currentTime
+    creakOsc.frequency.setValueAtTime(120 + Math.random() * 60, t)
+    creakOsc.frequency.linearRampToValueAtTime(65 + Math.random() * 25, t + 0.7)
+    creakBP.frequency.setValueAtTime(380 + Math.random() * 180, t)
+    creakBP.frequency.linearRampToValueAtTime(220, t + 0.7)
+    tap(creakGain, t, 0.018, 0.12, 0.22)
+  }
+  function insects() {
+    const t = ctx.currentTime
+    let at = 0
+    const n = 3 + ((Math.random() * 3) | 0)
+    for (let i = 0; i < n; i++) {
+      tap(insectGain, t + at, 0.01, 0.012, 0.04)
+      at += 0.09 + Math.random() * 0.12
+    }
+  }
+  function rumble() {
+    const t = ctx.currentTime
+    rumbleOsc.frequency.setValueAtTime(28 + Math.random() * 8, t)
+    tap(rumbleGain, t, 0.05, 0.45, 0.6)
+  }
+  function bird() {
+    const t = ctx.currentTime
+    birdOsc.frequency.setValueAtTime(1350 + Math.random() * 350, t)
+    tap(birdGain, t, 0.012, 0.02, 0.06)
+    tap(birdGain, t + 0.28, 0.009, 0.02, 0.08)
   }
 
   function setMuted(m) {
@@ -239,6 +481,20 @@ export function createAudio() {
       lastInhale = inh
       inhaleGain.gain.setTargetAtTime(inh * 0.05, t, 0.06)
       inhaleOsc.frequency.setTargetAtTime(150 + inh * 240, t, 0.08)
+    }
+    // interaction rate limits
+    if (bubbleHold > 0) bubbleHold -= dt
+    if (glintHold > 0) glintHold -= dt
+    // ambient one-shot scheduler — a stray swamp sound every 8-25 s
+    ambNext -= dt
+    if (ambNext <= 0) {
+      ambNext = 8 + Math.random() * 17
+      const r = Math.random()
+      if (r < 0.3) drip()
+      else if (r < 0.55) creak()
+      else if (r < 0.75) insects()
+      else if (r < 0.92) rumble()
+      else bird()
     }
   }
 
@@ -304,6 +560,23 @@ export function createAudio() {
     tap(splashGain, t, 0.14, 0.012, 0.12)
     tap(thumpGain, t, 0.1, 0.01, 0.1)
   }
+  // sink-log bubble pop — called while a log goes under; self rate-limited
+  function bubble() {
+    if (!ready || bubbleHold > 0) return
+    bubbleHold = 0.28 + Math.random() * 0.2
+    const t = ctx.currentTime
+    bubbleOsc.frequency.setValueAtTime(260 + Math.random() * 120, t)
+    bubbleOsc.frequency.exponentialRampToValueAtTime(640 + Math.random() * 200, t + 0.06)
+    tap(bubbleGain, t, 0.022, 0.006, 0.025)
+  }
+  // herb proximity glint — soft tick when a hierba is close; self rate-limited
+  function herbNear() {
+    if (!ready || glintHold > 0) return
+    glintHold = 1.1 + Math.random() * 0.5
+    const t = ctx.currentTime
+    glintOsc.frequency.setValueAtTime(1680 + Math.random() * 220, t)
+    tap(glintGain, t, 0.012, 0.01, 0.09)
+  }
   function win() {
     if (!ready) return
     const t = ctx.currentTime
@@ -336,6 +609,9 @@ export function createAudio() {
     pulse,
     charm,
     splash,
+    bubble,
+    herbNear,
+    voice,
     win,
     lose,
     state: () => ({ unlocked: ready, muted, contextState: ctx ? ctx.state : 'none' }),

@@ -225,6 +225,7 @@ let flare = 0
 let proxLast = 0
 let lowWaxWarned = false
 let sconceFullHinted = false
+let heardVoiced = false // the 'te ha oído' whisper speaks once per run
 const cinema = { active: false, t: 0, blackout: false }
 const winCinema = { active: false, t: 0, fromX: 0, fromZ: 0, dirX: 0, dirZ: 0 }
 const FOG_NIGHT = new THREE.Color(0x010202)
@@ -248,6 +249,10 @@ inv.onStep = () => audio.dragStep(proxLast)
 inv.onMode = (m) => {
   if (m === 'hunt' && phase === 'playing') {
     audio.stinger('snarl')
+    if (!heardVoiced) {
+      heardVoiced = true
+      audio.voice('heard')
+    }
     ui.hint('te ha oído', 2400)
   }
 }
@@ -257,6 +262,7 @@ function begin() {
   if (phase !== 'title') return
   phase = 'playing'
   audio.unlock()
+  audio.voice('intro') // the title line, only on the BEGIN gesture
   ui.closeTitle()
   ui.setSeals(0)
   player.enabled = true
@@ -302,6 +308,7 @@ function winGame() {
     localStorage.setItem('chiloe-invunche-done', '1') // hub completion badge — win only
   } catch (e) {}
   audio.stinger('win')
+  audio.voice('win')
   ui.flash('rgba(223,238,252,1)', 0.85, 1900)
   try {
     document.exitPointerLock?.()
@@ -317,6 +324,7 @@ function finishLose(kind) {
   try {
     document.exitPointerLock?.()
   } catch (e) {}
+  audio.voice(kind) // 'caught' | 'dark' — speaks with the lose card
   ui.showEnd(kind)
 }
 
@@ -434,6 +442,7 @@ function updateWax(dt) {
       ui.hint('la vela ha muerto', 3000)
     } else if (!lowWaxWarned && wax < 30) {
       lowWaxWarned = true
+      audio.stinger('lowwax')
       ui.hint('la vela se muere — busca un candil en la pared', 5200)
     }
   }

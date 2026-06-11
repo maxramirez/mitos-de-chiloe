@@ -1,9 +1,14 @@
-// audio.js — EL TRAUCO procedural soundscape. 100% WebAudio, no assets.
+// audio.js — EL TRAUCO procedural soundscape + narrator voice clips.
 // Night forest wind, player footsteps (sprint is louder + faster), the
 // Trauco's heavy little steps and wet breathing when near, a charm drone
-// that rises while his gaze holds you, and event stingers.
+// that rises while his gaze holds you, event stingers, ambient forest
+// one-shots (creaks, twigs, gusts, a far night bird) on an 8-25 s
+// scheduler, and four whispered Spanish voice lines (mp3, fetched lazily
+// AFTER the unlock gesture; every failure is a silent no-op).
 //
 // Graph: layers -> master gain (0.32) -> DynamicsCompressor -> destination.
+// Voices go through voiceGain (0.8) -> master, so M mutes them too; while
+// a clip plays the wind bed ducks to ~40% (setTargetAtTime) and recovers.
 // Lazy AudioContext created in unlock() (called from the BEGIN click, so no
 // autoplay-policy errors); everything is a safe no-op before unlock.
 // All level changes via setTargetAtTime; update() is allocation-free.
@@ -30,6 +35,20 @@ export function createAudio() {
   let hbPhase = 0
   let lastWind = -1
   let lastDrone = -1
+
+  // narrator voice clips (mp3) — loaded after unlock, silent no-op if absent
+  let voiceGain = null
+  const voiceBufs = {}
+  let voiceSrc = null
+  let voicePlaying = false
+  let voiceDuck = 1
+  let pendingVoice = null
+  let pendingUntil = 0
+
+  // ambient one-shot scheduler + interaction edges
+  let ambNext = 6
+  let lastRun = false
+  let highCharm = false
 
   const MASTER = 0.32
 
@@ -92,6 +111,121 @@ export function createAudio() {
     tap(g, t, peak, attack, decay)
     s.start(t)
     s.stop(t + (dur || attack * 3 + decay * 8) + 0.2)
+  }
+
+  // ---------- new forest one-shots (all quiet — this collection whispers) ---
+  function woodCreak(t) {
+    // an old cypress leaning in the dark: pitch-dropping saw under grain
+    const f0 = 120 + Math.random() * 90
+    blip('sawtooth', f0, t, 0.032, 0.07, 0.5, f0 * 0.55)
+    hiss(t, 0.022, 0.09, 0.4, 'bandpass', 380 + Math.random() * 320, 6, 2)
+  }
+
+  function twigSnap(t) {
+    // something small steps on dead wood, somewhere in the fog
+    hiss(t, 0.055, 0.002, 0.03, 'bandpass', 1700 + Math.random() * 1000, 1.5, 0.5)
+    blip('triangle', 230, t, 0.026, 0.002, 0.05, 130)
+  }
+
+  function nightBird(t) {
+    // a far-off chucao calling once in the night — thin rising chirps
+    const n = 2 + ((Math.random() * 2) | 0)
+    for (let i = 0; i < n; i++) {
+      const tt = t + i * (0.16 + Math.random() * 0.08)
+      const f = 1450 + Math.random() * 650
+      blip('sine', f, tt, 0.016, 0.012, 0.07, f * 1.35)
+    }
+  }
+
+  function windGust(t) {
+    // a single slow gust pushing through the canopy, then gone
+    hiss(t, 0.05, 1.1, 1.5, 'bandpass', 550 + Math.random() * 380, 0.7, 6.5)
+  }
+
+  function clothRustle(t) {
+    // the woolen poncho shifting as the sprint starts
+    hiss(t, 0.05, 0.015, 0.09, 'highpass', 2200, 0.7, 0.9)
+  }
+
+  function reliefSigh(t) {
+    // the forest breathes again once the gaze lets go of you
+    hiss(t, 0.045, 0.5, 0.9, 'bandpass', 470, 1.2, 3.5)
+    blip('sine', 196, t + 0.2, 0.018, 0.35, 1.0)
+  }
+
+  // ---------- narrator voice (mp3 clips; every failure is a silent no-op) --
+  function setDuck(v) {
+    voiceDuck = v
+    if (ready && lastWind > 0) {
+      windBus.gain.setTargetAtTime(lastWind * voiceDuck, ctx.currentTime, 0.35)
+    }
+  }
+
+  function playVoice(buf) {
+    try {
+      if (voiceSrc) {
+        try {
+          voiceSrc.stop()
+        } catch {}
+      }
+      const s = ctx.createBufferSource()
+      s.buffer = buf
+      s.connect(voiceGain)
+      voiceSrc = s
+      voicePlaying = true
+      setDuck(0.4) // the wind steps back while the old man speaks
+      s.onended = function () {
+        if (voiceSrc === s) {
+          voiceSrc = null
+          voicePlaying = false
+          setDuck(1)
+        }
+      }
+      s.start()
+    } catch {
+      voiceSrc = null
+      voicePlaying = false
+      setDuck(1)
+    }
+  }
+
+  function loadVoices() {
+    const names = ['begin', 'win', 'lose', 'whisper']
+    for (let i = 0; i < names.length; i++) {
+      const n = names[i]
+      try {
+        fetch('../assets/voice/trauco/' + n + '.mp3')
+          .then(function (r) {
+            if (!r.ok) throw new Error('http ' + r.status)
+            return r.arrayBuffer()
+          })
+          .then(function (ab) {
+            return new Promise(function (res, rej) {
+              ctx.decodeAudioData(ab, res, rej)
+            })
+          })
+          .then(function (buf) {
+            voiceBufs[n] = buf
+            // the BEGIN line is requested before its fetch settles — honor it
+            if (pendingVoice === n && ctx.currentTime < pendingUntil) {
+              pendingVoice = null
+              playVoice(buf)
+            }
+          })
+          .catch(function () {})
+      } catch {}
+    }
+  }
+
+  function voice(name) {
+    if (!ready) return
+    const buf = voiceBufs[name]
+    if (!buf) {
+      pendingVoice = name
+      pendingUntil = ctx.currentTime + 4
+      return
+    }
+    playVoice(buf)
   }
 
   function build() {
@@ -208,6 +342,11 @@ export function createAudio() {
     hbOsc.connect(hbGain)
     hbGain.connect(master)
     hbOsc.start()
+
+    // -- narrator voice bus: clips -> voiceGain -> master (M mutes it too) ----
+    voiceGain = ctx.createGain()
+    voiceGain.gain.value = 0.8
+    voiceGain.connect(master)
   }
 
   function unlock() {
@@ -221,6 +360,7 @@ export function createAudio() {
       }
       build()
       ready = true
+      loadVoices() // only ever after the user gesture — never on page load
     }
     if (ctx.state === 'suspended') {
       const p = ctx.resume()
@@ -235,11 +375,39 @@ export function createAudio() {
     const now = ctx.currentTime
     const charm = clamp01(c.charm)
 
-    // wind thins as the charm takes hold (the forest holds its breath)
+    // wind thins as the charm takes hold (the forest holds its breath);
+    // a playing voice clip ducks it to 40% (lastWind stores the unducked bed)
     const windT = 0.2 * (1 - 0.55 * charm)
     if (Math.abs(windT - lastWind) > 0.003) {
       lastWind = windT
-      windBus.gain.setTargetAtTime(windT, now, 0.8)
+      windBus.gain.setTargetAtTime(windT * voiceDuck, now, 0.8)
+    }
+
+    // ambient forest one-shots every 8-25 s — never over a voice clip, and
+    // the forest goes quiet while the charm runs high
+    ambNext -= step
+    if (ambNext <= 0) {
+      ambNext = 8 + Math.random() * 17
+      if (!voicePlaying && charm < 0.5) {
+        const r = Math.random()
+        const t = now + 0.05 + Math.random() * 0.3
+        if (r < 0.32) woodCreak(t)
+        else if (r < 0.56) twigSnap(t)
+        else if (r < 0.8) windGust(t)
+        else nightBird(t)
+      }
+    }
+
+    // poncho rustle on the first stride of a sprint
+    const running = !!(c.moving && c.run)
+    if (running && !lastRun) clothRustle(now)
+    lastRun = running
+
+    // a long exhale when you slip a heavy gaze (only while the sim runs)
+    if (charm > 0.5) highCharm = true
+    if (highCharm && charm < 0.05 && c.traucoDist < 9000) {
+      highCharm = false
+      reliefSigh(now)
     }
 
     // player footsteps
@@ -358,6 +526,7 @@ export function createAudio() {
     unlock,
     update,
     stinger,
+    voice,
     toggleMute,
     get state() {
       return {

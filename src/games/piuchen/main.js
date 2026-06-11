@@ -279,6 +279,7 @@ function win() {
     ' · mejor racha ×' + Math.max(1, game.bestCombo) +
     ' · ovejas ' + alive + ' de 8'
   setTimeout(() => {
+    audio.voice('win')
     showEnd(
       'EL ALBA',
       alive === 8 ? 'La majada amanece completa' : 'La majada amanece',
@@ -298,6 +299,7 @@ function lose(reason) {
   audio.sfx.lose()
   renderer.shake(5)
   setTimeout(() => {
+    audio.voice('lose')
     showEnd(
       'LA MAJADA SANGRADA',
       'Tres ovejas vacías',
@@ -310,6 +312,7 @@ function lose(reason) {
 function begin() {
   if (game.phase !== 'title') return
   audio.unlock()
+  audio.voice('title')
   titleCard.remove()
   game.phase = 'playing'
   pu.nextDive = 3.2
@@ -341,6 +344,7 @@ function fire(tx, ty, force) {
   st.near = false
   game.cooldown = COOLDOWN
   game.shots++
+  audio.sfx.slingStrain()
   audio.sfx.whip()
   renderer.burst(SLING_X, SLING_Y, '#9a917c', 3, 50, 0.3, 1.2)
   return true
@@ -444,6 +448,7 @@ function latch() {
   if (firstLatch) {
     firstLatch = false
     toast('¡la tiene! pégale antes de que la seque', true)
+    audio.voice('latch')
   }
 }
 
@@ -627,7 +632,10 @@ function frame(dt) {
   }
   if (game.elapsed >= TOTAL) { win(); return }
 
-  if (game.cooldown > 0) game.cooldown = Math.max(0, game.cooldown - dt)
+  if (game.cooldown > 0) {
+    game.cooldown = Math.max(0, game.cooldown - dt)
+    if (game.cooldown === 0) audio.sfx.readyTick() // sling ready again
+  }
 
   updateSheep(dt)
   if (goneCount() >= 3) { lose('sheep'); return } // guard (covers setSheep too)

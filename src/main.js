@@ -97,6 +97,10 @@ function buildDock(x0) {
 const dock = buildDock(shoreX)
 enableShadows(dock)
 scene.add(dock)
+// reference points for the ambient one-shot picker (rigging creaks, cave knocks)
+const dockCenter = new THREE.Vector3(shoreX + DOCK_LEN / 2, 0, 0)
+const caveBeing = BEINGS.find((b) => b.id === 'invunche')
+const cavePos = caveBeing ? caveBeing.position : null
 
 function onDock(x, z) {
   // must match the deck mesh footprint: x in [shoreX-6, shoreX+DOCK_LEN+4], |z| <= 2.2
@@ -186,6 +190,7 @@ function beginGame() {
   state.started = true
   clearSave()
   audio.unlock()
+  audio.speak('intro') // title-card line, only on the Entrar-en-la-niebla click
   player.enabled = true
   player.requestLock()
 }
@@ -224,7 +229,10 @@ function checkEncounters() {
         document.exitPointerLock?.() // otherwise the locked pointer can't click Continue
       } catch {}
       audio.stinger('encounter')
+      audio.speak('lore-' + b.entry.id) // narrated lore while the card is open
       ui.showEncounter(b.entry, () => {
+        audio.stopSpeech() // card closed early: cut the narration cleanly
+        audio.stinger('charm')
         state.modal = false
         saveGame()
         ui.setBestiaryHint(true)
@@ -245,6 +253,7 @@ function summonCaleuche() {
   caleucheProgress = 0
   caleuche.group.position.copy(caleucheStart)
   audio.stinger('summon')
+  audio.speak('banner')
   ui.showBanner(STRINGS.banner)
 }
 
@@ -253,6 +262,7 @@ function triggerBlackout() {
   state.modal = true
   player.enabled = false
   audio.stinger('blackout')
+  audio.speak('blackout')
   dread.value = 1
   // teleport while the screen is fully black, not after the fade-out
   setTimeout(() => player.setPosition(0, -150, Math.PI), 350)
@@ -289,6 +299,7 @@ function checkWin() {
     } catch {}
     ui.setBestiaryHint(false)
     audio.stinger('win')
+    audio.speak('win')
     try {
       document.exitPointerLock?.()
     } catch {}
@@ -359,6 +370,7 @@ window.addEventListener('keydown', (e) => {
   bestiaryOpen = true
   state.modal = true
   player.enabled = false
+  audio.stinger('tick') // parchment tick on opening the bestiary
   try {
     document.exitPointerLock?.()
   } catch {}
@@ -371,6 +383,7 @@ window.addEventListener('keydown', (e) => {
       found: b.found,
     })),
     () => {
+      audio.stinger('tick')
       bestiaryOpen = false
       state.modal = false
       if (!state.won) {
@@ -445,6 +458,10 @@ function frame(dt) {
     stalker: stalker.state === 'hidden' ? null : stalker.state,
     stalkerDist,
     won: state.won,
+    started: state.started,
+    dockDist: Math.hypot(player.position.x - dockCenter.x, player.position.z - dockCenter.z),
+    caveDist: cavePos ? Math.hypot(player.position.x - cavePos.x, player.position.z - cavePos.z) : 9999,
+    terrainY: terrainHeight(player.position.x, player.position.z),
   })
   fx.dread = dread.value
   fx.render(dt)
@@ -501,6 +518,7 @@ window.__game = {
     dread.value = v
   },
   audioState: () => audio.state,
+  voiceState: () => audio.voiceState(),
   get bestiaryOpen() {
     return bestiaryOpen
   },

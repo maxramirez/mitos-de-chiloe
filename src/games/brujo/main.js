@@ -100,6 +100,8 @@ let roll = 0
 let clearT = 1 /* seconds genuinely clear of the terrain — re-arms crashes */
 let boostArmed = true /* hysteresis: false at 0 stamina until back to 0.25 */
 let visT = 0 /* visual clock — keeps running after the sim stops */
+let wasBoosting = false /* edge detect: wing-strain sound on boost engage */
+let moonWhispered = false /* the 'la luna se hunde' whisper fires once */
 
 /* gusts */
 const gust = { phase: 'idle', timer: 16, dir: 1, shove: 0 }
@@ -137,6 +139,7 @@ const TMP = new THREE.Vector3()
 function begin() {
   if (state.phase !== 'title') return
   audio.unlock()
+  audio.voice('title')
   mouseArmed = false
   mouseX = 0
   mouseY = 0
@@ -152,6 +155,7 @@ function win() {
     localStorage.setItem('chiloe-brujo-done', '1')
   } catch (e) { /* private mode */ }
   audio.ending(true)
+  audio.voice('win')
   ui.showEnd(true)
 }
 
@@ -159,6 +163,7 @@ function lose(reason) {
   if (state.phase === 'won' || state.phase === 'lost') return
   state.phase = 'lost'
   audio.ending(false)
+  audio.voice(reason === 'torn' ? 'lose-torn' : 'lose-moon')
   ui.showEnd(false, reason)
 }
 
@@ -215,6 +220,11 @@ function sim(dt) {
     lose('moon')
     return
   }
+  /* one whispered warning as the moon turns late (HUD line goes amber) */
+  if (!moonWhispered && state.moonT <= 45) {
+    moonWhispered = true
+    audio.voice('luna')
+  }
 
   /* --- input: arrows take precedence over mouse --- */
   let steerX = 0
@@ -250,12 +260,20 @@ function sim(dt) {
     state.stamina = Math.min(1, state.stamina + 0.09 * dt)
     if (state.stamina >= 0.25) boostArmed = true
   }
+  /* leather wing-strain on the boost rising edge (before the wet multiplier) */
+  const boosting = target === SPEED_BOOST
+  if (boosting && !wasBoosting) audio.wingStrain()
+  wasBoosting = boosting
+
   if (wet) target *= 0.62
   state.speed += (target - state.speed) * 2.2 * dt
   ui.setStamina(state.stamina, !!keys.KeyW && !boostArmed)
 
   /* --- wet wings tick --- */
-  if (state.wetT > 0) state.wetT = Math.max(0, state.wetT - dt)
+  if (state.wetT > 0) {
+    state.wetT = Math.max(0, state.wetT - dt)
+    if (state.wetT === 0) audio.dryFlutter() /* wings shake themselves dry */
+  }
   ui.setWet(state.wetT > 0)
   if (state.crashCooldown > 0) state.crashCooldown -= dt
 

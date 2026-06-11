@@ -111,6 +111,7 @@ let lastTraucoDist = 9999
 let gazeStingT = 0
 let gateDenyT = 0
 let tAmb = 0
+let whisperDone = false // the narrator warns once per night, charm > 0.55
 
 // hint strings precomputed (no per-frame string building)
 const HINT_CLICK = 'click para mirar · WASD moverse'
@@ -129,6 +130,7 @@ function beginGame() {
   if (phase !== 'title') return
   phase = 'playing'
   audio.unlock()
+  audio.voice('begin') // "No le sostengas la mirada." — plays once decoded
   player.enabled = true
   player.requestLock()
 }
@@ -159,6 +161,7 @@ function win() {
     if (document.exitPointerLock) document.exitPointerLock()
   } catch {}
   audio.stinger('win')
+  audio.voice('win') // "El bosque te suelta. No mires atrás."
   ui.showEnd(true)
 }
 
@@ -172,6 +175,7 @@ function lose() {
     if (document.exitPointerLock) document.exitPointerLock()
   } catch {}
   audio.stinger('lose')
+  audio.voice('lose') // "Te dobló la mirada. La niebla se queda con lo que encanta."
   ui.showEnd(false)
 }
 
@@ -239,6 +243,10 @@ function frame(rawDt) {
       charm += dt * (face > 0.25 ? 1 : 0.55) * (0.3 + 0.34 * (1 - traucoDist / GAZE_LEN))
     } else charm -= dt * 0.3
     if (charm < 0) charm = 0
+    if (!whisperDone && charm > 0.55) {
+      whisperDone = true
+      audio.voice('whisper') // "Rompe su línea de visión..."
+    }
     if (charm >= 1) {
       charm = 1
       lose() // bent like green wood

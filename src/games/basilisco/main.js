@@ -156,6 +156,8 @@ const input = { up: 0, down: 0, left: 0, right: 0, space: false }
 let dustAcc = 0
 let hissAcc = 0
 let pryAcc = 0
+let stepAcc = 0
+let stepNext = 0.5
 let firstSurface = true
 
 function sleepersLostCount() {
@@ -272,6 +274,7 @@ function win() {
   renderer.burst(egg.x, egg.y, '#ded8c2', 26, 120, 1.1, 2.5)
   renderer.burst(egg.x, egg.y, '#9fffd0', 16, 80, 1.4, 2)
   setTimeout(() => {
+    audio.playVoice('win')
     showEnd(
       'EL HUEVO ROTO',
       'Amaneció',
@@ -302,12 +305,16 @@ function lose(reason) {
     ],
   }
   const t = texts[reason] || texts.dawn
-  setTimeout(() => showEnd(t[0], t[1], t[2], 'OTRA NOCHE'), 900)
+  setTimeout(() => {
+    audio.playVoice(reason === 'sleepers' ? 'lose-sleepers' : 'lose-dawn')
+    showEnd(t[0], t[1], t[2], 'OTRA NOCHE')
+  }, 900)
 }
 
 function begin() {
   if (game.phase !== 'title') return
   audio.unlock()
+  audio.playVoice('intro') // the title line, whispered — only after the gesture
   titleCard.remove()
   game.phase = 'playing'
   bas.cooldown = firstSurface ? 6 : surfaceInterval()
@@ -429,7 +436,10 @@ function frame(dt) {
   }
   const wasDark = game.dark
   game.dark = game.braziers[0] <= 0 && game.braziers[1] <= 0
-  if (game.dark && !wasDark) toast('oscuridad — ya no verás temblar las grietas', true)
+  if (game.dark && !wasDark) {
+    toast('oscuridad — ya no verás temblar las grietas', true)
+    audio.playVoice('dark')
+  }
 
   // player
   if (player.stun > 0) player.stun = Math.max(0, player.stun - dt)
@@ -445,6 +455,15 @@ function frame(dt) {
       player.x = POS.x
       player.y = POS.y
       if (player.holdT > 0) { player.holdT = 0; player.holdKind = null } // moving abandons a pry
+      // floorboards answer your steps — sparse, randomized
+      stepAcc += dt
+      if (stepAcc >= stepNext) {
+        stepAcc = 0
+        stepNext = 0.45 + Math.random() * 0.4
+        audio.sfx.stepCreak()
+      }
+    } else {
+      stepAcc = 0
     }
   }
 
@@ -583,8 +602,16 @@ function updateHud() {
     const s = sec % 60
     hTime.textContent = m + ':' + (s < 10 ? '0' : '') + s
   }
-  if (game.planks !== lastPlanks) { lastPlanks = game.planks; hPlanks.textContent = String(game.planks) }
-  if (game.wood !== lastWood) { lastWood = game.wood; hWood.textContent = String(game.wood) }
+  if (game.planks !== lastPlanks) {
+    if (lastPlanks !== -1) audio.sfx.hudTick()
+    lastPlanks = game.planks
+    hPlanks.textContent = String(game.planks)
+  }
+  if (game.wood !== lastWood) {
+    if (lastWood !== -1) audio.sfx.hudTick()
+    lastWood = game.wood
+    hWood.textContent = String(game.wood)
+  }
   const fire = (game.braziers[0] > 0 ? '✶' : '·') + ' ' + (game.braziers[1] > 0 ? '✶' : '·')
   if (fire !== lastFire) {
     lastFire = fire

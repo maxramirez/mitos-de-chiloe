@@ -410,6 +410,7 @@ function fishUpdate(dt) {
 
 // ---- boat ----------------------------------------------------------------------
 let wakeT = 0
+let creakT = 2
 function boatUpdate(dt) {
   const b = S.boat
   let ix = (keys.d ? 1 : 0) - (keys.a ? 1 : 0)
@@ -421,6 +422,14 @@ function boatUpdate(dt) {
   const acc = S.repair.active ? 150 : 330
   b.vx += ix * acc * dt
   b.vy += iy * acc * dt
+  // hard rowing makes the old wood complain (rate-limited)
+  if (b.speed > 225 && (ix !== 0 || iy !== 0)) {
+    creakT -= dt
+    if (creakT <= 0) {
+      creakT = 4.5 + Math.random() * 4.5
+      audio.cue('creak')
+    }
+  }
   // gentle tidal drift on the hull
   b.vy += (S.tideRising ? 6 : -6) * dt
   const dragK = 1 / (1 + 1.05 * dt)
@@ -567,6 +576,7 @@ function repairUpdate(dt) {
 }
 
 // ---- El Cuchivilu -----------------------------------------------------------------
+let whispered = false
 function nextInterval() {
   return 16 - 6.5 * S.nightK + Math.random() * 3
 }
@@ -590,6 +600,10 @@ function beginSurface(idx) {
   sp.t = 0
   sp.bubT = 0
   audio.cue('bubble')
+  if (!whispered) {
+    whispered = true
+    audio.voice('whisper') // once a night: the old voice names what is coming
+  }
   toastFirst('tele', 'El fango hierve — el Cuchivilu viene por el corral', 'bad', 2, 3000)
 }
 
@@ -826,6 +840,7 @@ function tideUpdate() {
       toastFirst('tideIn', 'Marea alta — la boca del corral está abierta', 'good', 2, 2800)
       if (S.fishAlive < MAX_FISH - 12) {
         spawnSchool(8 + ((Math.random() * 5) | 0), 140 + Math.random() * 720, 60 + Math.random() * 70)
+        audio.cue('school')
       }
     } else {
       audio.cue('tideOut')
@@ -857,6 +872,7 @@ function particlesUpdate(dt) {
 function startGame() {
   if (S.phase !== 'title') return
   audio.unlock()
+  audio.voice('intro') // after the BEGIN gesture, never on page load
   S.phase = 'playing'
   spawnSchool(10, 360, 170)
   spawnSchool(9, 660, 230)
@@ -873,6 +889,7 @@ function win() {
     localStorage.setItem('chiloe-cuchivilu-done', '1')
   } catch (e) { /* storage may be unavailable */ }
   audio.cue('win')
+  audio.voice('win')
   ui.setHUDVisible(false)
   const walls =
     S.standing === SEGN
@@ -898,6 +915,7 @@ function lose(reason) {
   S.phase = 'lost'
   S.shake = 0
   audio.cue('lose')
+  audio.voice(reason === 'corral' ? 'lose-corral' : 'lose-alba')
   ui.setHUDVisible(false)
   if (reason === 'corral') {
     ui.showEnd({

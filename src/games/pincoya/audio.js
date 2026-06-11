@@ -1,14 +1,23 @@
 // LA PINCOYA — audio.js
-// 100% procedural WebAudio. Lazy AudioContext created in unlock() (first user
-// gesture — the BEGIN click); every method is a safe no-op before unlock or
-// without WebAudio. M toggles mute (works pre-unlock via the muted flag).
+// Procedural WebAudio + whispered voice clips. Lazy AudioContext created in
+// unlock() (first user gesture — the BEGIN click); every method is a safe
+// no-op before unlock or without WebAudio. M toggles mute (works pre-unlock
+// via the muted flag) and mutes voices too — they feed the same master.
+// Voice mp3s under ../assets/voice/pincoya/ are optional: any fetch/decode
+// failure is swallowed and the game behaves identically without them.
 export function createAudio() {
   let ctx = null
   let master = null
+  let ambBus = null // ambience + ambient one-shots; ducked while a voice speaks
+  let voiceGain = null
   let noiseBuf = null
   let ready = false
   let muted = false
   const VOL = 0.24
+  const VOICES = ['intro', 'win', 'lose-alba', 'lose-redes', 'whisper-sea']
+  const voiceBufs = {} // name -> decoded AudioBuffer (only the ones that loaded)
+  const voiceWait = {} // name -> settled-safe load promise (never rejects)
+  let voicesPlaying = 0
 
   function makeNoise() {
     const len = ctx.sampleRate * 2
@@ -36,6 +45,14 @@ export function createAudio() {
       master = ctx.createGain()
       master.gain.value = muted ? 0 : VOL
       master.connect(comp)
+      // ambience bus: looped beds + scheduled one-shots live here so a
+      // playing voice can duck them as a group (M still mutes via master)
+      ambBus = ctx.createGain()
+      ambBus.gain.value = 1
+      ambBus.connect(master)
+      voiceGain = ctx.createGain()
+      voiceGain.gain.value = 0.8
+      voiceGain.connect(master)
       noiseBuf = makeNoise()
 
       // --- water lap: looped noise, bandpassed, breathing with two slow LFOs
@@ -58,7 +75,7 @@ export function createAudio() {
       const lfo2g = ctx.createGain()
       lfo2g.gain.value = 0.016
       lfo2.connect(lfo2g).connect(lapGain.gain)
-      lapSrc.connect(lapBP).connect(lapGain).connect(master)
+      lapSrc.connect(lapBP).connect(lapGain).connect(ambBus)
       lapSrc.start()
       lfo1.start()
       lfo2.start()
@@ -73,10 +90,12 @@ export function createAudio() {
       windLP.frequency.value = 240
       const windGain = ctx.createGain()
       windGain.gain.value = 0.022
-      windSrc.connect(windLP).connect(windGain).connect(master)
+      windSrc.connect(windLP).connect(windGain).connect(ambBus)
       windSrc.start()
 
       ready = true
+      loadVoices() // fire-and-forget; missing files are a silent no-op
+      scheduleAmbient()
     } catch (e) {
       ctx = null
       ready = false
@@ -105,7 +124,7 @@ export function createAudio() {
       o.connect(f)
       head = f
     }
-    head.connect(g).connect(master)
+    head.connect(g).connect((opts && opts.out) || master)
     if (opts && opts.vib) {
       const v = ctx.createOscillator()
       v.frequency.value = opts.vib
@@ -120,7 +139,7 @@ export function createAudio() {
   }
 
   // one noise hit through a filter (optionally swept)
-  function hit(t0, dur, peak, type, f0, f1, q) {
+  function hit(t0, dur, peak, type, f0, f1, q, out, atk) {
     const s = ctx.createBufferSource()
     s.buffer = noiseBuf
     s.loop = true
@@ -131,11 +150,121 @@ export function createAudio() {
     f.Q.value = q || 1
     const g = ctx.createGain()
     g.gain.setValueAtTime(0.0001, t0)
-    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.02)
+    g.gain.exponentialRampToValueAtTime(peak, t0 + (atk || 0.02))
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
-    s.connect(f).connect(g).connect(master)
+    s.connect(f).connect(g).connect(out || master)
     s.start(t0)
     s.stop(t0 + dur + 0.1)
+  }
+
+  // ---- voice clips (whispered myth lines) -----------------------------------
+  // Loaded lazily after the unlock gesture; every failure path is silent —
+  // without the mp3s the game plays identically.
+  function loadVoices() {
+    for (const name of VOICES) {
+      try {
+        voiceWait[name] = fetch('../assets/voice/pincoya/' + name + '.mp3')
+          .then((r) => {
+            if (!r.ok) throw new Error('http ' + r.status)
+            return r.arrayBuffer()
+          })
+          .then((ab) => ctx.decodeAudioData(ab))
+          .then((buf) => {
+            voiceBufs[name] = buf
+          })
+          .catch(() => {})
+      } catch (e) { /* no fetch: no voices */ }
+    }
+  }
+
+  function startVoice(name) {
+    try {
+      const buf = voiceBufs[name]
+      if (!ready || !ctx || !buf) return
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      src.connect(voiceGain)
+      voicesPlaying++
+      // duck the ambience under the whisper, ease back when the last clip ends
+      ambBus.gain.setTargetAtTime(0.4, ctx.currentTime, 0.15)
+      src.onended = () => {
+        voicesPlaying = Math.max(0, voicesPlaying - 1)
+        if (voicesPlaying === 0 && ambBus) {
+          try { ambBus.gain.setTargetAtTime(1, ctx.currentTime, 0.4) } catch (e) { /* ignore */ }
+        }
+      }
+      src.start()
+    } catch (e) { /* a voice must never break the game */ }
+  }
+
+  function voice(name) {
+    if (!ready) return
+    const w = voiceWait[name]
+    // the title line is requested the same instant loading starts — wait for
+    // the (never-rejecting) load promise, then play if the buffer is there
+    if (w && w.then) w.then(() => startVoice(name))
+    else startVoice(name)
+  }
+
+  // ---- new ambient one-shots (all through ambBus so voices duck them) -------
+  // hull/wood creak: swept noise + a low pitch-drop groan
+  function creak(t) {
+    hit(t, 0.34, 0.02, 'bandpass', 1300 + Math.random() * 400, 320, 3.2, ambBus, 0.04)
+    tone('sine', 150 + Math.random() * 30, t + 0.02, 0.42, 0.016, { slideTo: 92, slideT: 0.3, a: 0.05, out: ambBus })
+    if (Math.random() < 0.4) hit(t + 0.5, 0.22, 0.012, 'bandpass', 900, 420, 3, ambBus, 0.04)
+  }
+
+  // distant night bird: two-three soft FM-ish down-chirps, rare and far
+  function nightbird(t) {
+    const f0 = 1700 + Math.random() * 400
+    const n = 2 + (Math.random() < 0.5 ? 1 : 0)
+    for (let i = 0; i < n; i++) {
+      tone('sine', f0, t + i * 0.16, 0.09, 0.009, { slideTo: f0 * 0.72, slideT: 0.07, a: 0.02, bp: f0, q: 2, out: ambBus })
+    }
+  }
+
+  // wind gust: a slow lowpassed swell that breathes over the night air bed
+  function gust(t) {
+    const s = ctx.createBufferSource()
+    s.buffer = noiseBuf
+    s.loop = true
+    s.playbackRate.value = 0.7
+    const f = ctx.createBiquadFilter()
+    f.type = 'lowpass'
+    f.frequency.setValueAtTime(280, t)
+    f.frequency.exponentialRampToValueAtTime(620, t + 1.1)
+    f.frequency.exponentialRampToValueAtTime(220, t + 2.6)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(0.03, t + 0.9)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.7)
+    s.connect(f).connect(g).connect(ambBus)
+    s.start(t)
+    s.stop(t + 2.8)
+  }
+
+  // far-off buoy bell: two inharmonic partials, long faint decay
+  function bell(t) {
+    const f0 = 480 + Math.random() * 90
+    tone('sine', f0, t, 1.7, 0.012, { a: 0.012, detune: 4, out: ambBus })
+    tone('sine', f0 * 1.93, t, 1.1, 0.006, { a: 0.012, detune: -6, out: ambBus })
+  }
+
+  let ambTimer = 0
+  function scheduleAmbient() {
+    ambTimer = setTimeout(() => {
+      try {
+        if (ready && ctx) {
+          const t = ctx.currentTime + 0.05
+          const r = Math.random()
+          if (r < 0.32) creak(t)
+          else if (r < 0.5) nightbird(t)
+          else if (r < 0.8) gust(t)
+          else bell(t)
+        }
+      } catch (e) { /* ignore */ }
+      scheduleAmbient()
+    }, 8000 + Math.random() * 17000)
   }
 
   // soft accordion voice: two detuned saws + shared vibrato, bandpassed
@@ -202,6 +331,31 @@ export function createAudio() {
           tone('sine', 110, t, 3.0, 0.05, { a: 0.4 })
           tone('sine', 116.54, t, 3.0, 0.045, { a: 0.5 })
           break
+        case 'drips': { // the wet net sheds water — sparse plinks into an echo
+          const dly = ctx.createDelay(0.5)
+          dly.delayTime.value = 0.26
+          const fb = ctx.createGain()
+          fb.gain.value = 0.32
+          const lp = ctx.createBiquadFilter()
+          lp.type = 'lowpass'
+          lp.frequency.value = 1800
+          const wet = ctx.createGain()
+          wet.gain.value = 0.5
+          dly.connect(lp).connect(fb).connect(dly)
+          dly.connect(wet).connect(master)
+          const n = 3 + Math.floor(Math.random() * 3)
+          for (let i = 0; i < n; i++) {
+            const td = t + 0.15 + i * (0.16 + Math.random() * 0.14)
+            const f0 = 950 + Math.random() * 450
+            tone('sine', f0, td, 0.07, 0.016, { slideTo: f0 * 0.62, slideT: 0.05, a: 0.005, out: dly })
+            tone('sine', f0, td, 0.07, 0.014, { slideTo: f0 * 0.62, slideT: 0.05, a: 0.005 })
+          }
+          break
+        }
+        case 'lantern': // drifting into a lit buoy's water — the faintest ping
+          tone('triangle', 1244, t, 0.09, 0.012, { a: 0.008 })
+          tone('sine', 622, t, 0.14, 0.01, { a: 0.01 })
+          break
       }
     } catch (e) { /* never let a cue break the frame */ }
   }
@@ -217,6 +371,7 @@ export function createAudio() {
   return {
     unlock,
     cue,
+    voice,
     toggleMute,
     get state() {
       return { unlocked: ready, muted, contextState: ctx ? ctx.state : 'none' }
