@@ -5,29 +5,34 @@ import { HERB_TOTAL } from './level.js'
 export const STRINGS = {
   title: 'LA FIURA',
   subtitle: 'la señora feroz del pantano',
+  // the first two sentences are the narrator's BEGIN line — keep them in
+  // sync with assets/voice/fiura/begin.mp3 word for word
   intro:
-    'En los pantanos negros de Chiloé espera la Fiura, la pareja pequeña y ' +
-    'feroz del Trauco: una salvaje vestida de rojo cuyo aliento tuerce los ' +
-    'cuerpos y cuyo encanto dobla las voluntades. El machi necesita cinco ' +
-    'hierbas que brillan por las sendas anegadas del pantanal; llévale las ' +
-    'cinco a su cabaña antes de que se apaguen tus tres luces. Cuando ella ' +
-    'toma aire está por encantar: cruza su terreno entre pulso y pulso, ' +
-    'nunca durante.',
+    'El pantano calla como un ahogado. Y en la orilla espera ella: la Fiura, ' +
+    'pequeña y roja como una brasa que el agua no pudo apagar. El machi ' +
+    'necesita cinco hierbas que brillan por las sendas anegadas del ' +
+    'pantanal; llévale las cinco a su cabaña antes de que se apaguen tus ' +
+    'tres luces. Cuando ella toma aire está por encantar: cruza su terreno ' +
+    'entre pulso y pulso, nunca durante.',
   help: 'A/D o ←/→ moverse · espacio/W/↑ saltar (suelta para cortar) · M sonido',
   begin: 'COMENZAR',
   winTitle: 'EL MACHI ENCIENDE SU PUERTA',
+  // the last two sentences are the narrator's WIN line — keep them in sync
+  // with assets/voice/fiura/win.mp3 word for word
   winText:
     'Cinco hierbas, todavía encendidas con la luz fría del pantano, y la puerta ' +
     'se abre a humo de leña y abrigo. Allá atrás, algo pequeño y de rojo ' +
-    'patalea entre los juncos y le grita a la luna — pero el encanto no cruza ' +
-    'el umbral de un machi. Esta noche, el pantanal no te quedó.',
+    'patalea entre los juncos y le grita a la luna. Cruzaste el agua negra ' +
+    'como la cruza la luna: sin pertenecerle. Esta noche el pantano te deja ir.',
   winReplay: 'OTRA NOCHE',
   loseTitle: 'EL PANTANAL TE QUEDÓ',
+  // the middle two sentences are the narrator's LOSE line — keep them in
+  // sync with assets/voice/fiura/lose.mp3 word for word
   loseText:
-    'Tu última luz se apagó entre los juncos, y el agua negra se asentó como si ' +
-    'nadie hubiera pasado jamás. Dicen que la Fiura se peina con el encanto de ' +
-    'los ahogados. Mide su aliento — cruza entre pulso y pulso, y confía en los ' +
-    'faroles: ellos guardan tu paso.',
+    'Tu última luz se apagó entre los juncos. La Fiura peina su cabellera con ' +
+    'las voces de los ahogados. Esta noche, entre sus dedos, va la tuya. ' +
+    'Mide su aliento — cruza entre pulso y pulso, y confía en los faroles: ' +
+    'ellos guardan tu paso.',
   loseReplay: 'INTENTAR DE NUEVO',
 }
 
@@ -36,7 +41,9 @@ const HERB_STR = []
 for (let i = 0; i <= HERB_TOTAL; i++) HERB_STR.push('hierbas ' + i + ' / ' + HERB_TOTAL)
 export const HINTS = {
   start: 'las hierbas brillan en las ramas — cinco antes de la cabaña',
-  inhale: 'ella inhala — viene el encanto, no estés cerca',
+  // the narrator's WHISPER line — keep in sync with
+  // assets/voice/fiura/whisper.mp3 word for word
+  inhale: 'ella toma aire como la ola antes de romper — no estés cerca cuando caiga',
   sink: 'el tronco se hunde — no te detengas',
   allHerbs: 'cinco hierbas — la cabaña del machi espera al final',
   locked: [],

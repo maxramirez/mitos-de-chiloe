@@ -102,16 +102,16 @@ function card(title, epithet, body, controls, btnLabel, onClick) {
 const titleCard = card(
   'EL BASILISCO',
   'La noche del huevo',
-  'Cuando una gallina envejece y canta como gallo, pone un solo huevo deforme — y algo se enrosca adentro. Empollado en secreto bajo las tablas del palafito, <i>el basilisco</i> sube de noche por las grietas a beber el aliento de los que duermen, hasta que la casa queda delgada y callada. Eres el mayor de la casa, el único despierto: alimenta los braseros, clava las grietas y escucha cuando chille — siempre llora hacia su huevo.',
-  'WASD moverse &nbsp;·&nbsp; ESPACIO espantar / mantener 3&thinsp;s sobre una tabla suelta para levantarla &nbsp;·&nbsp; E clavar una grieta &nbsp;·&nbsp; R alimentar el brasero &nbsp;·&nbsp; M sonido',
+  'Bajo las tablas duerme un huevo, como una pequeña luna enferma. Adentro se enrosca <i>el basilisco</i>, que sube de noche, con sed, a beber el aliento de los que duermen — como la marea bebe la arena.',
+  'WASD moverse &nbsp;·&nbsp; ESPACIO espantar / mantener 3&thinsp;s sobre una tabla suelta para levantarla &nbsp;·&nbsp; E clavar una grieta &nbsp;·&nbsp; R alimentar el brasero &nbsp;·&nbsp; M sonido &nbsp;·&nbsp; su chillido siempre apunta al huevo',
   'COMENZAR',
   () => begin()
 )
 
 let endCard = null
-function showEnd(title, epithet, body, btn) {
+function showEnd(title, epithet, body, hint, btn) {
   if (endCard) endCard.remove()
-  endCard = card(title, epithet, body, '', btn, () => location.reload())
+  endCard = card(title, epithet, body, hint, btn, () => location.reload())
 }
 
 // --- state -------------------------------------------------------------------
@@ -266,6 +266,7 @@ function win() {
   titleCard.remove()
   localStorage.setItem('chiloe-basilisco-done', '1')
   audio.update(0.05, 1, 0, Math.max(game.braziers[0], game.braziers[1])) // fade the dread drone
+  audio.endNight() // ease the music bed out under the stingers
   audio.sfx.crush()
   audio.sfx.win()
   renderer.shake(8)
@@ -278,7 +279,8 @@ function win() {
     showEnd(
       'EL HUEVO ROTO',
       'Amaneció',
-      'La cáscara revienta como ceniza mojada bajo tu talón. Bajo las tablas algo se sacude una vez, dos — y después el mar bajo los pilotes vuelve a ser solo el mar. Al alba los braseros se apagan solos y la familia despierta, respirando. <i>Seña</i> ganada: la isla recuerda a quien cuidó el fuego.',
+      'La cáscara cede bajo tu talón como cede una ola contra la piedra. La casa respira de nuevo, y el mar, bajo los pilotes, vuelve a ser solamente el mar.',
+      '<i>Seña</i> ganada: la isla recuerda a quien cuidó el fuego.',
       'OTRA NOCHE'
     )
   }, 1100)
@@ -290,24 +292,27 @@ function lose(reason) {
   game.reason = reason
   titleCard.remove()
   audio.update(0.05, 1, 0, Math.max(game.braziers[0], game.braziers[1])) // fade the dread drone
+  audio.endNight() // ease the music bed out under the stingers
   audio.sfx.lose()
   renderer.shake(5)
   const texts = {
     sleepers: [
       'LA CASA CALLA',
       'Dos alientos perdidos',
-      'Dos alientos bebidos, y el silencio bajo el piso ahora pesa más. El basilisco bebió hondo mientras los braseros siseaban bajo la lluvia. En Chiloé queda un solo remedio para una casa así: la quemarán hasta los pilotes.',
+      'Dos alientos se fueron con la marea, como velas que el agua apaga. La casa calla, y el silencio pesa sobre las tablas como una red mojada.',
+      'En Chiloé queda un solo remedio para una casa así: la quemarán hasta los pilotes.',
     ],
     dawn: [
       'EL ALBA',
       'La noche no alcanzó',
-      'El alba llega gris entre la lluvia y el huevo sigue tibio bajo las tablas. Esta noche aprendió la forma de cada pieza — mañana será más rápido. Encuentra el huevo la próxima vez: su chillido siempre apunta a casa.',
+      'El alba llega gris como ceniza sobre el agua, y el huevo sigue tibio bajo las tablas, soñando su veneno.',
+      'Su chillido siempre apunta al huevo — síguelo antes de que el cielo aclare.',
     ],
   }
   const t = texts[reason] || texts.dawn
   setTimeout(() => {
     audio.playVoice(reason === 'sleepers' ? 'lose-sleepers' : 'lose-dawn')
-    showEnd(t[0], t[1], t[2], 'OTRA NOCHE')
+    showEnd(t[0], t[1], t[2], t[3], 'OTRA NOCHE')
   }, 900)
 }
 
@@ -437,7 +442,7 @@ function frame(dt) {
   const wasDark = game.dark
   game.dark = game.braziers[0] <= 0 && game.braziers[1] <= 0
   if (game.dark && !wasDark) {
-    toast('oscuridad — ya no verás temblar las grietas', true)
+    toast('se apagó el último fuego — la oscuridad sube entre las tablas como agua negra', true)
     audio.playVoice('dark')
   }
 

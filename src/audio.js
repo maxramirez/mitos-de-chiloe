@@ -2,7 +2,8 @@
 // voice clips (fetched after the user gesture; missing files are silent no-ops).
 // Patagonian night: wool wind that holds its breath near the beings, ink-dark
 // surf, a dread drone, a heartbeat, and the Caleuche's waltz — festive music
-// that is always slightly wrong.
+// that is always slightly wrong. Under it all, a lowpassed mp3 ambience bed
+// (caleuche.mp3) that reads as weather and eases out on win.
 //
 // Graph: ambient layers -> ambDuck -> master gain (0.3) -> compressor -> out.
 //        voices -> per-clip envelope -> voiceGain (0.8) -> master (M mutes all).
@@ -55,6 +56,16 @@ export function createAudio() {
   let voiceEnv = null; // its envelope gain
   let voicePlaying = null; // name of the playing clip, or null
   let pendingSpeak = null; // speak() requested before its buffer decoded
+
+  // ---- looping music bed (../assets/music/caleuche.mp3) --------------------
+  // Sits UNDER the wind/drone: lowpassed to ~900 Hz so it reads as weather,
+  // routed through ambDuck (voice ducking applies) then musicGain (~0.16).
+  // Eases out on win. Missing/undecodable file: silent no-op.
+  const MUSIC_URL = '../assets/music/caleuche.mp3';
+  const MUSIC_LEVEL = 0.16;
+  let musicRequested = false;
+  let musicGain = null; // exists only once the buffer decoded and started
+  let musicOut = false; // win reached: bed eased out (or must start silent)
 
   // ---- scheduler / cadence state (scalars only) --------------------------
   let stepPhase = 0;
@@ -357,6 +368,42 @@ export function createAudio() {
     }
   }
 
+  // ---- music bed (fetch -> decode after user gesture; silent on failure) ----
+  function loadMusic() {
+    if (musicRequested || typeof fetch !== 'function') return;
+    musicRequested = true;
+    try {
+      fetch(MUSIC_URL)
+        .then(function (r) {
+          if (!r.ok) throw new Error('missing');
+          return r.arrayBuffer();
+        })
+        .then(function (ab) {
+          return ctx.decodeAudioData(ab);
+        })
+        .then(function (buf) {
+          if (!ready || musicGain) return;
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.loop = true;
+          const lp = ctx.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.value = 900; // weather, not music
+          musicGain = ctx.createGain();
+          musicGain.gain.value = 0;
+          src.connect(lp);
+          lp.connect(musicGain);
+          musicGain.connect(ambDuck); // existing voice ducking applies
+          src.start();
+          if (!musicOut) {
+            // surface slowly, like a front rolling in — never a hard entrance
+            musicGain.gain.setTargetAtTime(MUSIC_LEVEL, ctx.currentTime + 0.5, 4.0);
+          }
+        })
+        .catch(function () {}); // missing/undecodable: game runs identically
+    } catch (e) {}
+  }
+
   function speak(name) {
     if (!ready) return;
     const buf = voiceBuffers[name];
@@ -562,6 +609,7 @@ export function createAudio() {
       build();
       ready = true;
       loadVoices(); // only ever after the user gesture, never on page load
+      loadMusic(); // ambience bed, same rule: fetched only after the gesture
     }
     if (ctx.state === 'suspended') {
       const p = ctx.resume();
@@ -662,6 +710,12 @@ export function createAudio() {
         waltzBus.gain.setTargetAtTime(0, now, 0.4);
       }
     }
+    // -- music bed eases out on win (the waltz takes the night from here) -----
+    if (c.won && !musicOut) {
+      musicOut = true; // also keeps a late decode from fading back in
+      if (musicGain) musicGain.gain.setTargetAtTime(0, now, 3.0);
+    }
+
     // after won: louder handled above, MORE detuned here (8 -> 21 cents)
     const detTarget = c.won ? 21 : 8;
     if (detTarget !== lastDet) {

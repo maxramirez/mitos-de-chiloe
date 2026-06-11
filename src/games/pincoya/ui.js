@@ -6,14 +6,15 @@
 const STR = {
   title: 'LA PINCOYA',
   subtitle: 'Marea alta',
+  // the intro is voiced (voice/pincoya/intro.mp3) — keep text and clip identical
   intro:
-    'Dicen que la hija del Millalobo danza sobre la arena fría con la marea alta, ' +
-    'y que el mar la mira como un perro mira a su amo. Cuando La Pincoya mira hacia ' +
-    'el agua, los peces llegan en cardúmenes de plata; cuando le da la espalda, las ' +
-    'redes suben vacías y la bahía queda callada como un aliento contenido. Llena la ' +
-    'bodega antes de que la luna toque el horizonte — y no eches la red contra su ' +
-    'espalda, que la tercera siempre se rompe.',
-  help: 'A/D o flechas deslizar la lancha · Espacio echar la red · M sonido',
+    'Dicen que la hija del Millalobo danza sobre la arena fría, ' +
+    'y que el mar la sigue como la ola sigue a la luna. ' +
+    'Cuando ella mira al agua, sube la plata en cardúmenes; ' +
+    'cuando da la espalda, la red vuelve vacía como una mano abierta.',
+  help:
+    'Llena la bodega antes del alba — tres redes contra su espalda y se rompen · ' +
+    'A/D o flechas deslizar la lancha · Espacio echar la red · M sonido',
   begin: 'Comenzar',
   replay: 'Otra marea',
   toHub: '⌂ volver al archipiélago',

@@ -87,7 +87,7 @@ const PROMPTS = {
   intro: 'ella canta — escucha',
   singing: 'ella canta — escucha',
   input: 'repite el canto — caracolas o teclas 1-5',
-  churn: 'el agua se agita — el canto vuelve, escucha',
+  churn: 'una nota cayó al fondo, como una piedra pequeña — escucha: el canto vuelve',
   soul: 'un ánima cruza el canal',
   done: '',
 };

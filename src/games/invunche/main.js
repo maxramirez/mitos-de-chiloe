@@ -253,7 +253,7 @@ inv.onMode = (m) => {
       heardVoiced = true
       audio.voice('heard')
     }
-    ui.hint('te ha oído', 2400)
+    ui.hint('te ha oído — como el mar oye caer la piedra', 3400)
   }
 }
 

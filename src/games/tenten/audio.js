@@ -44,6 +44,40 @@ function duckAmbience(on) {
   amb.gain.setTargetAtTime(on ? DUCK_LEVEL : 1, ctx.currentTime, 0.15);
 }
 
+// --- music bed: a ~50 s pre-rendered loop (seam already crossfaded).
+// Routed through the amb bus, so it ducks under voices with the rest
+// of the night and dies with M like everything else.
+const MUSIC_URL = '../assets/music/tenten.mp3';
+const MUSIC_LEVEL = 0.24; // sits under the sea noise / 49 Hz drone
+let musicGain = null;
+let musicLoading = false;
+
+function loadMusic() {
+  if (musicLoading) return;
+  musicLoading = true;
+  fetch(MUSIC_URL)
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error('http'))))
+    .then((ab) => ctx.decodeAudioData(ab))
+    .then((buf) => {
+      musicGain = ctx.createGain();
+      musicGain.gain.value = 0.0001;
+      musicGain.gain.setTargetAtTime(MUSIC_LEVEL, ctx.currentTime, 1.2); // breathe in
+      musicGain.connect(amb);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true; // the seam is pre-crossfaded in the asset
+      src.connect(musicGain);
+      src.start();
+    })
+    .catch(() => {}); // missing/undecodable: the procedural night carries alone
+}
+
+// win/lose ease the bed out so the end stingers ring on top;
+// the first gameplay sound of a replay breathes it back in.
+function easeMusic(level, tc) {
+  if (musicGain) musicGain.gain.setTargetAtTime(level, ctx.currentTime, tc);
+}
+
 export function playVoice(name) {
   if (!ctx || muted || !voiceLoads[name]) return;
   const askedAt = ctx.currentTime;
@@ -138,6 +172,7 @@ export function initAudio() {
   noiseBuf = buildNoise();
   startAmbient();
   loadVoices(); // gesture-gated: initAudio only runs from user input
+  loadMusic(); // same gate — fetch + decode + looping bed
   scheduleAmbientOneShot();
   return true;
 }
@@ -279,6 +314,7 @@ export function sfx(name) {
   if (!ctx || muted) return;
   switch (name) {
     case 'raise': // earth shoulders upward — low thump + gravel
+      easeMusic(MUSIC_LEVEL, 1.0); // a replay's first gesture revives the bed
       tone('sine', 95, 38, 0.3, 0.5);
       whoosh(0.22, 900, 220, 0.18, 0.8);
       break;
@@ -289,6 +325,7 @@ export function sfx(name) {
       tone('square', 110, 80, 0.07, 0.08);
       break;
     case 'march': // the people set out
+      easeMusic(MUSIC_LEVEL, 1.0);
       whoosh(0.3, 500, 900, 0.07, 2);
       break;
     case 'step':
@@ -307,12 +344,14 @@ export function sfx(name) {
       tone('triangle', 880, 880, 0.3, 0.12, 0.1);
       break;
     case 'win':
+      easeMusic(0.0001, 0.9); // bed eases out under the stinger
       tone('triangle', 392, 392, 0.4, 0.2);
       tone('triangle', 523, 523, 0.4, 0.2, 0.18);
       tone('triangle', 659, 659, 0.7, 0.2, 0.36);
       tone('sine', 98, 98, 1.4, 0.2, 0.36);
       break;
     case 'lose': // a bell under water
+      easeMusic(0.0001, 0.9);
       tone('sine', 196, 194, 2.2, 0.4);
       tone('sine', 294, 290, 1.6, 0.14, 0.05);
       whoosh(2, 400, 90, 0.2, 0.8);

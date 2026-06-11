@@ -14,14 +14,16 @@ const FREQS = [293.66, 349.23, 392.0, 440.0, 523.25];
 
 let ctx = null;
 let master = null;
-let amb = null; // ambience bus (sea + ambient one-shots) — ducks under voice
+let amb = null; // ambience bus (sea + ambient one-shots + music bed) — ducks under voice
 let voiceGain = null; // narrator clips; through master so M mutes them too
 let delaySend = null; // watery feedback delay input
 let noiseBuf = null;
+let musicGain = null; // looping mp3 bed; lives on amb so it ducks with the sea
 let muted = false;
 let armed = false;
 
 const AMB_LEVEL = 1.0;
+const MUSIC_LEVEL = 0.22; // quiet on purpose: the five shells ARE this game's melody
 
 export function initAudio() {
   if (ctx) return true;
@@ -61,6 +63,7 @@ export function initAudio() {
 
     noiseBuf = makeNoise(2.0);
     startSea();
+    startMusicBed();
     loadVoices();
     scheduleAmbient();
 
@@ -125,6 +128,44 @@ function startSea() {
   g.connect(amb);
   src.start();
   lfo.start();
+}
+
+// ---------------- looping music bed ----------------
+// ../assets/music/sirena.mp3 — ~50 s seam-crossfaded loop (loop=true,
+// no gap math needed). Routed lowpass -> musicGain -> amb, so it ducks
+// under the narrator together with the sea, and M mutes it with the
+// rest. Filtered dark at 750 Hz and kept at 0.22: the pentatonic
+// shells are the playable melody and nothing may blur their register.
+// Any fetch/decode failure leaves the night exactly as it was.
+
+function startMusicBed() {
+  fetch('../assets/music/sirena.mp3')
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+    .then((ab) => ctx.decodeAudioData(ab))
+    .then((buf) => {
+      if (!ctx || !amb) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true; // the seam is pre-crossfaded
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 750; // a dark wash under the shell tones
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(MUSIC_LEVEL, ctx.currentTime + 3);
+      src.connect(lp);
+      lp.connect(g);
+      g.connect(amb);
+      src.start();
+      musicGain = g;
+    })
+    .catch(() => {}); // no bed — the sea alone carries the night
+}
+
+// the bed eases out under the end stingers (win/lose stay on top)
+function fadeMusicBed() {
+  if (!ctx || !musicGain) return;
+  musicGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.7);
 }
 
 // ---------------- narrator voice clips ----------------
@@ -282,6 +323,7 @@ export function soulChime() {
 
 export function winSong() {
   if (!ctx) return;
+  fadeMusicBed(); // the bed recedes; the stinger stands alone
   pluck(73.42, 0, 0.16, 3.5); // D2 drone
   pluck(293.66, 0.0, 0.22, 1.0);
   pluck(349.23, 0.16, 0.22, 1.0);
@@ -292,6 +334,7 @@ export function winSong() {
 
 export function loseFade() {
   if (!ctx) return;
+  fadeMusicBed(); // the bed recedes; the stinger stands alone
   const t0 = ctx.currentTime;
   pluck(73.42, 0, 0.24, 4.0); // D2 dying
   pluck(69.3, 0.5, 0.14, 3.5); // a half-step under it

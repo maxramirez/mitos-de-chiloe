@@ -170,12 +170,12 @@ function begin() {
   if (phase !== 'title') return
   phase = 'playing'
   audio.unlock()
-  audio.voice('begin') // "Siete páginas en el bosque… y no lo mires demasiado."
+  audio.voice('begin') // "Siete páginas cuelgan del bosque, pálidas como la espuma… no lo mires: mirar es abrir una puerta."
   ui.closeTitle()
   ui.setPages(0)
   player.enabled = true
   player.requestLock()
-  ui.hint('siete páginas en el bosque — y no lo mires demasiado', 7000)
+  ui.hint('siete páginas cuelgan del bosque, pálidas como la espuma — no lo mires: mirar es abrir una puerta', 7000)
 }
 
 function winGame() {
@@ -187,7 +187,7 @@ function winGame() {
     localStorage.setItem('chiloe-quicavi-done', '1') // hub badge — WIN ONLY
   } catch (e) {}
   audio.stinger('win')
-  audio.voice('win') // "Esta noche, el canal te deja ir."
+  audio.voice('win') // "El agua negra te abre su mano fría… esta noche el canal te suelta, como la marea suelta a la luna."
   fx.burst(BOAT.x, terrainHeight(BOAT.x, BOAT.z) + 1, BOAT.z, 0.62, 1.0, 0.82, 30, 1.6, 1.2)
   ui.flash('rgba(159,255,208,1)', 0.3, 1600)
   ui.hold(-1)
@@ -229,7 +229,7 @@ function updateCinema(dt) {
     try {
       document.exitPointerLock?.()
     } catch (e) {}
-    audio.voice('lose') // "No lo mires: cuenta las páginas, y sigue caminando."
+    audio.voice('lose') // "Lo miraste, y entró por tus ojos como entra el mar en la barca rota… no lo mires: cuenta las páginas, y camina."
     ui.showEnd('caught')
   }
 }
@@ -397,8 +397,8 @@ function updateBoat(dt) {
         lookT = 0
         burned = false
         audio.stinger('relocate')
-        audio.voice('push') // "No te des vuelta."
-        ui.hint('no te des vuelta', 3000)
+        audio.voice('push') // "No te des vuelta… el bosque entero sube a tu espalda, como una ola que no rompe."
+        ui.hint('no te des vuelta — el bosque sube a tu espalda, como una ola que no rompe', 4500)
       }
       holdT += dt
       if (holdT >= HOLD_SECONDS) {

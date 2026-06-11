@@ -190,6 +190,9 @@ export function createScene(canvas) {
 
   let t = 0, shake = 0, churn = 0, glyphA = 0, lastGlyph = 0, singGlow = 0;
   let turn = 0, turnTarget = 0;
+  // siren shading — gradients cached in seat-local space, rebuilt on resize
+  // (drawSiren allocates nothing; these are the only gradients it touches)
+  let tailGrad = null, bodyGrad = null, hairGrad = null;
 
   // ---------------- layout ----------------
 
@@ -230,6 +233,18 @@ export function createScene(canvas) {
     }
     glyphFont = Math.round(sr * 0.5) + 'px Georgia';
     bigGlyphFont = Math.round(su * 16) + 'px Georgia';
+    // her shading, lit from the moon side (upper left in seat space)
+    tailGrad = ctx.createLinearGradient(-12 * su, -6 * su, 70 * su, 34 * su);
+    tailGrad.addColorStop(0, '#0e1b21');
+    tailGrad.addColorStop(0.4, '#060d12');
+    tailGrad.addColorStop(1, '#02050a');
+    bodyGrad = ctx.createLinearGradient(-16 * su, -46 * su, 10 * su, 6 * su);
+    bodyGrad.addColorStop(0, '#13222a');
+    bodyGrad.addColorStop(0.45, '#070e13');
+    bodyGrad.addColorStop(1, '#02050a');
+    hairGrad = ctx.createLinearGradient(-20 * su, -46 * su, -6 * su, 4 * su);
+    hairGrad.addColorStop(0, '#0b151b');
+    hairGrad.addColorStop(1, '#010409');
     paintRock();
     paintBg();
   }
@@ -684,10 +699,13 @@ export function createScene(canvas) {
     const breathe = Math.sin(t * 0.8) * 1.1 * u;
     const comb = Math.sin(t * 1.5);
     const fl = Math.sin(t * 0.55) * 3 * u;
+    const fin = Math.sin(t * 0.55 + 1.2) * 1.6 * u; // side fin trails the fluke
+    const hw = Math.sin(t * 0.9) * 2 * u; // hair mass sway
+    const hw2 = Math.sin(t * 0.9 - 0.7) * 2.6 * u; // tips lag like kelp in the tide
     const tn = turn;
+    const rimA = 0.12 + singGlow * 0.1; // the moon finds her when she sings
     ctx.save();
     ctx.translate(seatX, seatY);
-    ctx.fillStyle = '#03060a';
     // tail — sweeps right along the rock, fluke flicking slowly
     ctx.beginPath();
     ctx.moveTo(-10 * u, 2 * u);
@@ -699,6 +717,36 @@ export function createScene(canvas) {
     ctx.bezierCurveTo(47 * u, 32 * u, 28 * u, 20 * u, 12 * u, 15 * u);
     ctx.bezierCurveTo(2 * u, 12 * u, -9 * u, 9 * u, -11 * u, 4 * u);
     ctx.closePath();
+    ctx.fillStyle = tailGrad;
+    ctx.fill();
+    // scale rows + stray moonlit scales, clipped inside the tail
+    ctx.save();
+    ctx.clip(); // the fill's path is still current
+    ctx.lineWidth = 0.8;
+    for (let k = 0; k < 6; k++) {
+      ctx.strokeStyle = NACRE[k % 3];
+      ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * 1.3 + k * 1.9); // nacre breathing
+      ctx.beginPath();
+      ctx.arc((10 + k * 9) * u, (8 + k * 3.4) * u, 4.6 * u, 0.25, Math.PI - 0.45);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#cfe0d8';
+    for (let k = 0; k < 3; k++) {
+      const tw = Math.sin(t * 1.7 + k * 2.1);
+      if (tw > 0.35) {
+        ctx.globalAlpha = (tw - 0.35) * 0.3;
+        ctx.fillRect((16 + k * 16) * u, (10 + k * 5.5) * u, 1.4 * u, 1.4 * u);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // small side fin off the tail, on its own beat
+    ctx.fillStyle = '#081116';
+    ctx.beginPath();
+    ctx.moveTo(30 * u, 14 * u);
+    ctx.quadraticCurveTo(34 * u, 22 * u + fin, 28 * u, 26 * u + fin);
+    ctx.quadraticCurveTo(27 * u, 19 * u, 30 * u, 14 * u);
+    ctx.closePath();
     ctx.fill();
     // torso — turns slightly toward you as souls cross
     ctx.beginPath();
@@ -707,6 +755,7 @@ export function createScene(canvas) {
     ctx.lineTo(3 * u + tn * 2 * u, -32 * u + breathe);
     ctx.bezierCurveTo(7 * u, -20 * u, 6 * u, -8 * u, 9 * u, 3 * u);
     ctx.closePath();
+    ctx.fillStyle = bodyGrad;
     ctx.fill();
     // head
     const hx = -3 * u + tn * 4 * u;
@@ -714,15 +763,42 @@ export function createScene(canvas) {
     ctx.beginPath();
     ctx.ellipse(hx, hy, 5.6 * u, 6.6 * u, -0.15 + tn * 0.2, 0, TAU);
     ctx.fill();
-    // hair — down the back to the rock, slow wave
-    const hw = Math.sin(t * 0.9) * 2 * u;
+    // hair — down the back to the rock; mass and tips on separate beats
     ctx.beginPath();
     ctx.moveTo(hx - u, hy - 7 * u);
-    ctx.bezierCurveTo(hx - 11 * u, hy - 4 * u, hx - 14 * u + hw, hy + 16 * u, hx - 15 * u + hw, hy + 36 * u);
-    ctx.quadraticCurveTo(hx - 9 * u + hw, hy + 42 * u, hx - 4 * u, hy + 40 * u);
+    ctx.bezierCurveTo(hx - 11 * u, hy - 4 * u, hx - 14 * u + hw, hy + 16 * u, hx - 15 * u + hw2, hy + 36 * u);
+    ctx.quadraticCurveTo(hx - 9 * u + hw2, hy + 42 * u, hx - 4 * u, hy + 40 * u);
     ctx.bezierCurveTo(hx - 7 * u, hy + 22 * u, hx - 3 * u, hy + 6 * u, hx + 4 * u, hy - 3 * u);
     ctx.closePath();
+    ctx.fillStyle = hairGrad;
     ctx.fill();
+    // moonlit strands, freshly combed, trailing the hair mass
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = 'rgba(159,255,208,0.08)';
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) {
+      const o = k * 1.8 * u;
+      ctx.moveTo(hx - 2 * u - o * 0.4, hy - 6 * u + k * u);
+      ctx.bezierCurveTo(
+        hx - 9 * u - o + hw * 0.5, hy + 6 * u,
+        hx - 12 * u - o + hw, hy + 20 * u,
+        hx - 11 * u - o + hw2, hy + 34 * u - k * 2 * u);
+    }
+    ctx.stroke();
+    // crown sheen where the moon rests on her hair
+    ctx.strokeStyle = 'rgba(200,225,212,0.13)';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, 5.9 * u, 6.9 * u, -0.15 + tn * 0.2, Math.PI * 0.95, Math.PI * 1.5);
+    ctx.stroke();
+    // her profile against the moon: brow, nose, lips, chin
+    ctx.strokeStyle = 'rgba(214,232,222,0.14)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(hx - 5.0 * u, hy - 3.6 * u);
+    ctx.quadraticCurveTo(hx - 6.2 * u, hy - 0.8 * u, hx - 5.0 * u, hy + 0.6 * u);
+    ctx.quadraticCurveTo(hx - 5.8 * u, hy + 2.2 * u, hx - 4.4 * u, hy + 3.8 * u);
+    ctx.stroke();
     // combing arm
     ctx.strokeStyle = '#03060a';
     ctx.lineCap = 'round';
@@ -736,6 +812,13 @@ export function createScene(canvas) {
     ctx.lineTo(ex, ey);
     ctx.lineTo(hdx, hdy);
     ctx.stroke();
+    // moonlight along the lifted forearm
+    ctx.strokeStyle = 'rgba(159,255,208,0.08)';
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(ex - 0.6 * u, ey - 1.3 * u);
+    ctx.lineTo(hdx - 0.6 * u, hdy - 1.3 * u);
+    ctx.stroke();
     // comb teeth, faint parchment
     ctx.strokeStyle = 'rgba(232,220,192,0.4)';
     ctx.lineWidth = 0.8 * u;
@@ -747,13 +830,29 @@ export function createScene(canvas) {
     ctx.moveTo(hdx + 1.5 * u, hdy + u);
     ctx.lineTo(hdx + 0.5 * u, hdy + 4 * u);
     ctx.stroke();
-    // moon-side rim light
-    ctx.strokeStyle = 'rgba(159,255,208,0.12)';
+    // moon-side rim light — back, then the long line of the tail, then
+    // the fluke's edges; all brighten a breath while she sings
+    ctx.strokeStyle = GLOW;
     ctx.lineWidth = 1;
+    ctx.globalAlpha = rimA;
     ctx.beginPath();
     ctx.moveTo(-12 * u, 2 * u);
     ctx.bezierCurveTo(-15 * u, -9 * u, -12 * u, -20 * u, -9 * u + tn * 2 * u, -31 * u + breathe);
     ctx.stroke();
+    ctx.globalAlpha = rimA * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(-10 * u, 2 * u);
+    ctx.bezierCurveTo(6 * u, 9 * u, 30 * u, 4 * u, 44 * u, 13 * u);
+    ctx.bezierCurveTo(53 * u, 19 * u, 57 * u, 26 * u, 63 * u, 27 * u + fl);
+    ctx.stroke();
+    ctx.globalAlpha = rimA * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(63 * u, 27 * u + fl);
+    ctx.lineTo(73 * u, 18 * u + fl);
+    ctx.moveTo(70 * u, 27 * u + fl);
+    ctx.lineTo(77 * u, 33 * u + fl);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     // her song, made visible
     if (singGlow > 0.02) {
       drawGlowSpr(glowG, hx + 2 * u, hy + 2 * u, 11 * u, singGlow * 0.8);
@@ -789,14 +888,41 @@ export function createScene(canvas) {
   function drawSouls(view) {
     const waiting = 6 - view.souls;
     const arrived = view.souls - (view.sub === 'soul' ? 1 : 0);
-    // ánimas waiting on your shore
-    ctx.fillStyle = '#e9d9a8';
+    // ánimas waiting on your shore — small hooded figures, each holding
+    // its farol out toward the water; the shroud sways with the light
     for (let i = 0; i < waiting; i++) {
       const x = waitPts[i * 2];
-      const y = waitPts[i * 2 + 1] + Math.sin(t * 1.1 + i * 1.7) * 1.2 * U;
+      const sway = Math.sin(t * 1.1 + i * 1.7) * 1.2 * U;
+      const y = waitPts[i * 2 + 1] + sway;
+      const fx = x + 4.5 * U; // the figure stands behind its lantern
+      const fy = waitPts[i * 2 + 1] + 1.5 * U;
+      ctx.fillStyle = '#0a1116';
+      ctx.beginPath();
+      ctx.moveTo(fx - 3 * U, fy + 6 * U);
+      ctx.bezierCurveTo(
+        fx - 3.4 * U, fy - 2 * U,
+        fx - 2.4 * U + sway * 0.4, fy - 7.5 * U,
+        fx + sway * 0.5, fy - 8.5 * U);
+      ctx.bezierCurveTo(
+        fx + 2.4 * U + sway * 0.4, fy - 7.5 * U,
+        fx + 3.4 * U, fy - 2 * U,
+        fx + 3 * U, fy + 6 * U);
+      ctx.closePath();
+      ctx.fill();
+      // moonlight down the seaward edge of the shroud
+      ctx.strokeStyle = GLOW;
+      ctx.globalAlpha = 0.07;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(fx - 3 * U, fy + 5.5 * U);
+      ctx.quadraticCurveTo(fx - 3.3 * U, fy - 3 * U, fx - 1 * U + sway * 0.5, fy - 8 * U);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
       drawGlowSpr(glowW, x, y, 8 * U, 0.4);
+      ctx.fillStyle = '#e9d9a8';
       ctx.fillRect(x - U, y - U, 2 * U, 2 * U);
     }
+    ctx.fillStyle = '#e9d9a8';
     // ánimas safe at the Caleuche
     for (let i = 0; i < arrived; i++) {
       const x = shipX + LANT[i * 2] * U;

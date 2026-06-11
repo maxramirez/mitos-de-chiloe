@@ -80,12 +80,66 @@ function makeCloudTex() {
   return c
 }
 
+function makeWoolTex(seed) {
+  // one moonlit wool body, prebaked at 2x (drawn 44x32 in-game): lobed
+  // fleece silhouette, belly shadow falling away from the moon, rim light
+  // from the moon side (upper-right), and wool-curl speckles. Three seeds
+  // give the flock individual fleeces for free.
+  const c = document.createElement('canvas')
+  c.width = 88
+  c.height = 64
+  const g = c.getContext('2d')
+  const cx = 44
+  const cy = 30
+  g.fillStyle = '#7f7760'
+  g.beginPath()
+  g.ellipse(cx, cy, 29, 19, 0, 0, TAU)
+  g.fill()
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * TAU + seed * 1.7
+    const rr = 5.5 + ((i * 7 + seed * 5) % 4)
+    g.beginPath()
+    g.arc(cx + Math.cos(a) * 26, cy + Math.sin(a) * 16.5, rr, 0, TAU)
+    g.fill()
+  }
+  // every layer below lands only on the fleece
+  g.globalCompositeOperation = 'source-atop'
+  // belly shadow, away from the moon (lower-left)
+  const sh = g.createRadialGradient(cx - 10, cy + 16, 4, cx - 4, cy + 8, 36)
+  sh.addColorStop(0, 'rgba(18,15,10,0.6)')
+  sh.addColorStop(1, 'rgba(18,15,10,0)')
+  g.fillStyle = sh
+  g.fillRect(0, 0, 88, 64)
+  // moon rim along the upper-right shoulder
+  const rim = g.createRadialGradient(cx + 20, cy - 18, 2, cx + 12, cy - 8, 34)
+  rim.addColorStop(0, 'rgba(226,216,188,0.5)')
+  rim.addColorStop(0.55, 'rgba(226,216,188,0.16)')
+  rim.addColorStop(1, 'rgba(226,216,188,0)')
+  g.fillStyle = rim
+  g.fillRect(0, 0, 88, 64)
+  // wool curls: short arc strokes, dark in the shade, pale where the moon combs
+  for (let i = 0; i < 46; i++) {
+    const a = ((i * 137 + seed * 61) % 360) * (Math.PI / 180)
+    const rd = ((i * 53 + seed * 29) % 100) / 100
+    const px = cx + Math.cos(a) * 26 * rd
+    const py = cy + Math.sin(a) * 17 * rd
+    const lit = (px - cx) * 0.6 - (py - cy)
+    g.strokeStyle = lit > 4 ? 'rgba(226,216,188,0.22)' : 'rgba(20,17,12,0.30)'
+    g.lineWidth = 1.2
+    g.beginPath()
+    g.arc(px, py, 2 + ((i * 11 + seed * 7) % 3), a, a + 2.4)
+    g.stroke()
+  }
+  return c
+}
+
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d')
 
   const noiseTex = makeNoiseTex()
   const mistTex = makeMistTex()
   const cloudTex = makeCloudTex()
+  const woolTex = [makeWoolTex(0), makeWoolTex(1), makeWoolTex(2)]
 
   // --- offscreen layers -----------------------------------------------------
   const base = document.createElement('canvas')
@@ -496,28 +550,47 @@ export function createRenderer(canvas) {
     ctx.save()
     ctx.translate(x, y)
     ctx.rotate(heading)
-    ctx.fillStyle = color
-    ctx.strokeStyle = GLOW
-    ctx.lineWidth = 1
     for (let s2 = -1; s2 <= 1; s2 += 2) {
+      // each wing leads/lags a hair off the shared flap — secondary motion
+      const fw = Math.max(0.1, f * (1 + s2 * 0.08 * Math.sin(time * 3.3)))
       ctx.save()
       ctx.scale(1, s2)
+      ctx.fillStyle = color
       ctx.beginPath()
       ctx.moveTo(3, 2)
-      ctx.quadraticCurveTo(-size * 0.3, -size * 0.95 * f, -size * 0.95, -size * 1.12 * f)
-      ctx.quadraticCurveTo(-size * 0.92, -size * 0.42 * f, -size * 0.4, -size * 0.14 * f - 2)
+      ctx.quadraticCurveTo(-size * 0.3, -size * 0.95 * fw, -size * 0.95, -size * 1.12 * fw)
+      // torn trailing edge: the membrane sags between the finger bones
+      ctx.quadraticCurveTo(-size * 0.86, -size * 0.86 * fw, -size * 0.8, -size * 0.73 * fw)
+      ctx.quadraticCurveTo(-size * 0.86, -size * 0.58 * fw, -size * 0.66, -size * 0.4 * fw)
+      ctx.quadraticCurveTo(-size * 0.52, -size * 0.25 * fw, -size * 0.4, -size * 0.14 * fw - 2)
       ctx.closePath()
       ctx.fill()
       // membrane edge catches the eye-flash green during the telegraph
+      ctx.strokeStyle = GLOW
+      ctx.lineWidth = 1
       ctx.globalAlpha = 0.07 + glowA * 0.3
       ctx.stroke()
       // finger bones ribbing the membrane
       ctx.globalAlpha = 0.06 + glowA * 0.18
       ctx.beginPath()
       ctx.moveTo(1, 0)
-      ctx.quadraticCurveTo(-size * 0.42, -size * 0.62 * f, -size * 0.78, -size * 0.96 * f)
+      ctx.quadraticCurveTo(-size * 0.42, -size * 0.62 * fw, -size * 0.78, -size * 0.96 * fw)
       ctx.moveTo(1, 0)
-      ctx.quadraticCurveTo(-size * 0.48, -size * 0.36 * f, -size * 0.88, -size * 0.58 * f)
+      ctx.quadraticCurveTo(-size * 0.48, -size * 0.36 * fw, -size * 0.88, -size * 0.58 * fw)
+      ctx.stroke()
+      // moonlight along the leading edge
+      ctx.strokeStyle = '#d8d2bc'
+      ctx.globalAlpha = 0.11
+      ctx.beginPath()
+      ctx.moveTo(2, 1)
+      ctx.quadraticCurveTo(-size * 0.3, -size * 0.95 * fw, -size * 0.92, -size * 1.1 * fw)
+      ctx.stroke()
+      // the wrist claw, a pale hook at mid-wing
+      ctx.globalAlpha = 0.5
+      ctx.lineWidth = 1.2
+      ctx.beginPath()
+      ctx.moveTo(-size * 0.36, -size * 0.72 * fw)
+      ctx.lineTo(-size * 0.31, -size * 0.72 * fw - 3)
       ctx.stroke()
       ctx.globalAlpha = 1
       ctx.restore()
@@ -562,42 +635,130 @@ export function createRenderer(canvas) {
       ctx.stroke()
       ctx.globalAlpha = 1
     }
-    // tapering serpent body, tail to head, each coil with a moonlit ridge
-    for (let i = pu.trailN - 1; i >= 1; i--) {
-      const r = 2 + 7.5 * (1 - i / pu.trailN)
+    // tail fluke at the last coil, its flick lagging the wingbeat
+    {
+      const ti = pu.trailN - 1
+      const tx2 = tr[ti * 2]
+      const ty2 = tr[ti * 2 + 1]
+      const ta = Math.atan2(ty2 - tr[(ti - 1) * 2 + 1], tx2 - tr[(ti - 1) * 2])
+      ctx.save()
+      ctx.translate(tx2, ty2)
+      ctx.rotate(ta + Math.sin(time * flapSpd * 0.8 + 1.9) * 0.35)
       ctx.fillStyle = body
       ctx.beginPath()
-      ctx.arc(tr[i * 2], tr[i * 2 + 1], r, 0, TAU)
+      ctx.moveTo(0, 0)
+      ctx.lineTo(7.5, -3.8)
+      ctx.lineTo(4.6, 0)
+      ctx.lineTo(7.5, 3.8)
+      ctx.closePath()
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(206,200,180,0.14)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(0.5, -0.4)
+      ctx.lineTo(6.8, -3.2)
+      ctx.stroke()
+      ctx.restore()
+    }
+    // tapering serpent body, tail to head — belly shaded away from the moon,
+    // a moonlit dorsal ridge, stray scale glints, spines down the back
+    for (let i = pu.trailN - 1; i >= 1; i--) {
+      const r = 2 + 7.5 * (1 - i / pu.trailN)
+      const x2 = tr[i * 2]
+      const y2 = tr[i * 2 + 1]
+      // dorsal spine leaning back along the travel direction
+      if (r > 3.4 && (i & 1) === 0) {
+        const ddx = tr[(i - 1) * 2] - x2
+        const ddy = tr[(i - 1) * 2 + 1] - y2
+        const dl = Math.hypot(ddx, ddy) || 1
+        const up = ddx >= 0 ? 1 : -1 // pick the normal that points skyward
+        ctx.strokeStyle = body
+        ctx.lineWidth = 1.4
+        ctx.beginPath()
+        ctx.moveTo(x2, y2)
+        ctx.lineTo(x2 + (ddy / dl) * up * (r + 3) - (ddx / dl) * 2, y2 + (-ddx / dl) * up * (r + 3) - (ddy / dl) * 2)
+        ctx.stroke()
+      }
+      ctx.fillStyle = body
+      ctx.beginPath()
+      ctx.arc(x2, y2, r, 0, TAU)
       ctx.fill()
       if (r > 3.2) {
-        ctx.fillStyle = 'rgba(206,200,180,0.08)'
+        // belly falls into shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.26)'
         ctx.beginPath()
-        ctx.arc(tr[i * 2] + r * 0.2, tr[i * 2 + 1] - r * 0.45, r * 0.5, 0, TAU)
+        ctx.arc(x2 - r * 0.22, y2 + r * 0.42, r * 0.58, 0, TAU)
         ctx.fill()
+        // moonlit dorsal ridge
+        ctx.fillStyle = 'rgba(206,200,180,0.10)'
+        ctx.beginPath()
+        ctx.arc(x2 + r * 0.2, y2 - r * 0.45, r * 0.5, 0, TAU)
+        ctx.fill()
+        // one scale catching the moon (deterministic per coil)
+        ctx.fillStyle = 'rgba(206,200,180,0.16)'
+        ctx.fillRect(x2 + ((i * 13) % 5) - 2.5, y2 - ((i * 7) % 4) + 0.5, 1, 1)
       }
     }
     // bat wings near the shoulders
     const f = flapAmp * (0.5 + 0.5 * Math.sin(time * flapSpd))
     drawWings(tr[4], tr[5], pu.heading, Math.max(0.12, f), 34, body, st === 'telegraph' ? eye : 0)
-    // head
+    // head — long snout, undercut jaw, swept horns
     ctx.save()
     ctx.translate(tr[0], tr[1])
     ctx.rotate(pu.heading)
     ctx.fillStyle = '#18222a'
     ctx.beginPath()
-    ctx.moveTo(13, 0)
-    ctx.lineTo(-2, -5.5)
-    ctx.lineTo(-6, 0)
-    ctx.lineTo(-2, 5.5)
+    ctx.moveTo(15, 0) // snout tip
+    ctx.quadraticCurveTo(8, -4.6, 0, -5.8)
+    ctx.lineTo(-4, -4.4) // crest
+    ctx.lineTo(-6.5, 0)
+    ctx.lineTo(-3, 5.2)
+    ctx.quadraticCurveTo(5, 4.6, 12, 1.6) // jaw line up to the snout
     ctx.closePath()
     ctx.fill()
-    // moonlit brow ridge
-    ctx.strokeStyle = 'rgba(206,200,180,0.18)'
+    // swept horns, one edge in the moon
+    ctx.strokeStyle = '#141d24'
+    ctx.lineWidth = 1.6
+    ctx.beginPath()
+    ctx.moveTo(-1, -4.8)
+    ctx.quadraticCurveTo(-7, -8.5, -11.5, -7.4)
+    ctx.moveTo(-3.5, -3.4)
+    ctx.quadraticCurveTo(-8.5, -5.8, -12, -4.2)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(206,200,180,0.16)'
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(11, -1)
-    ctx.lineTo(-2, -5)
+    ctx.moveTo(-1.4, -5.4)
+    ctx.quadraticCurveTo(-7, -9, -11.5, -7.9)
     ctx.stroke()
+    // moonlit brow ridge
+    ctx.strokeStyle = 'rgba(206,200,180,0.18)'
+    ctx.beginPath()
+    ctx.moveTo(12, -1.4)
+    ctx.quadraticCurveTo(6, -4.4, -1, -5)
+    ctx.stroke()
+    // fangs bared in the dive and over the wound
+    if (st === 'diving' || st === 'pullup' || st === 'latched') {
+      ctx.fillStyle = 'rgba(216,210,188,0.85)'
+      ctx.beginPath()
+      ctx.moveTo(10.5, 1.8)
+      ctx.lineTo(9.5, 4.6)
+      ctx.lineTo(8.4, 2.2)
+      ctx.moveTo(7, 2.6)
+      ctx.lineTo(6.1, 5)
+      ctx.lineTo(5, 2.9)
+      ctx.closePath()
+      ctx.fill()
+    }
+    // latched: the throat works as it drinks
+    if (st === 'latched') {
+      ctx.fillStyle = '#c84632'
+      ctx.globalAlpha = 0.28 + 0.2 * Math.sin(time * 9)
+      ctx.beginPath()
+      ctx.ellipse(-1.5, 3.4, 3.4, 2, 0, 0, TAU)
+      ctx.fill()
+      ctx.globalAlpha = 1
+    }
     const e = Math.min(1, Math.max(0, eye))
     ctx.fillStyle = GLOW
     ctx.globalAlpha = e
@@ -669,29 +830,39 @@ export function createRenderer(canvas) {
       ctx.fillStyle = '#1c1812'
       ctx.fillRect(-8, 6, 2.5, 7)
       ctx.fillRect(4, 6, 2.5, 7)
-      // wool
-      ctx.fillStyle = s.state === 'mareada' ? '#6f6a58' : '#857d66'
-      ctx.beginPath()
-      ctx.ellipse(0, 0, 15, 10 * breathe, 0, 0, TAU)
-      ctx.fill()
-      // fleece lobes scalloping the underside
-      ctx.fillStyle = 'rgba(28,24,18,0.30)'
-      ctx.beginPath(); ctx.arc(-9, 6, 3.2, 0, TAU); ctx.fill()
-      ctx.beginPath(); ctx.arc(-3, 8, 3.2, 0, TAU); ctx.fill()
-      ctx.beginPath(); ctx.arc(3, 8, 3.2, 0, TAU); ctx.fill()
-      ctx.beginPath(); ctx.arc(9, 6, 3.2, 0, TAU); ctx.fill()
-      // moonlit back
-      ctx.fillStyle = 'rgba(217,208,180,0.28)'
-      ctx.beginPath()
-      ctx.ellipse(-2, -4, 11, 5 * breathe, 0, 0, TAU)
-      ctx.fill()
-      // head + ear
+      // prebaked moonlit wool (3 fleece variants), breathing on the Y axis
+      ctx.save()
+      ctx.scale(1, breathe)
+      ctx.drawImage(woolTex[i % 3], -22, -16, 44, 32)
+      ctx.restore()
+      if (s.state === 'mareada') {
+        // drained pallor — the wool loses its moon
+        ctx.globalAlpha = 0.38
+        ctx.fillStyle = '#39341f'
+        ctx.beginPath()
+        ctx.ellipse(0, 0, 16, 11 * breathe, 0, 0, TAU)
+        ctx.fill()
+        ctx.globalAlpha = 1
+      }
+      // head: stepped 2-frame grazing nod, ear flicking up a frame at a time
+      const nod = (Math.floor(time * 1.3 + s.ph) % 2) * 1.6
+      const flick = ((time * 0.43 + s.ph * 0.9) % 4) < 0.16 ? 1 : 0
       ctx.fillStyle = '#241f17'
       ctx.beginPath()
-      ctx.arc(13 * dir, -4, 4.8, 0, TAU)
+      ctx.arc(13 * dir, -4 + nod, 4.8, 0, TAU)
       ctx.fill()
+      // muzzle wedge refines the profile
       ctx.beginPath()
-      ctx.ellipse(13 * dir - 3 * dir, -8, 3, 1.4, dir * 0.5, 0, TAU)
+      ctx.ellipse(16.5 * dir, -2.4 + nod, 3.1, 2, dir * 0.35, 0, TAU)
+      ctx.fill()
+      // ear
+      ctx.beginPath()
+      ctx.ellipse(13 * dir - 3 * dir, -8 + nod - flick * 1.8, 3, 1.4, dir * (0.5 - flick * 0.45), 0, TAU)
+      ctx.fill()
+      // moon on the brow
+      ctx.fillStyle = 'rgba(217,208,180,0.30)'
+      ctx.beginPath()
+      ctx.arc(13 * dir + 1.4 * dir, -6.4 + nod, 1.5, 0, TAU)
       ctx.fill()
       // being drunk: red pulse over the wool
       if (s.state === 'draining') {
@@ -722,59 +893,97 @@ export function createRenderer(canvas) {
     const x = 480
     const y = 452
     const aimA = Math.atan2(g.input.my - (y - 22), g.input.mx - x)
+    const sway = Math.sin(time * 0.8) * 0.7 // weight shifting, slow
+    const hem = Math.sin(time * 1.7 + 1.3) * 1.3 // hem flutter lags the sway
+    const br = Math.sin(time * 1.2 + 0.5) * 0.45 // breath lifts the shoulders
     // contact shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)'
     ctx.beginPath()
     ctx.ellipse(x, y + 1, 12, 3.2, 0, 0, TAU)
     ctx.fill()
-    // cloak
+    // manta: the hem swings on its own beat under the shoulders' sway
     ctx.fillStyle = '#15130d'
     ctx.strokeStyle = 'rgba(232,220,192,0.12)'
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(x - 10, y)
-    ctx.quadraticCurveTo(x - 8, y - 20, x, y - 27)
-    ctx.quadraticCurveTo(x + 8, y - 20, x + 10, y)
+    ctx.moveTo(x - 10 - hem * 0.7, y)
+    ctx.quadraticCurveTo(x - 8 + sway * 0.4, y - 20, x + sway, y - 27 - br)
+    ctx.quadraticCurveTo(x + 8 + sway * 0.4, y - 20, x + 10 + hem, y)
     ctx.closePath()
     ctx.fill()
     ctx.stroke()
-    // moon rim down the right of the cloak
+    // the weave of the manta, clipped to the cloth: two pale woven bands
+    // chest-high and the warp threads falling to the hem
+    ctx.save()
+    ctx.clip()
+    ctx.strokeStyle = 'rgba(216,210,188,0.09)'
+    ctx.beginPath()
+    ctx.moveTo(x - 10, y - 9)
+    ctx.quadraticCurveTo(x, y - 12, x + 11, y - 9)
+    ctx.moveTo(x - 10, y - 6)
+    ctx.quadraticCurveTo(x, y - 9, x + 11, y - 6)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(0,0,0,0.32)'
+    for (let k = -2; k <= 2; k++) {
+      ctx.beginPath()
+      ctx.moveTo(x + k * 3.6 + sway * 0.6, y - 26)
+      ctx.lineTo(x + k * 4.4 + hem * 0.5, y)
+      ctx.stroke()
+    }
+    ctx.restore()
+    // moon rim down the right of the manta
     ctx.strokeStyle = 'rgba(216,210,188,0.20)'
     ctx.beginPath()
-    ctx.moveTo(x + 9, y - 2)
-    ctx.quadraticCurveTo(x + 7, y - 19, x + 1, y - 26)
+    ctx.moveTo(x + 9 + hem * 0.8, y - 2)
+    ctx.quadraticCurveTo(x + 7, y - 19, x + 1 + sway, y - 26 - br)
     ctx.stroke()
-    // head + chupalla
+    // head, a sliver of moonlit cheek, the scarf knot at the throat
     ctx.fillStyle = '#1c150e'
     ctx.beginPath()
-    ctx.arc(x, y - 31, 4.5, 0, TAU)
+    ctx.arc(x + sway, y - 31 - br, 4.5, 0, TAU)
     ctx.fill()
+    ctx.fillStyle = 'rgba(196,164,124,0.45)'
+    ctx.beginPath()
+    ctx.arc(x + sway + 1.8, y - 30 - br, 1.7, -0.6, 1.4)
+    ctx.fill()
+    ctx.fillStyle = '#332618'
+    ctx.beginPath()
+    ctx.arc(x + sway + 1, y - 26.4 - br, 1.6, 0, TAU)
+    ctx.fill()
+    // chupalla
     ctx.fillStyle = '#0f0d08'
     ctx.beginPath()
-    ctx.ellipse(x, y - 34, 9, 2.2, 0, 0, TAU)
+    ctx.ellipse(x + sway, y - 34 - br, 9, 2.2, sway * 0.03, 0, TAU)
     ctx.fill()
     ctx.beginPath()
-    ctx.arc(x, y - 35, 4, Math.PI, 0)
+    ctx.arc(x + sway, y - 35 - br, 4, Math.PI, 0)
     ctx.fill()
     ctx.strokeStyle = 'rgba(216,210,188,0.16)'
     ctx.beginPath()
-    ctx.moveTo(x + 3, y - 36)
-    ctx.lineTo(x + 8.4, y - 34)
+    ctx.moveTo(x + sway + 3, y - 36 - br)
+    ctx.lineTo(x + sway + 8.4, y - 34 - br)
     ctx.stroke()
-    // staff
+    // staff planted, crook at the top, one moonlit edge
     ctx.strokeStyle = '#2c2418'
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.moveTo(x - 12, y)
-    ctx.lineTo(x - 15, y - 34)
+    ctx.lineTo(x - 15 + sway * 0.3, y - 34)
+    ctx.quadraticCurveTo(x - 16 + sway * 0.3, y - 40, x - 11 + sway * 0.3, y - 39)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(216,210,188,0.14)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(x - 13, y - 6)
+    ctx.lineTo(x - 14.6 + sway * 0.3, y - 32)
     ctx.stroke()
     // sling arm toward the aim
-    const hx = x + 3 + Math.cos(aimA) * 13
+    const hx = x + 3 + sway + Math.cos(aimA) * 13
     const hy = y - 22 + Math.sin(aimA) * 13
     ctx.strokeStyle = '#15130d'
     ctx.lineWidth = 2.5
     ctx.beginPath()
-    ctx.moveTo(x + 3, y - 22)
+    ctx.moveTo(x + 3 + sway, y - 22)
     ctx.lineTo(hx, hy)
     ctx.stroke()
     if (g.cooldown > 0.18) {

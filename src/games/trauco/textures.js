@@ -229,6 +229,161 @@ export function makeFoliageTexture() {
   return colorTex(c)
 }
 
+// ---------- the Trauco: woven quilineja cloth + weathered skin ----------
+// Same rules as everything else here: near-white color maps that MODULATE
+// the material tints (never replace them); bump maps carry the twill weave
+// and the old-man pores so the lantern and his own green light can rake
+// across him. One-time boot cost, shared by every cloth/skin material.
+export function makeTraucoTextures() {
+  // -- woven fiber (poncho, hat, beard): diagonal twill + stray strands ----
+  const rng = texRng(8821)
+  const size = 256
+  const c = canvas(size)
+  const g = c.getContext('2d')
+  g.fillStyle = 'rgb(216, 210, 196)'
+  g.fillRect(0, 0, size, size)
+  // two diagonal thread passes — coarse homespun twill
+  for (const dir of [1, -1]) {
+    for (let i = -size; i < size * 2; i += 7) {
+      const a = 0.09 + rng() * 0.11
+      const dark = rng() < 0.55
+      g.strokeStyle = dark ? `rgba(92, 80, 58, ${a})` : `rgba(238, 232, 212, ${a})`
+      g.lineWidth = 2.2 + rng() * 1.8
+      g.beginPath()
+      g.moveTo(i, dir > 0 ? 0 : size)
+      g.lineTo(i + size, dir > 0 ? size : 0)
+      g.stroke()
+    }
+  }
+  // weft hint: rows of short horizontal dashes
+  for (let y = 3; y < size; y += 6) {
+    for (let x = rng() * 8; x < size; x += 9 + rng() * 6) {
+      g.fillStyle = `rgba(${rng() < 0.5 ? '96, 84, 62' : '236, 230, 210'}, ${0.06 + rng() * 0.08})`
+      g.fillRect(x, y + (rng() - 0.5) * 2, 4 + rng() * 4, 1.4)
+    }
+  }
+  // stray fibers escaping the weave
+  g.lineCap = 'round'
+  for (let i = 0; i < 70; i++) {
+    let x = rng() * size
+    let y = rng() * size
+    let ang = rng() * Math.PI * 2
+    g.strokeStyle = `rgba(${rng() < 0.6 ? '88, 76, 54' : '232, 226, 204'}, ${0.10 + rng() * 0.10})`
+    g.lineWidth = 0.7 + rng() * 0.9
+    g.beginPath()
+    g.moveTo(x, y)
+    for (let k = 0; k < 3; k++) {
+      ang += (rng() - 0.5) * 1.2
+      x += Math.cos(ang) * (4 + rng() * 7)
+      y += Math.sin(ang) * (4 + rng() * 7)
+      g.lineTo(x, y)
+    }
+    g.stroke()
+  }
+  // weave bump: the twill again, grayscale and harder
+  const bc = canvas(256)
+  const bg = bc.getContext('2d')
+  bg.fillStyle = 'rgb(128,128,128)'
+  bg.fillRect(0, 0, 256, 256)
+  const brng = texRng(3307)
+  for (const dir of [1, -1]) {
+    for (let i = -256; i < 512; i += 7) {
+      const v = brng() < 0.5 ? 70 : 185
+      bg.strokeStyle = `rgba(${v},${v},${v},${0.20 + brng() * 0.18})`
+      bg.lineWidth = 2 + brng() * 2
+      bg.beginPath()
+      bg.moveTo(i, dir > 0 ? 0 : 256)
+      bg.lineTo(i + 256, dir > 0 ? 256 : 0)
+      bg.stroke()
+    }
+  }
+  for (let i = 0; i < 320; i++) {
+    const v = brng() < 0.5 ? 60 : 195
+    bg.fillStyle = `rgba(${v},${v},${v},${0.14 + brng() * 0.18})`
+    bg.beginPath()
+    bg.arc(brng() * 256, brng() * 256, 0.6 + brng() * 1.6, 0, Math.PI * 2)
+    bg.fill()
+  }
+
+  // -- weathered skin: tone gradient, mottle, warts, shallow wrinkles ------
+  const srng = texRng(6619)
+  const cs = canvas(256)
+  const gs = cs.getContext('2d')
+  gs.fillStyle = 'rgb(214, 206, 192)'
+  gs.fillRect(0, 0, 256, 256)
+  // vertical tone gradient — pale crown, earth-dark extremities
+  const grad = gs.createLinearGradient(0, 0, 0, 256)
+  grad.addColorStop(0, 'rgba(248, 242, 226, 0.12)')
+  grad.addColorStop(0.55, 'rgba(0, 0, 0, 0)')
+  grad.addColorStop(1, 'rgba(64, 54, 40, 0.18)')
+  gs.fillStyle = grad
+  gs.fillRect(0, 0, 256, 256)
+  // mossy liver mottle (toroidal copies so limbs tile cleanly)
+  for (let i = 0; i < 70; i++) {
+    const x = srng() * 256
+    const y = srng() * 256
+    const r = 6 + srng() * 22
+    const dark = srng() < 0.6
+    const a = 0.05 + srng() * 0.07
+    gs.fillStyle = dark ? `rgba(108, 96, 70, ${a})` : `rgba(242, 236, 218, ${a})`
+    for (let ox = -1; ox <= 1; ox++)
+      for (let oy = -1; oy <= 1; oy++) {
+        gs.beginPath()
+        gs.arc(x + ox * 256, y + oy * 256, r, 0, Math.PI * 2)
+        gs.fill()
+      }
+  }
+  // warts and pores
+  for (let i = 0; i < 260; i++) {
+    const dark = srng() < 0.7
+    gs.fillStyle = dark
+      ? `rgba(86, 72, 54, ${0.10 + srng() * 0.12})`
+      : `rgba(240, 234, 214, ${0.08 + srng() * 0.08})`
+    gs.beginPath()
+    gs.arc(srng() * 256, srng() * 256, 0.7 + srng() * 2.0, 0, Math.PI * 2)
+    gs.fill()
+  }
+  // shallow wrinkle arcs
+  for (let i = 0; i < 26; i++) {
+    const x = srng() * 256
+    const y = srng() * 256
+    const w = 14 + srng() * 26
+    gs.strokeStyle = `rgba(90, 76, 58, ${0.08 + srng() * 0.08})`
+    gs.lineWidth = 0.8 + srng() * 1.1
+    gs.beginPath()
+    gs.arc(x, y + w * 1.6, w * 1.8, Math.PI * 1.28, Math.PI * 1.72)
+    gs.stroke()
+  }
+  // skin bump: pores + wrinkles, grayscale
+  const bs = canvas(256)
+  const gb = bs.getContext('2d')
+  gb.fillStyle = 'rgb(128,128,128)'
+  gb.fillRect(0, 0, 256, 256)
+  const wrng = texRng(9743)
+  for (let i = 0; i < 480; i++) {
+    const v = wrng() < 0.6 ? 70 : 190
+    gb.fillStyle = `rgba(${v},${v},${v},${0.16 + wrng() * 0.2})`
+    gb.beginPath()
+    gb.arc(wrng() * 256, wrng() * 256, 0.7 + wrng() * 2.4, 0, Math.PI * 2)
+    gb.fill()
+  }
+  for (let i = 0; i < 30; i++) {
+    const x = wrng() * 256
+    const y = wrng() * 256
+    const w = 14 + wrng() * 26
+    gb.strokeStyle = `rgba(60,60,60,${0.16 + wrng() * 0.14})`
+    gb.lineWidth = 1 + wrng() * 1.4
+    gb.beginPath()
+    gb.arc(x, y + w * 1.6, w * 1.8, Math.PI * 1.28, Math.PI * 1.72)
+    gb.stroke()
+  }
+
+  return {
+    weave: { map: colorTex(c), bumpMap: dataTex(bc) },
+    skin: { map: colorTex(cs), bumpMap: dataTex(bs) },
+  }
+}
+
 // ---------- mist puff: soft irregular blob for the drifting ground-fog ----------
 export function makeMistTexture() {
   const rng = texRng(6203)

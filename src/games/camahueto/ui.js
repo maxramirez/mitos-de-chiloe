@@ -55,6 +55,8 @@ export function createUI(root) {
       <h1 class="game-title">EL CAMAHUETO</h1>
       <div class="game-subtitle">La bajada</div>
       <div class="rule"></div>
+      <p class="epigraph">«Esta noche el cerro se abre como una herida,<br>
+      y un cuerno de oro baja buscando el mar.»</p>
       <p class="intro">Veinticinco años creció bajo el cerro el ternero de un solo cuerno, y esta
       noche rompe hacia el mar, abriendo <i>la quebrada</i> entre tierra y piedra.
       Donde el cuerno de oro raspa la roca quedan <i>virutas</i>, que las machis muelen
@@ -73,10 +75,12 @@ export function createUI(root) {
       <h1 class="game-title">EL MAR</h1>
       <div class="game-subtitle">Seña reunida</div>
       <div class="rule"></div>
-      <p class="intro">La quebrada se abre y el ternero entra a la rompiente en una lámina de
-      plata — se pierde más allá de los huiros, hacia los rebaños del Millalobo. Quedas
-      de pie en la espuma fría, con <b class="gold">✦ ${shavingCount} virutas de cuerno</b>
-      envueltas en el poncho. Las machis pagarán bien.</p>
+      <p class="epigraph">«El mar lo recibió como se recibe la lluvia: sin preguntas.<br>
+      Queda en tus manos el oro, frío como la espuma.»</p>
+      <p class="intro">El ternero entró a la rompiente en una lámina de plata y se perdió
+      más allá de los huiros, hacia los rebaños del Millalobo. Quedas de pie en la espuma,
+      con <b class="gold">✦ ${shavingCount} virutas de cuerno</b> envueltas en el poncho.
+      Las machis pagarán bien.</p>
       <button id="again-btn" class="btn">OTRA VEZ</button>
       <a class="back" href="../">⌂ volver a los mitos</a>`;
     openOverlay();
@@ -90,10 +94,12 @@ export function createUI(root) {
       <h1 class="game-title">LA QUEBRADA</h1>
       <div class="game-subtitle">No perdona</div>
       <div class="rule"></div>
-      <p class="intro">Tres golpes, y la tierra rota te escupió contra las piedras. Allá abajo,
+      <p class="epigraph">«La tierra te soltó como la ola suelta al alga,<br>
+      y el oro siguió rodando, solo, hacia la sal.»</p>
+      <p class="intro">Tres golpes, y la tierra rota te dejó entre las piedras. Allá abajo,
       el ternero de plata llegó al mar sin testigos, y la marea ya se lleva
       ${shavingCount > 0 ? `las <b class="gold">${shavingCount} virutas</b> de tus manos abiertas` : 'el oro que nunca juntaste'}.
-      <i>La quebrada no perdona.</i></p>
+      <i>La quebrada, como el mar, no devuelve lo que toma.</i></p>
       <button id="again-btn" class="btn">OTRA VEZ</button>
       <a class="back" href="../">⌂ volver a los mitos</a>`;
     openOverlay();

@@ -17,8 +17,16 @@
 // Narrator voice (mp3 clips under ../assets/voice/quicavi/) — fetched lazily
 // AFTER unlock, decoded into buffers; every failure is a silent no-op. Clips
 // play through voiceGain (0.8) -> master so M mutes them too; while a clip
-// plays the ambience bus (wind/rustle/drone/water) ducks to ~40%
+// plays the ambience bus (wind/rustle/drone/water/music) ducks to ~40%
 // (setTargetAtTime) and recovers when it ends.
+//
+// Music: a pre-looped ~50 s bed (../assets/music/quicavi.mp3) fetched after
+// the same BEGIN gesture, looped (the seam is pre-crossfaded) through a
+// lowpass (2200 Hz — kept under the night forest so the high static crackle,
+// the danger signal, always reads on top) into musicGain (0.22) on the amb
+// bus: it ducks under voice and obeys M with everything else. It eases out
+// under the win/caught stingers (the end stingers stay on top). Any
+// fetch/decode failure is a silent no-op.
 
 export function createAudio() {
   const AC = typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null
@@ -59,7 +67,14 @@ export function createAudio() {
   let pendingVoice = null // BEGIN line is requested before its fetch settles
   let pendingUntil = 0
 
+  // looping music bed — loaded after unlock, silent no-op if absent
+  let musicGain = null
+  let musicLP = null
+  let musicLoadStarted = false
+  let musicStopped = false // win/caught: the bed never comes back
+
   const MASTER_LEVEL = 0.32
+  const MUSIC_LEVEL = 0.22
   const VOICE_NAMES = ['begin', 'win', 'lose', 'push']
 
   function clamp01(v) {
@@ -135,6 +150,15 @@ export function createAudio() {
     voiceGain = ctx.createGain()
     voiceGain.gain.value = 0.8
     voiceGain.connect(master)
+
+    // music bed: lowpassed loop on the amb bus — ducks under voice, mutes with M
+    musicLP = ctx.createBiquadFilter()
+    musicLP.type = 'lowpass'
+    musicLP.frequency.value = 2200
+    musicGain = ctx.createGain()
+    musicGain.gain.value = 0
+    musicLP.connect(musicGain)
+    musicGain.connect(ambBus)
 
     noiseBuf = ctx.createBuffer(1, (ctx.sampleRate * 2) | 0, ctx.sampleRate)
     const d = noiseBuf.getChannelData(0)
@@ -231,6 +255,34 @@ export function createAudio() {
     ambNext = t0 + 9 + Math.random() * 12 // first ambient one-shot, unhurried
   }
 
+  // ---------- music bed (pre-looped mp3; every failure is a silent no-op) ---
+  function loadMusic() {
+    if (musicLoadStarted) return
+    musicLoadStarted = true
+    try {
+      fetch('../assets/music/quicavi.mp3')
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status)
+          return r.arrayBuffer()
+        })
+        .then(function (ab) {
+          return new Promise(function (res, rej) {
+            ctx.decodeAudioData(ab, res, rej)
+          })
+        })
+        .then(function (buf) {
+          if (!buf || !ready || musicStopped) return
+          const src = ctx.createBufferSource()
+          src.buffer = buf
+          src.loop = true // the seam is pre-crossfaded
+          src.connect(musicLP)
+          src.start()
+          musicGain.gain.setTargetAtTime(MUSIC_LEVEL, ctx.currentTime, 1.2)
+        })
+        .catch(function () {})
+    } catch (e) {}
+  }
+
   // ---------- narrator voice (mp3 clips; every failure is a silent no-op) ---
   function loadVoices() {
     for (let i = 0; i < VOICE_NAMES.length; i++) {
@@ -314,6 +366,7 @@ export function createAudio() {
       build()
       ready = true
       loadVoices()
+      loadMusic()
     }
     if (ctx.state === 'suspended') {
       const p = ctx.resume()
@@ -449,6 +502,11 @@ export function createAudio() {
   function stinger(name) {
     if (!ready) return
     const t = ctx.currentTime + 0.02
+    // the bed eases out under the end stingers — they stay on top
+    if (name === 'win' || name === 'caught') {
+      musicStopped = true
+      musicGain.gain.setTargetAtTime(0, t, 0.5)
+    }
     if (name === 'rip') {
       // paper torn off a nail
       const h = hiss(t, 0.2, 0.004, 0.07, 'highpass', 900, 0.7, 0.45)

@@ -9,18 +9,25 @@ import { NEED_SAVED, LOSE_LOST } from './sim.js';
 
 const ROMAN = ['I', 'II', 'III'];
 
+// Narrated lines — these exact words are what the voice clips speak
+// (../assets/voice/tenten/), so text and voice always match.
 const INTRO =
-  'Cuando el mundo era joven, <em>Caicai Vilu</em>, serpiente del mar, se alzó furiosa para ' +
-  'ahogar la tierra y a cuantos la caminaban. Contra ella subió <em>Tenten Vilu</em>, ' +
-  'serpiente de la tierra, levantando los cerros terrón a terrón para que la gente alcanzara ' +
-  'su luz. A los que el agua tocó no los ahogó: los cambió, en lobos marinos y en peces, ' +
-  'y olvidaron sus nombres.';
+  'El mar se alza como una memoria furiosa, y la tierra le responde, lenta, ' +
+  'terrón a terrón. <em>Sube, gente pequeña: la luz aún sabe sus nombres.</em>';
+
+const WIN_LINE =
+  'La tierra creció como crece el pan junto al fuego. El mar se retira ' +
+  'murmurando, contando lo que no pudo llevarse.';
 
 const HELP = 'clic alzar la tierra (3 por turno) · luego la gente camina · U deshacer · Enter terminar turno · M sonido';
 
+const LOSE_LINE =
+  'El mar cerró su mano lenta sobre la isla. Los nombres cayeron al agua ' +
+  'como piedras, y nadie recuerda haberlos dicho.';
+
 const LOSE_TEXT = {
-  gente: 'Demasiados nombres fueron tomados. Los que llegaron al borde del agua ahora son lobos marinos: miran la isla desde la marejada y no recuerdan por qué.',
-  cumbre: 'El mar se cerró sobre la cumbre y la luz de Tenten se apagó debajo. Lo que Caicai cubre, Caicai lo guarda.',
+  gente: LOSE_LINE,
+  cumbre: LOSE_LINE,
 };
 
 export function createUI(root, handlers) {
@@ -171,22 +178,16 @@ export function createUI(root, handlers) {
     endCard.innerHTML = '';
     const title = isFinal ? 'TENTEN&nbsp;VENCE' : 'LA TIERRA CRECIÓ';
     const sub = isFinal ? 'la serpiente del mar se repliega' : LEVELS[level - 1].epithet;
-    let body;
-    if (isFinal) {
-      body = 'Tres islas resistieron. El agua retrocedió rezongando hacia los canales, y en cada ' +
-        'cumbre una luz siguió ardiendo. La gente bajó despacio, contándose, diciendo sus ' +
-        'nombres en voz alta — <em>' + saved + ' alcanzaron la luz</em>' +
-        (lost ? ', y ' + lost + ' miran desde el mar, lustrosos y cambiados, sin pena' : '') + '.';
-    } else {
-      body = '<em>' + saved + '</em> de seis alcanzaron la luz de Tenten antes de que Caicai cerrara el cerco' +
-        (lost ? ' — ' + lost + ' nadan ahora los canales como lobos marinos, y los antiguos les dejan pescado sobre las rocas' : '') + '.';
-    }
+    // the narrated line, verbatim — then the tally as a quieter aside
+    const tally = '<em>' + saved + '</em> de seis alcanzaron la luz de Tenten' +
+      (lost ? ' · ' + lost + ' miran desde el mar, lustrosos y cambiados' : '') + '.';
     endCard.append(
       el('div', 'charm', '✦'),
       el('h1', 'game-title win-title', title),
       el('div', 'game-subtitle', sub),
       el('div', 'rule'),
-      el('p', 'intro', body),
+      el('p', 'intro', WIN_LINE),
+      el('p', 'level-note', tally),
     );
     if (isFinal) endCard.append(el('div', 'win-charms', '✦ seña reunida ✦'));
     const row = el('div', 'btn-stack');

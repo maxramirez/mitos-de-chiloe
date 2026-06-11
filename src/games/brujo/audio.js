@@ -7,10 +7,13 @@
    crash thud/splash · heartbeat near moonset · win/lose stingers ·
    night ambience one-shots (birds, water laps, far rumbles) ·
    macuñ wing-strain on boost · dry-flutter when wings dry ·
-   whispered narrator clips (fetched after unlock, duck the bed).
+   whispered narrator clips (fetched after unlock, duck the bed) ·
+   looping mp3 music bed (lowpassed, on bedBus: ducks with the
+   ambience under voices, eases out under the end stingers).
    ============================================================ */
 
 const VOICE_FILES = ['title', 'win', 'lose-torn', 'lose-moon', 'luna']
+const MUSIC_VOL = 0.22
 
 export function createAudio() {
   let ctx = null
@@ -27,6 +30,9 @@ export function createAudio() {
   let voicesLoading = false
   let pendingVoice = null
   let activeVoice = null
+
+  /* music bed: looping mp3 on bedBus (ducks under voices with the wind) */
+  let musicGain = null
 
   /* persistent wind nodes */
   let windSrc = null
@@ -83,9 +89,39 @@ export function createAudio() {
       windSrc.start()
 
       loadVoices()
+      loadMusic()
     } catch (e) {
       ctx = null
     }
+  }
+
+  /* ---- music bed: ~50 s seam-crossfaded loop, fetched after the
+     gesture unlock. Feeds bedBus so it ducks under the whispers with
+     the rest of the night and obeys M/mute via master. Gently
+     lowpassed so the ring chimes, wing sounds and end stingers
+     (routed straight to master) always sit on top. Silent no-op on
+     any fetch/decode failure. ---- */
+  function loadMusic() {
+    try {
+      fetch('../assets/music/brujo.mp3')
+        .then((r) => { if (!r.ok) throw new Error('http ' + r.status); return r.arrayBuffer() })
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buf) => {
+          if (!ctx || musicGain) return
+          const src = ctx.createBufferSource()
+          src.buffer = buf
+          src.loop = true /* seam is pre-crossfaded */
+          const lp = ctx.createBiquadFilter()
+          lp.type = 'lowpass'
+          lp.frequency.value = 2600
+          musicGain = ctx.createGain()
+          musicGain.gain.value = 0.0001
+          src.connect(lp).connect(musicGain).connect(bedBus)
+          src.start()
+          musicGain.gain.setTargetAtTime(MUSIC_VOL, ctx.currentTime, 1.4) /* ease in with the night */
+        })
+        .catch(() => {})
+    } catch (e) { /* no fetch: no bed */ }
   }
 
   /* ---- narrator voices: fetch + decode only after the gesture unlock.
@@ -392,10 +428,14 @@ export function createAudio() {
     src.stop(t + 0.9)
   }
 
-  /* win: warm resolved chord; lose: hollow falling cluster */
+  /* win: warm resolved chord; lose: hollow falling cluster.
+     The music bed eases out underneath — the stingers stay on top. */
   function ending(won) {
     if (!ctx) return
     const t = ctx.currentTime
+    if (musicGain) {
+      try { musicGain.gain.setTargetAtTime(0.0001, t, 0.7) } catch (e) { /* ignore */ }
+    }
     const freqs = won ? [196, 247, 294, 392] : [196, 233, 277, 185]
     freqs.forEach((fq, i) => {
       const o = ctx.createOscillator()

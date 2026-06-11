@@ -1,8 +1,10 @@
 // EL CUCHIVILU — render.js
 // All 2D-canvas drawing for the moonlit tidal flats. Allocation-free in
-// draw(): gradients are cached on first call, dash arrays and decor tables
-// (stones, rubble, sand speckles, water shimmer, mouth stakes) are built once
-// at module load from a seeded PRNG so the flats look the same every night.
+// draw(): gradients are cached on first call, dash arrays, decor tables
+// (stones, rubble, sand speckles, water shimmer, mouth stakes) and the
+// character sprites (3-frame scaled serpent hide, planked chalupa hull) are
+// built once at module load from seeded PRNGs so the flats look the same
+// every night. Moonlight is fixed up-left; the bow lantern rims the rower.
 
 import { TAU, WORLD, CX, CY, R, SEGN, MOUTH_HALF, A0, SEG_W, TELE_T } from './geom.js'
 
@@ -212,11 +214,15 @@ for (let i = 0; i < SEGN; i++) {
   WALL_SPR.push({ c, x: minX, y: minY })
 }
 
-// serpent body/head sprites: rim-lit, mottled, spectral sheen baked in
-function serpSprite(litTop, base, deep, rim) {
+// serpent body/head sprites: rim-lit scaled hide, ventral shadow, mottling,
+// and a wet sheen band that drifts across 3 frames (micro-animation). Each
+// variant keeps one seed so scales/blotches stay put — only the sheen moves.
+function serpSprite(litTop, base, deep, rim, seed, sheenK) {
   const c = makeCanvas(64, 64)
   const g = c.getContext('2d')
-  const gr = g.createRadialGradient(26, 22, 3, 32, 32, 30)
+  const r = mulberry32(seed)
+  // base disc, lit from the moon side (up-left)
+  const gr = g.createRadialGradient(25, 21, 3, 32, 32, 31)
   gr.addColorStop(0, litTop)
   gr.addColorStop(0.55, base)
   gr.addColorStop(1, deep)
@@ -224,16 +230,64 @@ function serpSprite(litTop, base, deep, rim) {
   g.beginPath()
   g.arc(32, 32, 30, 0, TAU)
   g.fill()
-  // mottled hide
+  g.save()
+  g.beginPath()
+  g.arc(32, 32, 30, 0, TAU)
+  g.clip()
+  // ventral shadow pooling away from the moon
+  g.globalAlpha = 0.32
+  g.fillStyle = '#020806'
+  g.beginPath()
+  g.ellipse(41, 43, 26, 20, 0.5, 0, TAU)
+  g.fill()
+  // staggered rows of scale crescents, each with a moonlit upper edge
+  for (let y = 10; y < 58; y += 6.5) {
+    const off = ((y / 6.5) | 0) % 2 ? 3.5 : 0
+    for (let x = 6 + off; x < 60; x += 7) {
+      const jx = x + (r() - 0.5) * 1.6
+      const jy = y + (r() - 0.5) * 1.4
+      const sr = 2.6 + r() * 0.9
+      g.lineWidth = 1.1
+      g.strokeStyle = '#03120b'
+      g.globalAlpha = 0.16 + r() * 0.12
+      g.beginPath()
+      g.arc(jx, jy, sr, 0.15 * Math.PI, 0.85 * Math.PI)
+      g.stroke()
+      g.strokeStyle = litTop
+      g.globalAlpha = 0.1 + r() * 0.08
+      g.beginPath()
+      g.arc(jx - 0.7, jy - 0.9, sr, 0.15 * Math.PI, 0.85 * Math.PI)
+      g.stroke()
+    }
+  }
+  // mottled blotches under the scale rhythm
   g.fillStyle = '#060d09'
-  for (let i = 0; i < 26; i++) {
-    const a = rnd() * TAU
-    const r = rnd() * 24
-    g.globalAlpha = 0.1 + rnd() * 0.12
+  for (let i = 0; i < 18; i++) {
+    const a = r() * TAU
+    const rr = r() * 24
+    g.globalAlpha = 0.1 + r() * 0.12
     g.beginPath()
-    g.arc(32 + Math.cos(a) * r, 32 + Math.sin(a) * r, 1.6 + rnd() * 3.4, 0, TAU)
+    g.arc(32 + Math.cos(a) * rr, 32 + Math.sin(a) * rr, 2 + r() * 3.6, 0, TAU)
     g.fill()
   }
+  // wet sheen band — its offset is the only thing that changes per frame
+  const so = -26 + 26 * sheenK
+  g.lineCap = 'round'
+  g.strokeStyle = '#9fffd0'
+  g.globalAlpha = 0.05
+  g.lineWidth = 9
+  g.beginPath()
+  g.moveTo(2 + so, 58)
+  g.lineTo(40 + so, 4)
+  g.stroke()
+  g.strokeStyle = '#cfeee0'
+  g.globalAlpha = 0.045
+  g.lineWidth = 4
+  g.beginPath()
+  g.moveTo(6 + so, 58)
+  g.lineTo(44 + so, 4)
+  g.stroke()
+  g.restore()
   // spectral rim along the moon side
   g.globalAlpha = rim
   g.strokeStyle = '#9fffd0'
@@ -249,9 +303,124 @@ function serpSprite(litTop, base, deep, rim) {
   g.globalAlpha = 1
   return c
 }
-const SERP_BODY_A = serpSprite('#234034', '#13231d', '#070d0a', 0.2)
-const SERP_BODY_B = serpSprite('#1d382d', '#102019', '#060b08', 0.16)
-const SERP_HEAD = serpSprite('#2a4a3b', '#16271f', '#08100c', 0.3)
+// 3 sheen frames per variant (same seed per variant: only the sheen drifts)
+const SERP_BODY_A = [0, 1, 2].map((f) => serpSprite('#234034', '#13231d', '#070d0a', 0.2, 9101, f / 2))
+const SERP_BODY_B = [0, 1, 2].map((f) => serpSprite('#1d382d', '#102019', '#060b08', 0.16, 9202, f / 2))
+const SERP_HEAD = [0, 1, 2].map((f) => serpSprite('#2a4a3b', '#16271f', '#08100c', 0.3, 9303, f / 2))
+
+// the chalupa hull, pre-rendered at 3x: planked strakes, floor ribs, wood
+// grain, a moonlit gunwale on the up-left rim and the rowing bench baked in.
+// Local boat coords (+x = bow), origin at canvas (22, 12).
+const BOAT_SPR = (() => {
+  const SC = 3
+  const c = makeCanvas(46 * SC, 24 * SC)
+  const g = c.getContext('2d')
+  g.scale(SC, SC)
+  g.translate(22, 12)
+  const hull = () => {
+    g.beginPath()
+    g.moveTo(20, 0)
+    g.quadraticCurveTo(10, -8, -10, -6.5)
+    g.quadraticCurveTo(-17, -5.5, -17, 0)
+    g.quadraticCurveTo(-17, 5.5, -10, 6.5)
+    g.quadraticCurveTo(10, 8, 20, 0)
+    g.closePath()
+  }
+  const gr = g.createLinearGradient(-6, -9, 4, 9)
+  gr.addColorStop(0, '#4a3a22')
+  gr.addColorStop(0.55, '#332618')
+  gr.addColorStop(1, '#20170d')
+  g.fillStyle = gr
+  hull()
+  g.fill()
+  g.save()
+  hull()
+  g.clip()
+  // inner floor, darker, with frame ribs
+  g.fillStyle = '#1b1309'
+  g.beginPath()
+  g.moveTo(15, 0)
+  g.quadraticCurveTo(8, -5.6, -9, -4.4)
+  g.quadraticCurveTo(-14, -3.6, -14, 0)
+  g.quadraticCurveTo(-14, 3.6, -9, 4.4)
+  g.quadraticCurveTo(8, 5.6, 15, 0)
+  g.closePath()
+  g.fill()
+  g.strokeStyle = '#0e0a05'
+  g.lineWidth = 0.7
+  g.globalAlpha = 0.6
+  for (let x = -12; x <= 12; x += 4) {
+    const k = 1 - Math.abs(x) / 20
+    g.beginPath()
+    g.moveTo(x, -5.2 * k - 0.6)
+    g.lineTo(x, 5.2 * k + 0.6)
+    g.stroke()
+  }
+  // strake seams following the gunwale curve
+  g.globalAlpha = 0.55
+  g.strokeStyle = '#120d07'
+  g.lineWidth = 0.6
+  for (let s = -1; s <= 1; s += 2) {
+    for (let n = 1; n <= 2; n++) {
+      const k = n / 3
+      g.beginPath()
+      g.moveTo(17 + k * 2.4, s * 0.4)
+      g.quadraticCurveTo(9, s * (8 - k * 2.6) * 0.92, -10, s * (6.5 - k * 2.1))
+      g.stroke()
+    }
+  }
+  // wood grain flecks
+  g.strokeStyle = '#5d4a2c'
+  g.lineWidth = 0.4
+  for (let i = 0; i < 26; i++) {
+    const x = -15 + rnd() * 32
+    const y = (rnd() - 0.5) * 13
+    g.globalAlpha = 0.12 + rnd() * 0.12
+    g.beginPath()
+    g.moveTo(x, y)
+    g.lineTo(x + 1.5 + rnd() * 2.5, y + (rnd() - 0.5))
+    g.stroke()
+  }
+  g.restore()
+  // outline + gunwale: the moon catches the up-left rim hardest
+  g.globalAlpha = 1
+  g.strokeStyle = '#120d07'
+  g.lineWidth = 1.6
+  hull()
+  g.stroke()
+  g.strokeStyle = '#8a7350'
+  g.lineWidth = 0.9
+  g.globalAlpha = 0.55
+  g.beginPath()
+  g.moveTo(20, -0.3)
+  g.quadraticCurveTo(10, -8, -10, -6.5)
+  g.quadraticCurveTo(-17, -5.5, -17, 0)
+  g.stroke()
+  g.globalAlpha = 0.18
+  g.beginPath()
+  g.moveTo(-17, 0)
+  g.quadraticCurveTo(-17, 5.5, -10, 6.5)
+  g.quadraticCurveTo(10, 8, 20, 0)
+  g.stroke()
+  // bow stem cap
+  g.globalAlpha = 0.9
+  g.fillStyle = '#5d4a2c'
+  g.beginPath()
+  g.moveTo(20.5, 0)
+  g.lineTo(16.5, -1.6)
+  g.lineTo(16.5, 1.6)
+  g.closePath()
+  g.fill()
+  // rowing bench with a lit leading edge
+  g.globalAlpha = 1
+  g.fillStyle = '#3d2f1c'
+  g.fillRect(-4.2, -6, 2.6, 12)
+  g.fillStyle = '#67522f'
+  g.globalAlpha = 0.5
+  g.fillRect(-4.2, -6, 0.7, 12)
+  g.globalAlpha = 1
+  return c
+})()
 
 // ---- cached gradients -------------------------------------------------------
 let G = null
@@ -392,6 +561,7 @@ function drawStakes(ctx, S, tVis) {
 
 function drawFish(ctx, S, tVis) {
   ctx.lineWidth = 2
+  ctx.lineCap = 'round'
   const F = S.fish
   for (let i = 0; i < F.length; i++) {
     const f = F[i]
@@ -404,12 +574,22 @@ function drawFish(ctx, S, tVis) {
       dx = f.vx * inv
       dy = f.vy * inv
     }
-    ctx.globalAlpha = 0.42 + 0.34 * (0.5 + 0.5 * Math.sin(tVis * 3.1 + f.ph))
+    const px = -dy
+    const py = dx
+    const flick = Math.sin(tVis * 9 + f.ph * 3.1) * 2.1 // the tail sculls
+    const a = 0.42 + 0.34 * (0.5 + 0.5 * Math.sin(tVis * 3.1 + f.ph))
+    ctx.globalAlpha = a
     ctx.strokeStyle = f.pen ? '#b9e2c8' : '#c6d3d6'
     ctx.beginPath()
-    ctx.moveTo(f.x - dx * 3.4, f.y - dy * 3.4)
+    ctx.moveTo(f.x - dx * 2.6, f.y - dy * 2.6)
     ctx.lineTo(f.x + dx * 3.4, f.y + dy * 3.4)
+    ctx.moveTo(f.x - dx * 2.2, f.y - dy * 2.2)
+    ctx.lineTo(f.x - dx * 5 + px * flick, f.y - dy * 5 + py * flick)
     ctx.stroke()
+    // a moonlit glint at the head
+    ctx.globalAlpha = a * 0.9
+    ctx.fillStyle = '#eef7f2'
+    ctx.fillRect(f.x + dx * 3 - 0.6, f.y + dy * 3 - 0.6, 1.2, 1.2)
   }
   ctx.globalAlpha = 1
 }
@@ -429,19 +609,31 @@ function drawSerpent(ctx, S, tVis) {
       ctx.arc(sp.ex, sp.ey, rr, 0, TAU)
       ctx.stroke()
     }
-    // the snout breaks the surface late in the telegraph
+    // the snout breaks the surface late in the telegraph, sniffing
     if (k > 0.55) {
-      ctx.globalAlpha = Math.min(1, (k - 0.55) * 2.4)
+      const vis = Math.min(1, (k - 0.55) * 2.4)
+      const sniff = 1 + 0.22 * Math.sin(tVis * 7.3)
+      ctx.globalAlpha = vis
+      ctx.fillStyle = '#71443c'
+      ctx.beginPath()
+      ctx.arc(sp.ex + 0.9, sp.ey + 1.1, 6.1, 0, TAU)
+      ctx.fill()
       ctx.fillStyle = '#b27d70'
       ctx.beginPath()
       ctx.arc(sp.ex, sp.ey, 6, 0, TAU)
       ctx.fill()
+      ctx.globalAlpha = vis * 0.6
+      ctx.fillStyle = '#d4a195' // the moon finds the wet snout
+      ctx.beginPath()
+      ctx.arc(sp.ex - 1.5, sp.ey - 1.7, 3.6, 0, TAU)
+      ctx.fill()
+      ctx.globalAlpha = vis
       ctx.fillStyle = '#2e1815'
       ctx.beginPath()
-      ctx.arc(sp.ex - 2, sp.ey - 1, 1.1, 0, TAU)
+      ctx.arc(sp.ex - 2, sp.ey - 1, 1.1 * sniff, 0, TAU)
       ctx.fill()
       ctx.beginPath()
-      ctx.arc(sp.ex + 2, sp.ey - 1, 1.1, 0, TAU)
+      ctx.arc(sp.ex + 2, sp.ey - 1, 1.1 * sniff, 0, TAU)
       ctx.fill()
     }
     ctx.globalAlpha = 1
@@ -450,62 +642,130 @@ function drawSerpent(ctx, S, tVis) {
   const fade = sp.state === 'dive' ? Math.max(0, 1 - sp.t / 1.1) : 1
   const px = -sp.dy
   const py = sp.dx
-  // segmented body, tail to head — rim-lit mottled sprites
+  const sf = ((tVis * 4) | 0) % 3 // sheen micro-frames drifting over the hide
+  // segmented body, tail to head — rim-lit scaled hide
   for (let i = 9; i >= 0; i--) {
     const wob = Math.sin(tVis * 5 + i * 0.9) * 2
     const x = sp.sx[i] + px * wob
     const y = sp.sy[i] + py * wob
     const rr = 12.5 - i * 0.75
     ctx.globalAlpha = fade
-    ctx.drawImage((i & 1) === 1 ? SERP_BODY_A : SERP_BODY_B, x - rr, y - rr, rr * 2, rr * 2)
+    ctx.drawImage((i & 1) === 1 ? SERP_BODY_A[sf] : SERP_BODY_B[sf], x - rr, y - rr, rr * 2, rr * 2)
   }
-  // head
+  // bristle mane along the spine — pig hair, swaying a beat behind the body
+  ctx.lineCap = 'round'
+  for (let pass = 0; pass < 2; pass++) {
+    ctx.strokeStyle = pass === 0 ? '#0d1812' : '#4e7a5c'
+    ctx.lineWidth = pass === 0 ? 2 : 1
+    ctx.globalAlpha = fade * (pass === 0 ? 0.7 : 0.45)
+    ctx.beginPath()
+    for (let i = 8; i >= 0; i--) {
+      const wob = Math.sin(tVis * 5 + i * 0.9) * 2
+      const sway = Math.sin(tVis * 5 + i * 0.9 - 0.8) * 2 // lags the wobble
+      const x = sp.sx[i] + px * wob
+      const y = sp.sy[i] + py * wob
+      const rr = 12.5 - i * 0.75
+      ctx.moveTo(x, y - rr * 0.25)
+      ctx.lineTo(x + px * sway - 1.2, y - rr * 0.25 - rr * 0.5)
+    }
+    ctx.stroke()
+  }
+  // head — pulses while he feeds
   const ga = sp.state === 'feed' ? 1 + 0.08 * Math.sin(sp.t * 8) : 1
   const hr = 15 * ga
+  // floppy pig ears behind the skull, flapping a beat behind the swim
+  const earFl = Math.sin(tVis * 4.2 - 0.6) * 1.5
+  ctx.fillStyle = '#142b20'
+  ctx.globalAlpha = fade * 0.95
+  for (let s = -1; s <= 1; s += 2) {
+    const ex = sp.x - sp.dx * 3 + px * s * hr * 0.7
+    const ey = sp.y - sp.dy * 3 + py * s * hr * 0.7
+    ctx.beginPath()
+    ctx.moveTo(ex + sp.dx * 3, ey + sp.dy * 3)
+    ctx.lineTo(ex - sp.dx * 8 + px * s * (4.5 + earFl), ey - sp.dy * 8 + py * s * (4.5 + earFl))
+    ctx.lineTo(ex - sp.dx * 2 + px * s * 5.5, ey - sp.dy * 2 + py * s * 5.5)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.strokeStyle = '#3f5f4c' // moonlit ear edges
+  ctx.lineWidth = 1
+  ctx.globalAlpha = fade * 0.5
+  for (let s = -1; s <= 1; s += 2) {
+    const ex = sp.x - sp.dx * 3 + px * s * hr * 0.7
+    const ey = sp.y - sp.dy * 3 + py * s * hr * 0.7
+    ctx.beginPath()
+    ctx.moveTo(ex + sp.dx * 3, ey + sp.dy * 3)
+    ctx.lineTo(ex - sp.dx * 8 + px * s * (4.5 + earFl), ey - sp.dy * 8 + py * s * (4.5 + earFl))
+    ctx.stroke()
+  }
   ctx.globalAlpha = fade
-  ctx.drawImage(SERP_HEAD, sp.x - hr, sp.y - hr, hr * 2, hr * 2)
+  ctx.drawImage(SERP_HEAD[sf], sp.x - hr, sp.y - hr, hr * 2, hr * 2)
   ctx.globalAlpha = fade * (0.18 + 0.1 * Math.sin(tVis * 3.3))
   ctx.strokeStyle = '#9fffd0'
   ctx.lineWidth = 1.2
   ctx.beginPath()
   ctx.arc(sp.x, sp.y, hr, 0, TAU)
   ctx.stroke()
-  // little tusks
-  ctx.globalAlpha = fade * 0.85
-  ctx.strokeStyle = '#d8d3c2'
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.moveTo(sp.x + sp.dx * 10 - px * 9, sp.y + sp.dy * 10 - py * 9)
-  ctx.lineTo(sp.x + sp.dx * 15 - px * 11, sp.y + sp.dy * 15 - py * 11)
-  ctx.moveTo(sp.x + sp.dx * 10 + px * 9, sp.y + sp.dy * 10 + py * 9)
-  ctx.lineTo(sp.x + sp.dx * 15 + px * 11, sp.y + sp.dy * 15 + py * 11)
-  ctx.stroke()
-  // pig snout
+  // boar tusks: curved ivory blades, tips catching the moon
+  for (let s = -1; s <= 1; s += 2) {
+    const rx = sp.x + sp.dx * 9 + px * s * 9
+    const ry = sp.y + sp.dy * 9 + py * s * 9
+    const tx = sp.x + sp.dx * 16 + px * s * 12.5
+    const ty = sp.y + sp.dy * 16 + py * s * 12.5
+    const cx2 = sp.x + sp.dx * 14 + px * s * 8
+    const cy2 = sp.y + sp.dy * 14 + py * s * 8
+    ctx.globalAlpha = fade * 0.92
+    ctx.fillStyle = '#d8d3c2'
+    ctx.beginPath()
+    ctx.moveTo(rx + px * s * 1.6, ry + py * s * 1.6)
+    ctx.quadraticCurveTo(cx2 + px * s * 3, cy2 + py * s * 3, tx, ty)
+    ctx.quadraticCurveTo(cx2, cy2, rx - px * s * 0.6, ry - py * s * 0.6)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#f4f1e4'
+    ctx.globalAlpha = fade * 0.8
+    ctx.beginPath()
+    ctx.arc(tx, ty, 0.9, 0, TAU)
+    ctx.fill()
+  }
+  // pig snout, lit from the moon side: shadowed lip, disc, lit crescent
   const snx = sp.x + sp.dx * 16
   const sny = sp.y + sp.dy * 16
   const ang = Math.atan2(sp.dy, sp.dx)
+  const sniff = 1 + 0.22 * Math.sin(tVis * 7.3)
   ctx.globalAlpha = fade
+  ctx.fillStyle = '#71443c'
+  ctx.beginPath()
+  ctx.ellipse(snx + 1, sny + 1.2, 8.2, 6.1, ang, 0, TAU)
+  ctx.fill()
   ctx.fillStyle = '#b27d70'
   ctx.beginPath()
   ctx.ellipse(snx, sny, 8, 6, ang, 0, TAU)
   ctx.fill()
+  ctx.globalAlpha = fade * 0.65
+  ctx.fillStyle = '#d4a195'
+  ctx.beginPath()
+  ctx.ellipse(snx - 1.4, sny - 1.7, 5.6, 3.9, ang, 0, TAU)
+  ctx.fill()
+  ctx.globalAlpha = fade
   ctx.fillStyle = '#2e1815'
   ctx.beginPath()
-  ctx.arc(snx + sp.dx * 2.5 - px * 2.6, sny + sp.dy * 2.5 - py * 2.6, 1.5, 0, TAU)
+  ctx.arc(snx + sp.dx * 2.5 - px * 2.6, sny + sp.dy * 2.5 - py * 2.6, 1.5 * sniff, 0, TAU)
   ctx.fill()
   ctx.beginPath()
-  ctx.arc(snx + sp.dx * 2.5 + px * 2.6, sny + sp.dy * 2.5 + py * 2.6, 1.5, 0, TAU)
+  ctx.arc(snx + sp.dx * 2.5 + px * 2.6, sny + sp.dy * 2.5 + py * 2.6, 1.5 * sniff, 0, TAU)
   ctx.fill()
-  // spectral eyes
+  // spectral eyes — the glow breathes, and now and then he blinks
+  const blink = Math.min(1, Math.abs(Math.sin(tVis * 0.7 + 0.4)) * 5)
   for (let s = -1; s <= 1; s += 2) {
     const ex = sp.x + sp.dx * 5 + px * s * 8
     const ey = sp.y + sp.dy * 5 + py * s * 8
     ctx.fillStyle = '#9fffd0'
-    ctx.globalAlpha = fade * 0.3
+    ctx.globalAlpha = fade * (0.14 + 0.2 * blink)
     ctx.beginPath()
     ctx.arc(ex, ey, 3.6, 0, TAU)
     ctx.fill()
-    ctx.globalAlpha = fade
+    ctx.globalAlpha = fade * (0.25 + 0.75 * blink)
     ctx.beginPath()
     ctx.arc(ex, ey, 1.6, 0, TAU)
     ctx.fill()
@@ -530,30 +790,15 @@ function drawBoat(ctx, S, tVis) {
   ctx.save()
   ctx.translate(b.x, b.y)
   ctx.rotate(b.h)
-  // hull
-  ctx.fillStyle = '#36291a'
-  ctx.strokeStyle = '#120d07'
-  ctx.lineWidth = 1.6
+  // hull shadow pooling in the water
+  ctx.globalAlpha = 0.22
+  ctx.fillStyle = '#000000'
   ctx.beginPath()
-  ctx.moveTo(20, 0)
-  ctx.quadraticCurveTo(10, -8, -10, -6.5)
-  ctx.quadraticCurveTo(-17, -5.5, -17, 0)
-  ctx.quadraticCurveTo(-17, 5.5, -10, 6.5)
-  ctx.quadraticCurveTo(10, 8, 20, 0)
-  ctx.closePath()
+  ctx.ellipse(-0.5, 1.6, 19, 8.5, 0, 0, TAU)
   ctx.fill()
-  ctx.stroke()
-  // keel line + bench
-  ctx.globalAlpha = 0.5
-  ctx.strokeStyle = '#1d1610'
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  ctx.moveTo(-14, 0)
-  ctx.lineTo(15, 0)
-  ctx.moveTo(-2, -5.8)
-  ctx.lineTo(-2, 5.8)
-  ctx.stroke()
   ctx.globalAlpha = 1
+  // pre-rendered planked hull: strakes, ribs, grain, moonlit gunwale, bench
+  ctx.drawImage(BOAT_SPR, -22, -12, 46, 24)
   // oars (stroke speed follows the rowing)
   const ph = S.rowPh
   ctx.strokeStyle = '#4f3d26'
@@ -578,6 +823,61 @@ function drawBoat(ctx, S, tVis) {
       ctx.globalAlpha = 1
     }
   }
+  // --- the rower: a hooded fisher on the bench, leaning into each stroke
+  const lean = Math.sin(ph) * 1.9 // the body drives the stroke…
+  const hem = Math.sin(ph - 0.9) * 1.1 // …and the wool swings a beat behind
+  const bx = -2.6 + lean
+  // arms reach for the oar handles
+  ctx.strokeStyle = '#241c12'
+  ctx.lineWidth = 1.5
+  ctx.lineCap = 'round'
+  const hx = 0.4 + Math.sin(ph) * 1.8
+  ctx.beginPath()
+  ctx.moveTo(bx + 1, -2.6)
+  ctx.lineTo(hx, -5.4)
+  ctx.moveTo(bx + 1, 2.6)
+  ctx.lineTo(hx, 5.4)
+  ctx.stroke()
+  // poncho: dark wool with a pale woven stripe
+  ctx.save()
+  ctx.translate(bx, 0)
+  ctx.rotate(hem * 0.07)
+  ctx.fillStyle = '#3a3026'
+  ctx.beginPath()
+  ctx.ellipse(0, 0, 4.5, 5.3, 0, 0, TAU)
+  ctx.fill()
+  ctx.strokeStyle = '#6e5b40'
+  ctx.globalAlpha = 0.55
+  ctx.lineWidth = 0.9
+  ctx.beginPath()
+  ctx.moveTo(-3.4, -2.1)
+  ctx.quadraticCurveTo(0, -2.9, 3.4, -2.1)
+  ctx.moveTo(-3.7, 1.6)
+  ctx.quadraticCurveTo(0, 2.4, 3.7, 1.6)
+  ctx.stroke()
+  // the bow lantern kisses the shoulders with warm rim light
+  ctx.strokeStyle = '#ffce8e'
+  ctx.globalAlpha = 0.3
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.ellipse(0, 0, 4.2, 5, 0, -0.55, 0.55)
+  ctx.stroke()
+  ctx.globalAlpha = 1
+  ctx.restore()
+  // head: wool cap nodding with the stroke, pompom catching the light
+  const hdx = bx + 1.6 + Math.sin(ph) * 0.5
+  ctx.fillStyle = '#1d150e'
+  ctx.beginPath()
+  ctx.arc(hdx + 0.4, 0.4, 2.3, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#5c3b2e'
+  ctx.beginPath()
+  ctx.arc(hdx, 0, 2.2, 0, TAU)
+  ctx.fill()
+  ctx.fillStyle = '#c9b08a'
+  ctx.beginPath()
+  ctx.arc(hdx, 0, 0.75, 0, TAU)
+  ctx.fill()
   // bow lantern
   ctx.translate(15, 0)
   ctx.globalAlpha = 0.75 + 0.25 * Math.sin(tVis * 9)

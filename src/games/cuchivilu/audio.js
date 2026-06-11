@@ -3,9 +3,11 @@
 // created in unlock() (first user gesture — the BEGIN click); every method is
 // a safe no-op before unlock or without WebAudio, so there are zero
 // autoplay-policy errors. M toggles mute (works pre-unlock via the muted
-// flag). Ambience loops + scheduled night one-shots run through ambBus so a
-// playing voice clip ducks the whole bed to ~40% and back. Voice fetch/decode
-// failures are swallowed: the game behaves identically without the files.
+// flag). Ambience loops + the looping music bed + scheduled night one-shots
+// run through ambBus so a playing voice clip ducks the whole bed to ~40% and
+// back; win/lose ease the music out under the end stingers. Voice/music
+// fetch/decode failures are swallowed: the game behaves identically without
+// the files.
 export function createAudio() {
   let ctx = null
   let master = null
@@ -20,6 +22,15 @@ export function createAudio() {
   let voicesLoading = false
   let pendingVoice = null // the intro is requested on BEGIN, before decode lands
   let activeVoices = 0
+
+  // music bed: a ~50 s pre-rendered loop (seam already crossfaded in the
+  // asset). Routed through ambBus so it ducks under voices with the rest of
+  // the night and dies with M like everything else. 0.22 sits just over the
+  // lap/wind noise but safely under the cues and the end stingers.
+  const MUSIC_URL = '../assets/music/cuchivilu.mp3'
+  const MUSIC_LEVEL = 0.22
+  let musicGain = null
+  let musicLoading = false
 
   function makeNoise() {
     const len = ctx.sampleRate * 2
@@ -99,10 +110,44 @@ export function createAudio() {
 
       ready = true
       loadVoices()
+      loadMusic()
       scheduleAmbient()
     } catch (e) {
       ctx = null
       ready = false
+    }
+  }
+
+  // ---- music bed ----------------------------------------------------------------
+  // Fetch + decode only after the gesture unlock; any failure (offline, file
+  // missing, decode error) is a silent no-op and the procedural night carries
+  // the scene alone.
+  function loadMusic() {
+    if (musicLoading) return
+    musicLoading = true
+    try {
+      fetch(MUSIC_URL)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error('http'))))
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buf) => {
+          musicGain = ctx.createGain()
+          musicGain.gain.value = 0.0001
+          musicGain.gain.setTargetAtTime(MUSIC_LEVEL, ctx.currentTime, 1.4) // breathe in
+          musicGain.connect(ambBus)
+          const src = ctx.createBufferSource()
+          src.buffer = buf
+          src.loop = true // the seam is pre-crossfaded in the asset
+          src.connect(musicGain)
+          src.start()
+        })
+        .catch(() => {})
+    } catch (e) { /* silent no-op */ }
+  }
+
+  // win/lose ease the bed out so the end stingers ring on top
+  function easeMusicOut() {
+    if (musicGain) {
+      try { musicGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 1.6) } catch (e) { /* ignore */ }
     }
   }
 
@@ -367,6 +412,7 @@ export function createAudio() {
           tone('triangle', 92.5, t + 0.2, 0.22, 0.08)
           break
         case 'win': // dawn over a full corral — warm slow chord + sparkle
+          easeMusicOut() // the bed retires; the stinger rings on top
           accordion(220, t, 3.2, 0.03)
           accordion(261.63, t + 0.15, 3.0, 0.026)
           accordion(329.63, t + 0.3, 2.8, 0.026)
@@ -375,6 +421,7 @@ export function createAudio() {
           tone('triangle', 1567.98, t + 0.8, 0.8, 0.022)
           break
         case 'lose': // a minor-second beating fades into the mud
+          easeMusicOut() // the bed retires; the stinger rings on top
           tone('sine', 110, t, 3.0, 0.05, { a: 0.4 })
           tone('sine', 116.54, t, 3.0, 0.045, { a: 0.5 })
           hit(t + 0.3, 1.6, 0.02, 'lowpass', 300, 90, 0.8)

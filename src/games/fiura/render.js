@@ -4,9 +4,10 @@
 // complete with zero assets. Layers scroll at factors 0.05/0.2/0.5/1.15 and
 // repeat by MIRROR tiling (every odd tile flipped) so seams never show.
 // draw() is allocation-free: glow sprites, gradients, decor, color strings,
-// surface textures (mud/wood-grain patterns, water sparkle strip, mist
-// sprite) and the mote/mist atmosphere fields are all prebuilt at init;
-// screen-space gradients rebuild only on resize.
+// surface textures (mud/wood-grain patterns, garment weaves, water sparkle
+// strip, mist sprite) and the mote/mist atmosphere fields are all prebuilt
+// at init; screen-space gradients rebuild only on resize. Dynamic alphas go
+// through ctx.globalAlpha against constant color strings — never built.
 import { PLATFORMS, HERBS, CHECKPOINTS, AMBUSHES, WATER_Y, HUT_X, LEVEL_END } from './level.js'
 
 const VIEW_H = 11.5 // meters of world visible vertically
@@ -279,6 +280,37 @@ function makeMistSprite() {
   return c
 }
 
+// fine cloth weave for the characters' garments — filled INSIDE their
+// transformed space so the weave sticks to (and swells/rocks with) the body
+function makeWeave(seed, dark, light) {
+  const c = document.createElement('canvas')
+  c.width = 32
+  c.height = 32
+  const g = c.getContext('2d')
+  const rng = mulberry32(seed)
+  g.lineWidth = 1
+  g.strokeStyle = dark
+  for (let y = 0; y < 32; y += 3) {
+    g.beginPath()
+    g.moveTo(0, y + 0.5)
+    g.lineTo(32, y + 0.5)
+    g.stroke()
+  }
+  g.strokeStyle = light
+  for (let x = 0; x < 32; x += 4) {
+    g.beginPath()
+    g.moveTo(x + 0.5, 0)
+    g.lineTo(x + 0.5, 32)
+    g.stroke()
+  }
+  // irregular slubs so the weave reads hand-loomed, not printed
+  for (let i = 0; i < 26; i++) {
+    g.fillStyle = rng() < 0.5 ? dark : light
+    g.fillRect((rng() * 31) | 0, (rng() * 31) | 0, 2, 1)
+  }
+  return c
+}
+
 function makeGlow(r, gC, b) {
   const c = document.createElement('canvas')
   c.width = 128
@@ -354,6 +386,9 @@ export function createRender(canvas, refs) {
   const grainPat = ctx.createPattern(makeGrainPattern(), 'repeat')
   const sparkle = makeSparkleStrip()
   const mistSprite = makeMistSprite()
+  // garment weaves — traveler's mended poncho, la Fiura's red rag dress
+  const ponchoWeave = ctx.createPattern(makeWeave(515, 'rgba(0,0,0,0.30)', 'rgba(190,210,180,0.10)'), 'repeat')
+  const ragWeave = ctx.createPattern(makeWeave(929, 'rgba(40,4,2,0.38)', 'rgba(255,150,110,0.12)'), 'repeat')
 
   // swamp atmosphere — fixed mote/mist fields, drifted by pure functions of t
   // (zero allocation per frame; positions are world-space so parallax is real)
@@ -774,52 +809,167 @@ export function createRender(canvas, refs) {
     ctx.translate(x, by)
     ctx.rotate(rock)
     ctx.scale(swell, swell)
-    // red cloak — seated triangle blob
-    ctx.fillStyle = '#7e2418'
-    ctx.beginPath()
-    ctx.moveTo(-0.42 * ppm, 0)
-    ctx.quadraticCurveTo(-0.3 * ppm, -0.62 * ppm, 0, -0.7 * ppm)
-    ctx.quadraticCurveTo(0.3 * ppm, -0.62 * ppm, 0.42 * ppm, 0)
-    ctx.closePath()
-    ctx.fill()
-    ctx.fillStyle = '#a93620' // cloak highlight
-    ctx.beginPath()
-    ctx.moveTo(-0.2 * ppm, 0)
-    ctx.quadraticCurveTo(-0.12 * ppm, -0.5 * ppm, 0.05 * ppm, -0.62 * ppm)
-    ctx.quadraticCurveTo(0.02 * ppm, -0.3 * ppm, 0.08 * ppm, 0)
-    ctx.closePath()
-    ctx.fill()
-    // tiny dangling feet
+    // tiny dangling feet — they kick idly under the hem (behind the cloak)
+    const kick = Math.sin(t * 2.3 + i)
     ctx.strokeStyle = '#3a1610'
     ctx.lineWidth = 3
     ctx.beginPath()
-    ctx.moveTo(-0.1 * ppm, 0)
-    ctx.lineTo(-0.12 * ppm, 0.18 * ppm)
-    ctx.moveTo(0.1 * ppm, 0)
-    ctx.lineTo(0.13 * ppm, 0.17 * ppm)
+    ctx.moveTo(-0.1 * ppm, -0.04 * ppm)
+    ctx.lineTo(-0.13 * ppm + kick * 2, 0.18 * ppm)
+    ctx.moveTo(0.1 * ppm, -0.04 * ppm)
+    ctx.lineTo(0.14 * ppm - kick * 2, 0.17 * ppm)
     ctx.stroke()
-    // wild hair
+    ctx.fillStyle = '#241008'
+    ctx.fillRect(-0.16 * ppm + kick * 2, 0.16 * ppm, 4, 3)
+    ctx.fillRect(0.11 * ppm - kick * 2, 0.15 * ppm, 4, 3)
+    // red dress — seated mass with a ragged hem, flutter offset from the rock
+    ctx.fillStyle = '#6e1f14'
+    ctx.beginPath()
+    ctx.moveTo(-0.44 * ppm, 0)
+    ctx.quadraticCurveTo(-0.34 * ppm, -0.6 * ppm, 0, -0.72 * ppm)
+    ctx.quadraticCurveTo(0.34 * ppm, -0.6 * ppm, 0.44 * ppm, 0)
+    for (let k = 0; k <= 5; k++) {
+      const hx = 0.44 - (k * 0.88) / 5
+      const dip = (k & 1 ? 0.07 : 0.018) * ppm + Math.sin(t * 1.9 + k * 1.7 + i) * 0.018 * ppm
+      ctx.lineTo(hx * ppm, dip)
+    }
+    ctx.closePath()
+    ctx.fill()
+    // hand-loomed weave, anchored to her body (same path, second fill)
+    ctx.globalAlpha = 0.5
+    ctx.fillStyle = ragWeave
+    ctx.fill()
+    ctx.globalAlpha = 1
+    // shadow side — the moon hangs high and left, so her right falls dark
+    ctx.fillStyle = 'rgba(20,4,2,0.38)'
+    ctx.beginPath()
+    ctx.moveTo(0.1 * ppm, -0.7 * ppm)
+    ctx.quadraticCurveTo(0.34 * ppm, -0.6 * ppm, 0.44 * ppm, 0)
+    ctx.lineTo(0.12 * ppm, 0)
+    ctx.quadraticCurveTo(0.2 * ppm, -0.4 * ppm, 0.1 * ppm, -0.7 * ppm)
+    ctx.closePath()
+    ctx.fill()
+    // warm fold highlight down the front
+    ctx.fillStyle = '#a93620'
+    ctx.beginPath()
+    ctx.moveTo(-0.2 * ppm, 0)
+    ctx.quadraticCurveTo(-0.12 * ppm, -0.5 * ppm, 0.04 * ppm, -0.64 * ppm)
+    ctx.quadraticCurveTo(0, -0.3 * ppm, 0.06 * ppm, 0)
+    ctx.closePath()
+    ctx.fill()
+    // cold moon rim along her left shoulder line
+    ctx.strokeStyle = 'rgba(207,232,210,0.30)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(-0.4 * ppm, -0.08 * ppm)
+    ctx.quadraticCurveTo(-0.32 * ppm, -0.56 * ppm, -0.02 * ppm, -0.7 * ppm)
+    ctx.stroke()
+    // her gathering breath underlights the chest while she inhales
+    if (inh > 0.02) {
+      ctx.globalAlpha = inh * 0.4
+      ctx.fillStyle = '#ff5a3c'
+      ctx.beginPath()
+      ctx.ellipse(0, -0.52 * ppm, 0.16 * ppm, 0.12 * ppm, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 1
+    }
+    // wild hair — the mane sways a beat BEHIND the body rock (secondary motion)
+    const hsw = Math.sin(t * 1.3 + i * 2 - 0.7) * 0.04
     ctx.fillStyle = '#120d0b'
     ctx.beginPath()
-    ctx.arc(0, -0.78 * ppm, 0.26 * ppm, 0, Math.PI * 2)
+    ctx.arc(0, -0.78 * ppm, 0.27 * ppm, 0, Math.PI * 2)
     ctx.fill()
     ctx.strokeStyle = '#120d0b'
     ctx.lineWidth = 2
     ctx.beginPath()
-    for (let k = 0; k < 7; k++) {
-      const ang = -Math.PI * 0.9 + k * 0.28 + 0.1 * Math.sin(t * 2 + k)
-      ctx.moveTo(Math.cos(ang) * 0.2 * ppm, -0.78 * ppm + Math.sin(ang) * 0.2 * ppm)
-      ctx.lineTo(Math.cos(ang) * 0.42 * ppm, -0.78 * ppm + Math.sin(ang) * 0.42 * ppm)
+    for (let k = 0; k < 9; k++) {
+      const ang = -Math.PI * 1.05 + k * 0.26 + 0.12 * Math.sin(t * 2 + k * 1.3) + hsw
+      const r1 = (0.4 + 0.07 * Math.sin(t * 1.7 + k * 2.1)) * ppm
+      ctx.moveTo(Math.cos(ang) * 0.18 * ppm, -0.78 * ppm + Math.sin(ang) * 0.18 * ppm)
+      ctx.lineTo(Math.cos(ang) * r1, -0.78 * ppm + Math.sin(ang) * r1)
     }
     ctx.stroke()
-    // pale little face + eyes (spectral when inhaling)
+    // a few strands catch the moon
+    ctx.strokeStyle = 'rgba(170,150,130,0.35)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    for (let k = 0; k < 3; k++) {
+      const ang = -Math.PI * 0.95 + k * 0.2 + 0.12 * Math.sin(t * 2 + k) + hsw
+      ctx.moveTo(Math.cos(ang) * 0.2 * ppm, -0.78 * ppm + Math.sin(ang) * 0.2 * ppm)
+      ctx.lineTo(Math.cos(ang) * 0.4 * ppm, -0.78 * ppm + Math.sin(ang) * 0.4 * ppm)
+    }
+    ctx.stroke()
+    // she combs that mane with a glint of gold — the stroke pauses to inhale
+    if (inh < 0.95) {
+      const strokePos = 0.5 + 0.5 * Math.sin(t * 0.9 + i * 2.1)
+      const cAng = -Math.PI * 0.62
+      const cr = (0.24 + 0.18 * strokePos) * ppm
+      const cxp = Math.cos(cAng) * cr
+      const cyp = -0.78 * ppm + Math.sin(cAng) * cr
+      ctx.globalAlpha = 1 - inh
+      ctx.strokeStyle = '#5a1810' // her sleeve, raised through the hair
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.moveTo(-0.3 * ppm, -0.42 * ppm)
+      ctx.quadraticCurveTo(-0.38 * ppm, -0.6 * ppm, cxp, cyp)
+      ctx.stroke()
+      ctx.fillStyle = '#e8c060' // the little golden comb of the drowned
+      ctx.fillRect(cxp - 4, cyp - 2, 8, 3)
+      ctx.strokeStyle = '#e8c060'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      for (let k = -1; k <= 1; k++) {
+        ctx.moveTo(cxp + k * 3, cyp + 1)
+        ctx.lineTo(cxp + k * 3, cyp + 5)
+      }
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+    // pale little hag face — brow shadow, hooked nose, crooked grin
     ctx.fillStyle = '#d8c4a8'
     ctx.beginPath()
     ctx.arc(0, -0.74 * ppm, 0.13 * ppm, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = inh > 0.05 ? '#9fffd0' : '#1a0d08'
-    ctx.fillRect(-0.07 * ppm, -0.78 * ppm, 3, 3)
-    ctx.fillRect(0.03 * ppm, -0.78 * ppm, 3, 3)
+    ctx.fillStyle = 'rgba(70,40,28,0.35)'
+    ctx.beginPath()
+    ctx.ellipse(0, -0.8 * ppm, 0.115 * ppm, 0.05 * ppm, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#c4ad8e'
+    ctx.beginPath()
+    ctx.moveTo(-0.005 * ppm, -0.77 * ppm)
+    ctx.lineTo(-0.045 * ppm, -0.7 * ppm)
+    ctx.lineTo(0.015 * ppm, -0.715 * ppm)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(60,25,18,0.8)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(-0.05 * ppm, -0.675 * ppm)
+    ctx.quadraticCurveTo(0, -0.655 * ppm, 0.06 * ppm, -0.675 * ppm)
+    ctx.stroke()
+    // eyes — ember-dim at rest, spectral green as the charm gathers
+    ctx.fillStyle = inh > 0.05 ? '#9fffd0' : '#c75a32'
+    ctx.fillRect(-0.07 * ppm, -0.79 * ppm, 3, 3)
+    ctx.fillRect(0.035 * ppm, -0.785 * ppm, 3, 2) // one eye narrower — feroz
+    if (inh > 0.05) {
+      const egs = 0.3 * ppm
+      ctx.globalAlpha = inh * 0.8
+      ctx.drawImage(glowCool, -0.07 * ppm + 1.5 - egs / 2, -0.78 * ppm + 1.5 - egs / 2, egs, egs)
+      ctx.drawImage(glowCool, 0.035 * ppm + 1.5 - egs / 2, -0.78 * ppm + 1.5 - egs / 2, egs, egs)
+      ctx.globalAlpha = 1
+      // breath wisps — the air itself bending toward her mouth
+      ctx.strokeStyle = '#ff7a50'
+      ctx.lineWidth = 1
+      ctx.globalAlpha = 0.35 * inh
+      for (let k = 0; k < 3; k++) {
+        const wr = (0.55 - 0.3 * inh) * ppm * (1 + k * 0.25)
+        const wo = 0.2 * Math.sin(t * 4 + k * 2)
+        ctx.beginPath()
+        ctx.arc(0, -0.7 * ppm, wr, -0.5 + wo, 0.6 + wo)
+        ctx.stroke()
+      }
+      ctx.globalAlpha = 1
+    }
     ctx.restore()
   }
 
@@ -853,60 +1003,149 @@ export function createRender(canvas, refs) {
     const x = sx(p.x)
     const y = sy(p.y)
     const blink = p.invulnT > 0 && Math.sin(t * 30) > 0
+    const baseA = blink ? 0.45 : 1
     if (blink) ctx.globalAlpha = 0.45
-    // hand lantern glow — the traveler carries a small light
+    // lantern pendulum — swings with the stride, breathes at idle; the glow
+    // outside the body transform follows the same swing
+    const speed = Math.min(1, Math.abs(p.vx) / 4)
+    const sway = Math.sin(p.walkPhase * 0.5) * 0.06 * speed + Math.sin(t * 1.6) * 0.018
+    const lanX = 0.3 + sway
+    const lanY = -0.5 + Math.abs(sway) * 0.3
     const gs = 2.4 * ppm * (0.9 + 0.1 * Math.sin(t * 7.3))
-    ctx.drawImage(glowWarm, x + p.face * 0.3 * ppm - gs / 2, y - 0.55 * ppm - gs / 2, gs, gs)
+    ctx.drawImage(glowWarm, x + p.face * lanX * ppm - gs / 2, y + (lanY - 0.05) * ppm - gs / 2, gs, gs)
     ctx.save()
     ctx.translate(x, y)
     ctx.scale(p.face, 1 - 0.18 * p.landT)
     const lean = Math.max(-0.18, Math.min(0.18, p.vx * 0.022))
     ctx.rotate(lean * p.face)
-    // legs (walk cycle)
-    const lp = Math.sin(p.walkPhase)
+    // legs — two segments with a knee bend; tucked stride in the air
+    const lp = p.grounded ? Math.sin(p.walkPhase) : 0.45
     ctx.strokeStyle = '#11160f'
     ctx.lineWidth = 4
     ctx.beginPath()
     ctx.moveTo(0, -0.36 * ppm)
-    ctx.lineTo(lp * 0.16 * ppm, 0)
+    ctx.quadraticCurveTo((lp * 0.16 + 0.07) * ppm, -0.18 * ppm, lp * 0.16 * ppm, 0)
     ctx.moveTo(0, -0.36 * ppm)
-    ctx.lineTo(-lp * 0.16 * ppm, 0)
+    ctx.quadraticCurveTo((-lp * 0.16 + 0.07) * ppm, -0.18 * ppm, -lp * 0.16 * ppm, 0)
     ctx.stroke()
-    // cloak body
+    ctx.fillStyle = '#0c100c' // boots
+    ctx.fillRect(lp * 0.16 * ppm - 2, -3, 7, 3)
+    ctx.fillRect(-lp * 0.16 * ppm - 2, -3, 7, 3)
+    // scarf tail — flutters a beat behind the body (secondary motion)
+    const flut = Math.sin(t * 3.1 + p.walkPhase * 1.7)
+    ctx.strokeStyle = '#8e7f5e'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(-0.06 * ppm, -0.86 * ppm)
+    ctx.quadraticCurveTo(-0.28 * ppm, (-0.82 + 0.05 * flut) * ppm, (-0.42 - speed * 0.1) * ppm, (-0.74 + 0.08 * flut) * ppm)
+    ctx.stroke()
+    // poncho body — ragged hem swings opposite the stride
+    const hemSw = -lp * 0.03 - lean * 0.2
     ctx.fillStyle = '#1a2018'
     ctx.beginPath()
     ctx.moveTo(-0.24 * ppm, -0.05 * ppm)
     ctx.quadraticCurveTo(-0.26 * ppm, -0.8 * ppm, 0, -0.95 * ppm)
     ctx.quadraticCurveTo(0.24 * ppm, -0.8 * ppm, 0.2 * ppm, -0.05 * ppm)
+    ctx.lineTo((0.13 + hemSw) * ppm, -0.02 * ppm)
+    ctx.lineTo((0.04 + hemSw) * ppm, (-0.06 + 0.012 * flut) * ppm)
+    ctx.lineTo((-0.06 + hemSw) * ppm, -0.015 * ppm)
+    ctx.lineTo((-0.16 + hemSw) * ppm, (-0.055 - 0.012 * flut) * ppm)
     ctx.closePath()
     ctx.fill()
-    // parchment trim
+    // hand-loomed weave, anchored to the poncho (same path, second fill)
+    ctx.globalAlpha = baseA * 0.55
+    ctx.fillStyle = ponchoWeave
+    ctx.fill()
+    ctx.globalAlpha = baseA
+    // back-edge shadow — he walks with the moon behind his shoulder
+    ctx.fillStyle = 'rgba(0,0,0,0.30)'
+    ctx.beginPath()
+    ctx.moveTo(-0.24 * ppm, -0.05 * ppm)
+    ctx.quadraticCurveTo(-0.26 * ppm, -0.8 * ppm, 0, -0.95 * ppm)
+    ctx.quadraticCurveTo(-0.12 * ppm, -0.7 * ppm, -0.1 * ppm, -0.05 * ppm)
+    ctx.closePath()
+    ctx.fill()
+    // cold moon rim down the back edge
+    ctx.strokeStyle = 'rgba(190,220,200,0.22)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(-0.235 * ppm, -0.1 * ppm)
+    ctx.quadraticCurveTo(-0.255 * ppm, -0.78 * ppm, -0.01 * ppm, -0.94 * ppm)
+    ctx.stroke()
+    // warm lantern light kissing the front fold
+    ctx.strokeStyle = 'rgba(255,200,130,0.30)'
+    ctx.beginPath()
+    ctx.moveTo(0.2 * ppm, -0.1 * ppm)
+    ctx.quadraticCurveTo(0.235 * ppm, -0.75 * ppm, 0.02 * ppm, -0.93 * ppm)
+    ctx.stroke()
+    // parchment trim + a patch mended many winters ago
     ctx.strokeStyle = 'rgba(232,220,192,0.25)'
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(-0.2 * ppm, -0.12 * ppm)
     ctx.quadraticCurveTo(-0.21 * ppm, -0.7 * ppm, 0, -0.86 * ppm)
     ctx.stroke()
-    // hood + shadowed face
+    ctx.fillStyle = '#222a20'
+    ctx.fillRect(0.02 * ppm, -0.5 * ppm, 0.11 * ppm, 0.13 * ppm)
+    ctx.strokeStyle = 'rgba(232,220,192,0.20)'
+    ctx.beginPath()
+    ctx.moveTo(0.03 * ppm, -0.5 * ppm)
+    ctx.lineTo(0.03 * ppm + 3, -0.5 * ppm - 2)
+    ctx.moveTo(0.08 * ppm, -0.5 * ppm)
+    ctx.lineTo(0.08 * ppm + 3, -0.5 * ppm - 2)
+    ctx.moveTo(0.13 * ppm, -0.44 * ppm)
+    ctx.lineTo(0.13 * ppm + 3, -0.44 * ppm - 2)
+    ctx.stroke()
+    // hood — moonlit rim behind, shadowed cavity within
     ctx.fillStyle = '#242c24'
     ctx.beginPath()
     ctx.arc(0.02 * ppm, -1.0 * ppm, 0.17 * ppm, 0, Math.PI * 2)
     ctx.fill()
+    ctx.strokeStyle = 'rgba(190,220,200,0.18)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.arc(0.02 * ppm, -1.0 * ppm, 0.165 * ppm, Math.PI * 0.85, Math.PI * 1.6)
+    ctx.stroke()
     ctx.fillStyle = '#0a0d0a'
     ctx.beginPath()
     ctx.arc(0.07 * ppm, -0.99 * ppm, 0.1 * ppm, 0, Math.PI * 2)
     ctx.fill()
-    // lantern arm + lantern
+    // the lantern finds a sliver of face — nose and chin in warm light
+    ctx.fillStyle = 'rgba(255,200,140,0.45)'
+    ctx.beginPath()
+    ctx.moveTo(0.145 * ppm, -1.03 * ppm)
+    ctx.quadraticCurveTo(0.165 * ppm, -0.99 * ppm, 0.145 * ppm, -0.975 * ppm)
+    ctx.quadraticCurveTo(0.135 * ppm, -0.955 * ppm, 0.12 * ppm, -0.95 * ppm)
+    ctx.quadraticCurveTo(0.14 * ppm, -0.98 * ppm, 0.145 * ppm, -1.03 * ppm)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,220,170,0.8)' // a glint of eye in the dark
+    ctx.fillRect(0.085 * ppm, -1.01 * ppm, 2, 2)
+    // lantern arm — follows the pendulum swing
     ctx.strokeStyle = '#1a2018'
     ctx.lineWidth = 3
     ctx.beginPath()
     ctx.moveTo(0.05 * ppm, -0.6 * ppm)
-    ctx.lineTo(0.3 * ppm, -0.5 * ppm)
+    ctx.quadraticCurveTo(0.18 * ppm, (-0.56 + sway * 0.2) * ppm, lanX * ppm, (lanY + 0.04) * ppm)
     ctx.stroke()
+    // the lantern itself — a little tin house with a breathing ember
+    ctx.save()
+    ctx.translate(lanX * ppm, lanY * ppm)
+    ctx.rotate(-sway * 2)
     ctx.fillStyle = '#0e0c08'
-    ctx.fillRect(0.26 * ppm, -0.52 * ppm, 6, 8)
+    ctx.fillRect(-4.5, -3, 9, 2) // roof
+    ctx.fillRect(-3.5, -2, 7, 10)
+    ctx.globalAlpha = baseA * (0.85 + 0.15 * Math.sin(t * 7.3))
     ctx.fillStyle = '#ffd9a0'
-    ctx.fillRect(0.27 * ppm + 1, -0.5 * ppm, 4, 5)
+    ctx.fillRect(-2.5, 0, 5, 6)
+    ctx.globalAlpha = baseA
+    ctx.strokeStyle = 'rgba(20,16,10,0.8)' // glass bar
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    ctx.lineTo(0, 6)
+    ctx.stroke()
+    ctx.restore()
     ctx.restore()
     if (blink) ctx.globalAlpha = 1
   }

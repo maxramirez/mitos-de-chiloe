@@ -415,55 +415,174 @@ export function buildWorld(scene) {
 }
 
 /* ============================================================
-   The brujo in flight — dark figure wearing the macuñ
+   The brujo in flight — dark figure wearing the macuñ.
+   Seen mostly from behind/above, so the back carries the detail:
+   stitched-hide vest with glowing seams, bat-membrane wings with
+   bone ribs, arms reaching into the wings, legs trailing, and
+   tattered hem strips that sway off the body's own rhythm.
    ============================================================ */
 export function createBrujo() {
+  const T = getTextures()
   const group = new THREE.Group()
-  const skin = new THREE.MeshStandardMaterial({ color: 0x1a1612, roughness: 0.9 })
-  /* the flayed-skin vest gets a faint leather grain (bump only) */
+  const skin = new THREE.MeshStandardMaterial({
+    color: 0x1a1612,
+    roughness: 0.9,
+    bumpMap: T.skin,
+    bumpScale: 0.035,
+  })
+  /* the flayed-skin vest: stitched hide patches, seams that glow
+     the macuñ's faint spectral green (emissiveMap = stitches only) */
   const macun = new THREE.MeshStandardMaterial({
-    color: 0x241b14,
+    color: 0xffffff /* the map carries the dark leather tones */,
+    map: T.macun,
+    bumpMap: T.macun,
+    bumpScale: 0.08,
     roughness: 0.85,
     side: THREE.DoubleSide,
     emissive: 0x9fffd0,
-    emissiveIntensity: 0.018,
-    bumpMap: getTextures().leather,
-    bumpScale: 0.05,
+    emissiveIntensity: 0.55,
+    emissiveMap: T.macunGlow,
+  })
+  /* wing membrane: same hide stretched thin, finger ribs showing */
+  const membrane = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: T.wing,
+    bumpMap: T.wing,
+    bumpScale: 0.06,
+    roughness: 0.8,
+    side: THREE.DoubleSide,
+    emissive: 0x9fffd0,
+    emissiveIntensity: 0.5,
+    emissiveMap: T.wingGlow,
   })
 
   const body = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.1, 7), skin)
   body.rotation.x = Math.PI / 2 /* cone tip points +z = direction of flight */
   body.position.z = -0.2
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), skin)
-  head.position.set(0, 0.18, 1.0)
-  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.06, 9), skin)
-  brim.position.set(0, 0.4, 1.0)
-  const crown = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 9), skin)
-  crown.position.set(0, 0.62, 1.0)
-  group.add(body, head, brim, crown)
 
-  /* macuñ wings — the flayed vest stretched on night air */
-  const wingGeo = new THREE.PlaneGeometry(2.6, 1.3, 5, 2)
+  /* head + hat in one group so the whole head can bob */
+  const headGrp = new THREE.Group()
+  headGrp.position.set(0, 0, 1.0)
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), skin)
+  head.position.y = 0.18
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.06, 9), skin)
+  brim.position.y = 0.4
+  const crown = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 9), skin)
+  crown.position.y = 0.62
+  /* wind-thrown hair under the hat brim */
+  const hair = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.55, 5), skin)
+  hair.position.set(0, 0.2, -0.28)
+  hair.rotation.x = -Math.PI / 2 - 0.35 /* streams back and slightly down */
+  headGrp.add(head, brim, crown, hair)
+  group.add(body, headGrp)
+
+  /* the vest itself: a flared hide sleeve draped over the shoulders */
+  const vest = new THREE.Mesh(
+    new THREE.LatheGeometry(
+      [
+        new THREE.Vector2(0.3, 0.55),
+        new THREE.Vector2(0.44, 0.18),
+        new THREE.Vector2(0.5, -0.18),
+        new THREE.Vector2(0.58, -0.55),
+      ],
+      10
+    ),
+    macun
+  )
+  vest.rotation.x = Math.PI / 2 /* axis along the prone body */
+  vest.position.set(0, 0.04, 0.25)
+  group.add(vest)
+
+  /* arms stretched into the wings — a man pinned on the night air */
+  const armGeo = new THREE.CylinderGeometry(0.06, 0.085, 1.15, 5)
+  armGeo.translate(0, 0.575, 0) /* pivot at the shoulder */
+  const handGeo = new THREE.SphereGeometry(0.075, 6, 5)
+  const armL = new THREE.Mesh(armGeo, skin)
+  const armR = new THREE.Mesh(armGeo, skin)
+  armL.position.set(-0.28, 0.06, 0.45)
+  armR.position.set(0.28, 0.06, 0.45)
+  armL.rotation.z = 1.45
+  armR.rotation.z = -1.45
+  const handL = new THREE.Mesh(handGeo, skin)
+  const handR = new THREE.Mesh(handGeo, skin)
+  handL.position.set(-1.42, 0.2, 0.45)
+  handR.position.set(1.42, 0.2, 0.45)
+  group.add(armL, armR, handL, handR)
+
+  /* legs trailing behind, scissoring slowly against the wind */
+  const legGeo = new THREE.ConeGeometry(0.09, 1.0, 5)
+  legGeo.translate(0, 0.5, 0) /* pivot at the hip, tip trailing */
+  const legL = new THREE.Mesh(legGeo, skin)
+  const legR = new THREE.Mesh(legGeo, skin)
+  legL.position.set(-0.13, 0.02, -1.0)
+  legR.position.set(0.13, 0.02, -1.0)
+  legL.rotation.z = 0.1
+  legR.rotation.z = -0.1
+  group.add(legL, legR)
+
+  /* macuñ wings — the flayed vest stretched on night air.
+     Scalloped trailing edge between the finger ribs, tips drooping. */
+  const wingGeo = new THREE.PlaneGeometry(2.6, 1.3, 8, 3)
   const wpos = wingGeo.attributes.position
   for (let i = 0; i < wpos.count; i++) {
     const x = wpos.getX(i)
-    wpos.setY(i, wpos.getY(i) * (1 - Math.abs(x) * 0.18))
+    const y = wpos.getY(i)
+    const nx = Math.abs(x) / 1.3
+    let ny = y * (1 - nx * 0.22)
+    if (y > 0) {
+      /* three scallop bites along the trailing edge */
+      const s = Math.pow(0.5 - 0.5 * Math.cos(nx * Math.PI * 6), 1.5)
+      ny -= (y / 0.65) * 0.2 * s
+    }
+    wpos.setY(i, ny)
+    wpos.setZ(i, -nx * nx * 0.16) /* camber: tips droop after rotation */
   }
   wingGeo.computeVertexNormals()
-  const wingL = new THREE.Mesh(wingGeo, macun)
-  const wingR = new THREE.Mesh(wingGeo, macun)
+  const wingL = new THREE.Mesh(wingGeo, membrane)
+  const wingR = new THREE.Mesh(wingGeo, membrane)
   wingL.position.set(-1.45, 0.12, 0.15)
   wingR.position.set(1.45, 0.12, 0.15)
   wingL.rotation.x = -Math.PI / 2
   wingR.rotation.x = -Math.PI / 2
   group.add(wingL, wingR)
 
+  /* tattered hem strips around the vest's rear edge */
+  const stripGeo = new THREE.PlaneGeometry(0.12, 0.5, 1, 3)
+  stripGeo.translate(0, -0.25, 0) /* pivot at the hem */
+  const strips = []
+  const stripAngles = [0.4, 1.3, 2.4, -2.5, -1.2]
+  for (let i = 0; i < stripAngles.length; i++) {
+    const a = stripAngles[i]
+    const strip = new THREE.Mesh(stripGeo, macun)
+    strip.position.set(Math.cos(a) * 0.52, Math.sin(a) * 0.52, -0.28)
+    strip.rotation.z = a + Math.PI / 2 /* width tangent to the hem */
+    strip.rotation.x = Math.PI / 2 /* hang rearward */
+    strips.push(strip)
+    group.add(strip)
+  }
+
   function update(t, speedNorm) {
-    const flap = Math.sin(t * (3 + speedNorm * 4)) * (0.12 + speedNorm * 0.16)
+    const flapFreq = 3 + speedNorm * 4
+    const flap = Math.sin(t * flapFreq) * (0.12 + speedNorm * 0.16)
     wingL.rotation.z = flap
     wingR.rotation.z = -flap
     wingL.position.y = 0.12 + Math.sin(t * 2.1) * 0.04
     wingR.position.y = 0.12 + Math.sin(t * 2.1 + 0.4) * 0.04
+    /* membrane feathering lags the flap — secondary motion */
+    const feather = Math.sin(t * flapFreq - 0.7) * 0.06
+    wingL.rotation.x = -Math.PI / 2 + feather
+    wingR.rotation.x = -Math.PI / 2 + feather
+    /* hem rags flutter off the body's own rhythm */
+    for (let i = 0; i < strips.length; i++) {
+      strips[i].rotation.x = Math.PI / 2 + Math.sin(t * 2.7 + i * 1.7) * 0.3
+    }
+    /* legs scissor slowly against the wind */
+    const kick = Math.sin(t * 1.9) * 0.08
+    legL.rotation.x = -Math.PI / 2 + 0.1 + kick
+    legR.rotation.x = -Math.PI / 2 + 0.1 - kick
+    /* head bob and vest sway, phase-offset from the wing bob */
+    headGrp.position.y = Math.sin(t * 2.1 + 1.1) * 0.025
+    vest.rotation.z = Math.sin(t * 2.1 + 1.6) * 0.05
   }
 
   return { group, update }

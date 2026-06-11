@@ -28,7 +28,6 @@ const WATER_LINE = 'rgba(159, 255, 208, 0.16)';
 const FOAM = 'rgba(214, 255, 236, 0.85)';
 const GLOW = '#9fffd0';
 const BAD = '#c96a5a';
-const VILLAGER_INK = '#e0d6c2';
 
 function shade(hex, f) {
   const r = Math.round(parseInt(hex.slice(1, 3), 16) * f);
@@ -377,6 +376,224 @@ export function createRenderer(canvas) {
     b.fillRect(0, 0, 64, 64);
   }
 
+  // --- Caicai segment sprites: wet sphere shading + combed scale seams.
+  //     Variant 0 = body, 1 = the darker band every 4th segment.
+  //     Baked once; per frame each segment is one scaled drawImage.
+  const SEGD = 48;
+  const SEG_SPR = [];
+  function bakeSegment(variant) {
+    const c = document.createElement('canvas');
+    c.width = SEGD;
+    c.height = SEGD;
+    const b = c.getContext('2d');
+    const cx = SEGD / 2;
+    const r = SEGD / 2 - 2;
+    srand(variant * 977 + 31);
+    // sphere lit from the upper right (the moon's side of the sky)
+    const g = b.createRadialGradient(cx + 7, cx - 8, 2, cx, cx, r);
+    if (variant === 1) {
+      g.addColorStop(0, '#3c6a68');
+      g.addColorStop(0.45, '#16343b');
+      g.addColorStop(1, '#071219');
+    } else {
+      g.addColorStop(0, '#32585e');
+      g.addColorStop(0.45, '#112730');
+      g.addColorStop(1, '#060e13');
+    }
+    b.fillStyle = g;
+    b.beginPath();
+    b.arc(cx, cx, r, 0, Math.PI * 2);
+    b.fill();
+    b.save();
+    b.beginPath();
+    b.arc(cx, cx, r, 0, Math.PI * 2);
+    b.clip();
+    // scale rows: dark seam under each scale, pale moon-glint above it
+    for (let row = -2; row <= 4; row++) {
+      const ry = cx - 14 + row * 7;
+      for (let k = -2; k <= 2; k++) {
+        const sx = cx + k * 9 + (row % 2 ? 4.5 : 0) + (rnd() - 0.5) * 2;
+        b.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+        b.lineWidth = 1.2;
+        b.beginPath();
+        b.arc(sx, ry, 5.5, Math.PI * 0.15, Math.PI * 0.85);
+        b.stroke();
+        b.strokeStyle = 'rgba(159, 255, 208, 0.07)';
+        b.lineWidth = 1;
+        b.beginPath();
+        b.arc(sx, ry - 1, 5.5, Math.PI * 0.18, Math.PI * 0.82);
+        b.stroke();
+      }
+    }
+    // bioluminescent flecks ride the banded segments
+    if (variant === 1) {
+      b.fillStyle = 'rgba(127, 212, 207, 0.55)';
+      b.fillRect(cx + 6, cx - 4, 1.6, 1.6);
+      b.fillRect(cx - 5, cx + 5, 1.3, 1.3);
+    }
+    b.restore();
+    // moonlit rim along the upper-right edge
+    b.strokeStyle = 'rgba(190, 255, 226, 0.3)';
+    b.lineWidth = 1.6;
+    b.beginPath();
+    b.arc(cx, cx, r - 1, -Math.PI * 0.42, Math.PI * 0.12);
+    b.stroke();
+    return c;
+  }
+  SEG_SPR[0] = bakeSegment(0);
+  SEG_SPR[1] = bakeSegment(1);
+
+  // --- Caicai's skull: top-down spade head pointing +x, baked once and
+  //     drawn rotated to the path tangent (the eyes stay live to pulse).
+  const headSpr = document.createElement('canvas');
+  headSpr.width = 64;
+  headSpr.height = 40;
+  {
+    const b = headSpr.getContext('2d');
+    const my = 20;
+    b.beginPath();
+    b.moveTo(6, my);
+    b.quadraticCurveTo(7, 9, 20, 7);
+    b.quadraticCurveTo(34, 5.5, 44, 11);
+    b.quadraticCurveTo(56, 16, 59, my);
+    b.quadraticCurveTo(56, 24, 44, 29);
+    b.quadraticCurveTo(34, 34.5, 20, 33);
+    b.quadraticCurveTo(7, 31, 6, my);
+    b.closePath();
+    const g = b.createRadialGradient(34, my - 2, 2, 32, my, 30);
+    g.addColorStop(0, '#3a686c');
+    g.addColorStop(0.5, '#143038');
+    g.addColorStop(1, '#06121a');
+    b.fillStyle = g;
+    b.fill();
+    b.save();
+    b.clip();
+    // brow ridges shadowing the eye pits
+    b.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    b.beginPath();
+    b.ellipse(40, my - 7, 6, 2.6, -0.18, 0, Math.PI * 2);
+    b.fill();
+    b.beginPath();
+    b.ellipse(40, my + 7, 6, 2.6, 0.18, 0, Math.PI * 2);
+    b.fill();
+    // gill slashes at the back of the jaw
+    b.strokeStyle = 'rgba(0, 0, 0, 0.38)';
+    b.lineWidth = 1.4;
+    for (let k = 0; k < 3; k++) {
+      b.beginPath();
+      b.moveTo(13 + k * 4, my - 8 + k);
+      b.quadraticCurveTo(11 + k * 4, my, 13 + k * 4, my + 8 - k);
+      b.stroke();
+    }
+    // wet sheen down the spine
+    b.strokeStyle = 'rgba(190, 255, 226, 0.22)';
+    b.lineWidth = 2;
+    b.beginPath();
+    b.moveTo(10, my);
+    b.quadraticCurveTo(36, my - 1.5, 56, my);
+    b.stroke();
+    // nostrils
+    b.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    b.beginPath();
+    b.arc(53, my - 2.2, 1.1, 0, Math.PI * 2);
+    b.fill();
+    b.beginPath();
+    b.arc(53, my + 2.2, 1.1, 0, Math.PI * 2);
+    b.fill();
+    b.restore();
+    // dorsal crest: spectral diamonds along the spine, glow-edged
+    b.fillStyle = '#1d4a4a';
+    b.strokeStyle = 'rgba(159, 255, 208, 0.3)';
+    b.lineWidth = 0.8;
+    for (let k = 0; k < 3; k++) {
+      const dx = 12 + k * 8;
+      b.beginPath();
+      b.moveTo(dx, my - 3.2);
+      b.lineTo(dx + 3.4, my);
+      b.lineTo(dx, my + 3.2);
+      b.lineTo(dx - 3.4, my);
+      b.closePath();
+      b.fill();
+      b.stroke();
+    }
+    // dark eye pits — the live glow eyes land exactly on these
+    b.fillStyle = '#051014';
+    b.beginPath();
+    b.ellipse(41, my - 6, 3.4, 2.4, -0.15, 0, Math.PI * 2);
+    b.fill();
+    b.beginPath();
+    b.ellipse(41, my + 6, 3.4, 2.4, 0.15, 0, Math.PI * 2);
+    b.fill();
+  }
+
+  // --- the lost-villager seal, baked (drawSeal rotates + scales it) ---
+  const sealSpr = document.createElement('canvas');
+  sealSpr.width = 44;
+  sealSpr.height = 24;
+  {
+    const b = sealSpr.getContext('2d');
+    // plump teardrop body: tail left, muzzle right
+    b.beginPath();
+    b.moveTo(3, 12);
+    b.quadraticCurveTo(8, 4, 22, 4.5);
+    b.quadraticCurveTo(32, 5, 36, 9);
+    b.quadraticCurveTo(41, 10.5, 41.5, 13);
+    b.quadraticCurveTo(38, 17, 30, 18);
+    b.quadraticCurveTo(14, 20, 3, 12);
+    b.closePath();
+    const g = b.createLinearGradient(0, 0, 0, 24);
+    g.addColorStop(0, '#5d7e86'); // moonlit wet back
+    g.addColorStop(0.55, '#39505a');
+    g.addColorStop(1, '#1d2c33');
+    b.fillStyle = g;
+    b.fill();
+    b.save();
+    b.clip();
+    // mottled hide
+    srand(2027);
+    b.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    for (let i = 0; i < 14; i++) {
+      b.beginPath();
+      b.ellipse(6 + rnd() * 30, 6 + rnd() * 12, 1 + rnd() * 1.8, 0.7 + rnd() * 1, rnd(), 0, Math.PI * 2);
+      b.fill();
+    }
+    // wet sheen along the back
+    b.strokeStyle = 'rgba(214, 255, 236, 0.4)';
+    b.lineWidth = 1.4;
+    b.beginPath();
+    b.moveTo(8, 7.5);
+    b.quadraticCurveTo(22, 4.5, 34, 8);
+    b.stroke();
+    b.restore();
+    // fore-flipper
+    b.fillStyle = '#26383f';
+    b.beginPath();
+    b.moveTo(22, 15);
+    b.quadraticCurveTo(20, 21, 14, 22);
+    b.quadraticCurveTo(19, 16.5, 18, 14.5);
+    b.closePath();
+    b.fill();
+    // tail flukes
+    b.beginPath();
+    b.moveTo(4, 11);
+    b.lineTo(0, 6);
+    b.lineTo(2, 12);
+    b.lineTo(0, 18);
+    b.closePath();
+    b.fill();
+    // eye, with a small sorrowful glint
+    b.fillStyle = '#0a1216';
+    b.beginPath();
+    b.arc(35.5, 10.5, 1.5, 0, Math.PI * 2);
+    b.fill();
+    b.fillStyle = 'rgba(214, 255, 236, 0.8)';
+    b.fillRect(35.9, 9.8, 0.7, 0.7);
+    // whisker dots
+    b.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    b.fillRect(39.2, 12.2, 0.8, 0.8);
+    b.fillRect(38.2, 13.4, 0.8, 0.8);
+  }
+
   // --- freshly-raised flash stamps (interaction juice) ---
   const flashT = new Float32Array(N).fill(-9);
 
@@ -549,44 +766,97 @@ export function createRenderer(canvas) {
     return p * p * (3 - 2 * p);
   }
 
-  function drawVillagerFigure(sx, sy, bob, alpha) {
+  // per-villager poncho tints (deterministic by id) — undyed island wools,
+  // all light enough that the silhouette still reads against the dark land
+  const PONCHO = ['#e0d6c2', '#d8d2c6', '#e4d6b4', '#cfc9bd', '#e0ccae', '#d9d3b8'];
+  const PONCHO_DK = ['#9b8f74', '#948e80', '#a39271', '#8d887c', '#9c8a6e', '#959070'];
+
+  function drawVillagerFigure(sx, sy, bob, alpha, id = 0, walkP = -1, lean = 0) {
     ctx.globalAlpha = alpha;
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath();
     ctx.ellipse(sx, sy + 1, 4, 1.7, 0, 0, Math.PI * 2);
     ctx.fill();
-    // cloak
-    ctx.fillStyle = VILLAGER_INK;
+    const lit = PONCHO[id % PONCHO.length];
+    const dk = PONCHO_DK[id % PONCHO_DK.length];
+    // feet: two alternating steps while marching
+    if (walkP >= 0) {
+      const ph = Math.sin(walkP * Math.PI * 2);
+      ctx.fillStyle = dk;
+      ctx.fillRect(sx - 1.7 + ph * 1.4, sy - 1.6, 1.3, 1.8);
+      ctx.fillRect(sx + 0.4 - ph * 1.4, sy - 1.6, 1.3, 1.8);
+    }
+    const hx = sx + lean; // shoulders lean into the walk
+    // the hem lags the body sway — cloth living half a beat behind
+    const hem = Math.sin(animT * 3.1 + id * 2.3) * 0.7;
+    const top = sy - 11 - bob;
+    const base = sy - bob * 0.4;
+    // poncho, shadow side (away from the moon)
+    ctx.fillStyle = dk;
     ctx.beginPath();
-    ctx.moveTo(sx, sy - 11 - bob);
-    ctx.lineTo(sx + 3.4, sy - bob * 0.4);
-    ctx.lineTo(sx - 3.4, sy - bob * 0.4);
+    ctx.moveTo(hx, top);
+    ctx.quadraticCurveTo(sx - 3.6, sy - 5 - bob * 0.6, sx - 3.4 + hem * 0.5, base);
+    ctx.lineTo(sx + 0.5, base);
     ctx.closePath();
     ctx.fill();
-    // head
+    // poncho, moonlit panel
+    ctx.fillStyle = lit;
     ctx.beginPath();
-    ctx.arc(sx, sy - 12.4 - bob, 2.1, 0, Math.PI * 2);
+    ctx.moveTo(hx, top);
+    ctx.quadraticCurveTo(sx + 3.7, sy - 5 - bob * 0.6, sx + 3.4 + hem, base);
+    ctx.lineTo(sx - 0.6, base);
+    ctx.closePath();
     ctx.fill();
+    // woven stripe — a chilote manta band across the chest
+    ctx.strokeStyle = 'rgba(74, 56, 40, 0.55)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(hx - 2.1, sy - 7.5 - bob * 0.85);
+    ctx.lineTo(hx + 2.3, sy - 7.1 - bob * 0.85);
+    ctx.stroke();
+    // rim light down the moonward edge
+    ctx.strokeStyle = 'rgba(244, 248, 216, 0.6)';
+    ctx.beginPath();
+    ctx.moveTo(hx + 0.5, top + 0.6);
+    ctx.quadraticCurveTo(sx + 3.5, sy - 5 - bob * 0.6, sx + 3.2 + hem, base);
+    ctx.stroke();
+    // a bundle on some backs — what they could carry, they carried
+    if (id % 3 === 0) {
+      ctx.fillStyle = '#6b5a42';
+      ctx.beginPath();
+      ctx.arc(hx - 2.2, sy - 9.6 - bob, 1.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // head: dark hair over a moonlit face, one glint of moon on the crown
+    ctx.fillStyle = '#352c22';
+    ctx.beginPath();
+    ctx.arc(hx, sy - 12.4 - bob, 2.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = lit;
+    ctx.beginPath();
+    ctx.arc(hx + 0.5, sy - 12 - bob, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(252, 252, 230, 0.85)';
+    ctx.fillRect(hx + 1, sy - 13.6 - bob, 0.7, 0.7);
     ctx.globalAlpha = 1;
   }
 
-  function drawSeal(sx, sy, t) {
-    // t: 0..1.6 transformation clock
+  function drawSeal(sx, sy, t, id = 0) {
+    // t: 0..1.6 transformation clock — the person sinks, the seal slips out
     const sink = Math.min(1, t / 0.5);
-    if (sink < 1) drawVillagerFigure(sx, sy + sink * 6, 0, 1 - sink);
+    if (sink < 1) drawVillagerFigure(sx, sy + sink * 6, 0, 1 - sink, id);
     const st = (t - 0.35) / 1.25;
     if (st > 0 && st < 1) {
-      ctx.globalAlpha = (1 - st) * 0.9;
-      ctx.fillStyle = '#39505a';
       const dx = sx + st * 16;
       const dy = sy + 3 + Math.sin(st * Math.PI) * -5;
-      ctx.beginPath();
-      ctx.ellipse(dx, dy, 7, 3.1, 0.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(dx + 6, dy - 2.4, 2.2, 0, Math.PI * 2);
-      ctx.fill();
+      const dive = Math.cos(st * Math.PI) * -0.35; // breaches up, noses down
+      ctx.save();
+      ctx.translate(dx, dy);
+      ctx.rotate(dive);
+      ctx.globalAlpha = (1 - st) * 0.92;
+      ctx.drawImage(sealSpr, -10, -5.5, 20, 11);
+      ctx.restore();
       // ripple
       ctx.strokeStyle = WATER_LINE;
       ctx.lineWidth = 1;
@@ -844,7 +1114,7 @@ export function createRenderer(canvas) {
             if (t < 1.6) {
               const i = idx(v.x, v.y);
               const py = BY[i] - (sim.water + 0.42) * TZ;
-              drawSeal(BX[i] + off[0] * 0.5, py + off[1] * 0.5, t);
+              drawSeal(BX[i] + off[0] * 0.5, py + off[1] * 0.5, t, v.id);
             }
           }
           continue;
@@ -861,7 +1131,9 @@ export function createRenderer(canvas) {
         const py = CY + (fx + fy - 12) * HH - fh * TZ + off[1] * 0.5;
         const moving = game.sub === 'march' && (v.tx !== v.fx || v.ty !== v.fy);
         const bob = moving ? Math.abs(Math.sin(marchP * Math.PI * 2)) * 2.2 : (0.5 + 0.5 * Math.sin(animT * 2.4 + v.id * 1.7)) * 0.8;
-        drawVillagerFigure(px, py, bob, 1);
+        // lean into the screen-space walk direction; shuffle feet mid-step
+        const lean = moving ? ((v.tx - v.fx) - (v.ty - v.fy)) * 0.55 : 0;
+        drawVillagerFigure(px, py, bob, 1, v.id, moving ? marchP : -1, lean);
       }
 
       // particles
@@ -899,10 +1171,8 @@ export function createRenderer(canvas) {
       const r = i === 0 ? 9 : 8 - (i / SEGS) * 5.5;
       const segA = (urgent || rising ? 0.75 + 0.25 * Math.sin(animT * 7) : 0.62) * (1 - i / (SEGS * 1.6));
       ctx.globalAlpha = segA;
-      ctx.fillStyle = i % 4 === 2 ? '#16343b' : '#112730';
-      ctx.beginPath();
-      ctx.arc(ex, ey, r, 0, Math.PI * 2);
-      ctx.fill();
+      // sphere-shaded, scale-combed segment (one scaled blit)
+      ctx.drawImage(SEG_SPR[i % 4 === 2 ? 1 : 0], ex - r, ey - r, r * 2, r * 2);
       // dorsal crest: a small spectral fin on every third segment
       if (i % 3 === 1 && i < SEGS - 4) {
         let nx = ex - CX;
@@ -918,17 +1188,30 @@ export function createRenderer(canvas) {
         ctx.lineTo(ex + nx * (r - 1) + ny * 2.4, ey + ny * (r - 1) - nx * 2.4);
         ctx.closePath();
         ctx.fill();
+        // moonlight catches the fin's leading edge
+        ctx.strokeStyle = 'rgba(159, 255, 208, 0.22)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(ex + nx * (r - 1) - ny * 2.4, ey + ny * (r - 1) + nx * 2.4);
+        ctx.lineTo(ex + nx * (r + 5), ey + ny * (r + 5));
+        ctx.stroke();
       }
       if (i === 0) {
-        // head: spectral halo + eyes + crest
+        // spectral halo under the skull
         ctx.globalAlpha = urgent || rising ? 0.42 + 0.16 * Math.sin(animT * 7) : 0.2;
         ctx.drawImage(headGlow, ex - 32, ey - 32);
-        ctx.globalAlpha = 1;
+        // skull, rotated to the direction of travel (path tangent)
+        const ang = Math.atan2(Math.cos(a) * (ry + wob * 0.6), -Math.sin(a) * (rx + wob));
+        ctx.save();
+        ctx.translate(ex, ey);
+        ctx.rotate(ang);
+        ctx.globalAlpha = Math.min(1, segA + 0.3);
+        ctx.drawImage(headSpr, -13, -10, 32, 20);
+        // live eyes in the baked pits — they pulse with the tide warning
         ctx.fillStyle = urgent || rising ? '#d8fff0' : GLOW;
-        const la = a + 0.16;
-        const lb = a - 0.16;
-        ctx.fillRect(CX + Math.cos(la) * (rx + wob) - 1.4, cy + Math.sin(la) * (ry + wob * 0.6) - 1.4, 2.8, 2.8);
-        ctx.fillRect(CX + Math.cos(lb) * (rx + wob) - 1.4, cy + Math.sin(lb) * (ry + wob * 0.6) - 1.4, 2.8, 2.8);
+        ctx.fillRect(6.3, -4.2, 2.4, 2.4);
+        ctx.fillRect(6.3, 1.8, 2.4, 2.4);
+        ctx.restore();
       }
     }
     ctx.globalAlpha = 1;

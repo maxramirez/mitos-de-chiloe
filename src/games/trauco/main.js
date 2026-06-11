@@ -115,7 +115,7 @@ let whisperDone = false // the narrator warns once per night, charm > 0.55
 
 // hint strings precomputed (no per-frame string building)
 const HINT_CLICK = 'click para mirar · WASD moverse'
-const HINT_BREAK = 'rompe su línea de visión — pon un tronco entre los dos'
+const HINT_BREAK = 'rompe su mirada — pon un tronco entre los dos, como la isla entre el mar y tu casa'
 const HINT_GATE = 'la puerta — dos troncos inclinados, una lumbre encendida encima'
 const HINT_SEEK = 'la quilineja brilla pálida entre los troncos'
 const HINT_LOCKED = []
@@ -130,7 +130,7 @@ function beginGame() {
   if (phase !== 'title') return
   phase = 'playing'
   audio.unlock()
-  audio.voice('begin') // "No le sostengas la mirada." — plays once decoded
+  audio.voice('begin') // "No le sostengas la mirada. Sus ojos son la marea..." — plays once decoded
   player.enabled = true
   player.requestLock()
 }
@@ -161,7 +161,7 @@ function win() {
     if (document.exitPointerLock) document.exitPointerLock()
   } catch {}
   audio.stinger('win')
-  audio.voice('win') // "El bosque te suelta. No mires atrás."
+  audio.voice('win') // "El bosque te suelta, como la ola suelta a la piedra..."
   ui.showEnd(true)
 }
 
@@ -175,7 +175,7 @@ function lose() {
     if (document.exitPointerLock) document.exitPointerLock()
   } catch {}
   audio.stinger('lose')
-  audio.voice('lose') // "Te dobló la mirada. La niebla se queda con lo que encanta."
+  audio.voice('lose') // "Te dobló la mirada, como dobla el mar al junco verde..."
   ui.showEnd(false)
 }
 
@@ -245,7 +245,7 @@ function frame(rawDt) {
     if (charm < 0) charm = 0
     if (!whisperDone && charm > 0.55) {
       whisperDone = true
-      audio.voice('whisper') // "Rompe su línea de visión..."
+      audio.voice('whisper') // "Rompe su mirada. Pon un tronco entre los dos..."
     }
     if (charm >= 1) {
       charm = 1

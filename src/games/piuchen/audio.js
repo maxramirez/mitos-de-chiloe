@@ -31,6 +31,8 @@ export function createAudio() {
   let lastTension = -1
   let wobT = 0
   let ambNext = 9 // randomized 8–25 s hillside one-shot scheduler
+  let musicGain = null // looping mp3 bed; rides amb so it ducks under voice
+  let musicDone = false // win/lose reached before the bed finished loading
 
   function makeNoise() {
     const len = ctx.sampleRate * 2
@@ -86,6 +88,7 @@ export function createAudio() {
       if (ctx.state === 'suspended') ctx.resume()
       ready = true
       loadVoices()
+      loadMusic()
     } catch (e) {
       ctx = null
       ready = false
@@ -113,6 +116,42 @@ export function createAudio() {
         voiceLoads[name] = Promise.resolve(null)
       }
     }
+  }
+
+  // --- looping music bed ----------------------------------------------------
+  // ~50 s seam-crossfaded loop fetched after the BEGIN gesture. It joins the
+  // amb bus (so it ducks under voice with the rest of the night) at 0.21,
+  // behind a 3.4 kHz lowpass so the scream telegraph and the fence whistle
+  // keep the top of the spectrum. Any failure is a silent no-op; the
+  // procedural wind/drone bed below carries the night alone.
+  function loadMusic() {
+    fetch('../assets/music/piuchen.mp3')
+      .then((r) => {
+        if (!r.ok) throw new Error('http ' + r.status)
+        return r.arrayBuffer()
+      })
+      .then((ab) => ctx.decodeAudioData(ab))
+      .then((buf) => {
+        if (!buf || !ready || musicDone) return
+        musicGain = ctx.createGain()
+        musicGain.gain.value = 0.21
+        const lp = ctx.createBiquadFilter()
+        lp.type = 'lowpass'
+        lp.frequency.value = 3400
+        lp.Q.value = 0.4
+        const src = ctx.createBufferSource()
+        src.buffer = buf
+        src.loop = true // the seam is pre-crossfaded
+        src.connect(lp).connect(musicGain).connect(amb)
+        src.start()
+      })
+      .catch(() => {})
+  }
+
+  // ease the bed out under the end stingers (they play on top, via amb)
+  function musicOut() {
+    musicDone = true
+    if (ready && musicGain) musicGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.7)
   }
 
   // play a clip (latest call wins); ambience ducks to ~40% while it speaks
@@ -254,6 +293,7 @@ export function createAudio() {
     dirt() { noiseHit(420, 1, 0.05, 0.1) }, // stone in the meadow
     waveCry() { blip(2200, 0.04, 0.9, 'sawtooth', 500); blip(3300, 0.018, 0.7, 'square', 800) },
     win() {
+      musicOut() // bed eases away under the dawn chord
       blip(523.25, 0.08, 1.2, 'sine')
       blip(659.25, 0.07, 1.6, 'sine')
       blip(784, 0.06, 2.2, 'sine')
@@ -261,6 +301,7 @@ export function createAudio() {
       vibBlip(700, 0.04, 0.3, 14, 24, 0.8)
     },
     lose() {
+      musicOut() // bed eases away under the falling drone
       blip(196, 0.12, 2.4, 'sawtooth', 49)
       blip(207.65, 0.08, 2.4, 'sawtooth', 52)
     },

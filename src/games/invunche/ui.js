@@ -7,11 +7,10 @@ const STRINGS = {
   title: 'EL INVUNCHE',
   epithet: 'La cueva de Quicaví',
   intro:
-    'En la cueva de Quicaví los brujos guardan a su guardián: un primogénito ' +
-    'rehecho — la cabeza vuelta hacia atrás, una pierna doblada contra el ' +
-    'espinazo — para que nada entre y nada salga. Tu vela guarda tres minutos ' +
-    'de cera; la rendija fría del día no se abrirá sin los tres sellos. Él no ' +
-    've lejos, pero escucha — y la cueva escucha con él.',
+    'En Quicaví duerme el guardián de los brujos: un primogénito vuelto hacia ' +
+    'atrás, como ola que regresa sin su playa. Tu vela es tres minutos de mar ' +
+    'encendido; tres sellos abren la rendija fría del día. Él no ve: escucha, ' +
+    'como el mar dormido escucha a los remos.',
   controls: 'WASD moverse · mouse o flechas mirar · Shift correr, él lo oye · M sonido',
   begin: 'COMENZAR',
   won: {
@@ -19,11 +18,9 @@ const STRINGS = {
     title: 'EL AMANECER',
     sub: 'la puerta del día',
     body:
-      'Empujas la piedra con el hombro y el día entra frío y gris, oliendo a ' +
-      'lluvia y a algas. A tu espalda, el arrastre se detiene en el borde de ' +
-      'la luz — lo que los brujos hicieron no puede seguirte aquí. Los sellos ' +
-      'se deshacen en ceniza dentro de tu bolsillo; Quicaví se queda con su ' +
-      'cueva, pero no contigo.',
+      'El día entra gris y salado, como una red que te alza del fondo. A tu ' +
+      'espalda el arrastre se detiene al borde de la luz: lo que los brujos ' +
+      'cosieron no sabe nadar en la mañana.',
     charms: '✦ ✦ ✦',
     btn: 'VOLVER A LA ISLA',
   },
@@ -32,9 +29,8 @@ const STRINGS = {
     title: 'LA CARA VUELTA',
     sub: 'te encontró',
     body:
-      'Lo último que encuentra la vela es una cara vuelta al revés sobre sus ' +
-      'hombros, tan cerca que comparte tu aliento. Los brujos sabrán darte ' +
-      'uso — en la cueva siempre falta quien sirva. La cueva no devuelve lo que toma.',
+      'Lo último que alumbra la vela es una cara vuelta hacia atrás, cercana ' +
+      'como la sal en el aire. La cueva te guarda, como guarda el mar a sus ahogados.',
     charms: '',
     btn: 'OTRA VELA',
   },
@@ -43,9 +39,9 @@ const STRINGS = {
     title: 'LA VELA MUERTA',
     sub: 'a oscuras',
     body:
-      'El pabilo se ahoga en su propia cera y la oscuridad de Quicaví se posa ' +
-      'sobre ti como lana mojada. Cerca, algo se arrastra hacia ti sin apuro ' +
-      '— ya no necesita correr. Nadie encuentra la puerta a oscuras.',
+      'El pabilo se ahoga en su cera, como un velero en mar sin viento. La ' +
+      'oscuridad se posa sobre ti, lana mojada; algo se arrastra cerca, sin ' +
+      'apuro, como la marea.',
     charms: '',
     btn: 'OTRA VELA',
   },

@@ -20,11 +20,11 @@ const STRINGS = {
     title: 'EL CANAL TE SUELTA',
     sub: 'siete de siete',
     body:
-      'El casco raspa el pedregal y el agua negra del canal te recibe, fría y ' +
-      'segura. A tu espalda el bosque se queda muy quieto — cada árbol ' +
-      'sosteniendo su forma con demasiado cuidado. Las siete páginas no pesan ' +
-      'nada en tu abrigo, y el brujo de Quicaví se queda sin su pacto. ' +
-      'Esta noche, el canal te deja ir.',
+      'El casco raspa el pedregal y a tu espalda el bosque se queda muy ' +
+      'quieto — cada árbol sosteniendo su forma con demasiado cuidado. Las ' +
+      'siete páginas no pesan nada en tu abrigo, y el brujo de Quicaví se ' +
+      'queda sin su pacto. El agua negra te abre su mano fría: esta noche el ' +
+      'canal te suelta, como la marea suelta a la luna.',
     charms: '✦ ✦ ✦ ✦ ✦ ✦ ✦',
     btn: 'VOLVER A LA ISLA',
   },
@@ -33,11 +33,11 @@ const STRINGS = {
     title: 'LA MIRADA',
     sub: 'lo miraste demasiado',
     body:
-      'La estática era él, entrando por tus ojos — el que mira al brujo le ' +
-      'abre la puerta. El farol rueda entre las hojas mojadas y se apaga, y ' +
-      'siete páginas vuelven volando a sus árboles como pájaros. Quien ' +
-      'encuentre el farol no te encontrará a ti. No lo mires: cuenta las ' +
-      'páginas, y sigue caminando.',
+      'La estática era él: lo miraste, y entró por tus ojos como entra el ' +
+      'mar en la barca rota. El farol rueda entre las hojas mojadas y se ' +
+      'apaga, y siete páginas vuelven volando a sus árboles como pájaros. ' +
+      'Quien encuentre el farol no te encontrará a ti. No lo mires: cuenta ' +
+      'las páginas, y camina.',
     charms: '',
     btn: 'OTRA NOCHE',
   },

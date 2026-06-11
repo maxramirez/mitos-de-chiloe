@@ -2,7 +2,8 @@
 // Mostly procedural WebAudio. Lazy AudioContext created in unlock() (called
 // from the BEGIN click — a user gesture — so no autoplay-policy errors).
 // Everything is a safe no-op before unlock. M toggles mute via the master gain.
-// Layers: gully rumble (noise+sub, pitches with speed), wind, and one-shot
+// Layers: a looping pre-rendered music bed (../assets/music/camahueto.mp3),
+// gully rumble (noise+sub, pitches with speed), wind, and one-shot
 // stingers: shaving chime, hit thud, gush splash, jump whoosh, win/lose.
 // Night-ambience one-shots (pebble tumbles, wind gusts, horn shimmer, a rare
 // night bird) fire on a randomized 8-25 s scheduler; all ambience runs through
@@ -17,8 +18,9 @@ export function createAudio() {
   let muted = false;
 
   const MASTER = 0.3;
+  const MUSIC_LVL = 0.24; // bed sits under the noise ambience; nothing melodic to clash with
   let master, noiseBuf;
-  let bedBus, voiceGain;
+  let bedBus, voiceGain, musicGain;
   let rumbleLP, rumbleGain, subOsc, subGain, windBP, windGain;
   let lastSpd = -1;
   let nextAmb = 0;
@@ -65,6 +67,29 @@ export function createAudio() {
     voiceGain.gain.value = 0.8;
     voiceGain.connect(master);
     loadVoices();
+
+    // music bed: pre-rendered ~50 s loop (seam pre-crossfaded, so source.loop
+    // is enough). Routed through bedBus so it ducks under the narrator with
+    // the rest of the ambience, and through master so M mutes it. Eased out
+    // by bedOff() on win/lose so the end stingers sit on top. Any fetch or
+    // decode failure leaves the game identical, just bed-less.
+    musicGain = ctx.createGain();
+    musicGain.gain.value = 0;
+    musicGain.connect(bedBus);
+    try {
+      fetch('../assets/music/camahueto.mp3')
+        .then((r) => { if (!r.ok) throw new Error('http'); return r.arrayBuffer(); })
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buf) => {
+          const s = ctx.createBufferSource();
+          s.buffer = buf;
+          s.loop = true;
+          s.connect(musicGain);
+          s.start();
+          musicGain.gain.setTargetAtTime(MUSIC_LVL, ctx.currentTime, 1.4); // slow fade-in
+        })
+        .catch(() => {});
+    } catch (e) { /* silent no-op */ }
 
     nextAmb = ctx.currentTime + 7 + Math.random() * 10;
 
@@ -313,6 +338,7 @@ export function createAudio() {
       rumbleGain.gain.setTargetAtTime(0, t, 0.25);
       subGain.gain.setTargetAtTime(0, t, 0.25);
       windGain.gain.setTargetAtTime(0, t, 0.25);
+      musicGain.gain.setTargetAtTime(0, t, 0.7); // music eases out under the end stingers
       lastSpd = -1; // a future update() re-applies levels
     },
     chime(n) {

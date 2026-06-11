@@ -40,6 +40,11 @@ export function createAudio() {
   let voicePending = null
   let voicesFetched = false
   let ambShotTimer = 6 // first ambient one-shot a few seconds in
+  let musicGain = null
+  let musicFetched = false
+  let musicEnded = false
+  let lastMusic = -1
+  const MUSIC_LVL = 0.22 // sits under the rain/sea beds; lowpassed so the drone keeps the top
 
   function makeNoise() {
     const len = ctx.sampleRate * 2
@@ -77,6 +82,15 @@ export function createAudio() {
       voiceGain = ctx.createGain()
       voiceGain.gain.value = 0.8
       voiceGain.connect(master)
+      // music bed: pre-rendered seam-crossfaded loop, lowpassed at 2.4 kHz so
+      // the rain hiss and brazier crackle keep the air; it lives on ambBus so
+      // it ducks under voice clips along with the rest of the ambience
+      musicGain = ctx.createGain()
+      musicGain.gain.value = 0
+      const mlp = ctx.createBiquadFilter()
+      mlp.type = 'lowpass'
+      mlp.frequency.value = 2400
+      musicGain.connect(mlp).connect(ambBus)
       // shared echo tail for water drips under the stilts
       dripEcho = ctx.createGain()
       dripEcho.gain.value = 1
@@ -122,6 +136,7 @@ export function createAudio() {
       if (ctx.state === 'suspended') ctx.resume()
       ready = true
       loadVoices()
+      loadMusic()
     } catch (e) {
       ctx = null
       ready = false
@@ -144,6 +159,33 @@ export function createAudio() {
           .catch(() => {})
       } catch (e) { /* silent — game is identical without voices */ }
     }
+  }
+
+  // --- music bed -------------------------------------------------------------
+  function loadMusic() {
+    if (musicFetched || !ready) return
+    musicFetched = true
+    try {
+      fetch('../assets/music/basilisco.mp3')
+        .then((r) => { if (!r.ok) throw new Error('http'); return r.arrayBuffer() })
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buf) => {
+          if (musicEnded) return // night already over before the decode landed
+          const src = ctx.createBufferSource()
+          src.buffer = buf
+          src.loop = true // the seam is pre-crossfaded
+          src.connect(musicGain)
+          src.start()
+          musicGain.gain.setTargetAtTime(MUSIC_LVL, ctx.currentTime, 1.2)
+        })
+        .catch(() => {})
+    } catch (e) { /* silent — game is identical without the bed */ }
+  }
+
+  // win/lose: ease the bed out so the end stingers and the voice sit on top
+  function endNight() {
+    musicEnded = true
+    if (ready && musicGain) musicGain.gain.setTargetAtTime(0, ctx.currentTime, 0.7)
   }
 
   function startVoice(name) {
@@ -188,6 +230,14 @@ export function createAudio() {
     if (Math.abs(brazier - lastCrackle) > 0.02) {
       crackleGain.gain.setTargetAtTime(brazier * 0.012, t, 0.5)
       lastCrackle = brazier
+    }
+    // the bed leans back when the basilisco is up so the tension drone reads
+    if (!musicEnded) {
+      const mt = MUSIC_LVL * (1 - tension * 0.35)
+      if (Math.abs(mt - lastMusic) > 0.004) {
+        musicGain.gain.setTargetAtTime(mt, t, 0.8)
+        lastMusic = mt
+      }
     }
     // sparse brazier pops
     crackleTimer -= dt
@@ -382,6 +432,7 @@ export function createAudio() {
     update,
     sfx,
     playVoice,
+    endNight,
     get state() { return { ready, muted } },
   }
 }

@@ -1,9 +1,13 @@
 // trauco.js — El Trauco: squat hatted dwarf with a stone hatchet.
 // Procedural model (adapted from the collection's bestiary silhouette),
 // waypoint patrol AI, and the visible translucent gaze cone (25 m / 35°).
+// Cloth and skin carry procedural CanvasTextures (twill weave + weathered
+// pores); the poncho hem wears a fringe of hanging quilineja strands and
+// the rag flaps sway on their own beat, lagging the body — secondary motion.
 // update(dt, active, t) is allocation-free; sim decisions use the seeded rng
 // passed in, so manual stepping stays deterministic.
 import * as THREE from 'three'
+import { makeTraucoTextures } from './textures.js'
 
 const BASE_SPEED = 2.4
 const CONE_LEN = 25
@@ -15,15 +19,37 @@ export function createTrauco({ terrainHeight, collide, waypoints, rng }) {
   root.scale.setScalar(1.3)
   group.add(root)
 
-  // ---------- materials ----------
-  const skinMat = new THREE.MeshStandardMaterial({ color: 0x8a7355, roughness: 0.95, flatShading: true })
-  const ponchoMat = new THREE.MeshStandardMaterial({ color: 0x46381f, roughness: 1, flatShading: true })
-  const ponchoMat2 = new THREE.MeshStandardMaterial({ color: 0x59472a, roughness: 1, flatShading: true })
-  const hatMat = new THREE.MeshStandardMaterial({ color: 0x33402a, roughness: 1, flatShading: true })
+  // ---------- materials (cloth = twill weave, skin = weathered pores) ----------
+  const tex = makeTraucoTextures()
+  const skinMat = new THREE.MeshStandardMaterial({
+    color: 0x8a7355, roughness: 0.95, flatShading: true,
+    map: tex.skin.map, bumpMap: tex.skin.bumpMap, bumpScale: 0.6,
+  })
+  const ponchoMat = new THREE.MeshStandardMaterial({
+    color: 0x46381f, roughness: 1, flatShading: true,
+    map: tex.weave.map, bumpMap: tex.weave.bumpMap, bumpScale: 0.8,
+  })
+  const ponchoMat2 = new THREE.MeshStandardMaterial({
+    color: 0x59472a, roughness: 1, flatShading: true,
+    map: tex.weave.map, bumpMap: tex.weave.bumpMap, bumpScale: 0.8,
+  })
+  const hatMat = new THREE.MeshStandardMaterial({
+    color: 0x33402a, roughness: 1, flatShading: true,
+    map: tex.weave.map, bumpMap: tex.weave.bumpMap, bumpScale: 0.7,
+  })
+  const fiberMat = new THREE.MeshStandardMaterial({
+    // dried quilineja strands — the fringe, the hatband, the beard
+    color: 0x6b5a36, roughness: 1, flatShading: true,
+    map: tex.weave.map, bumpMap: tex.weave.bumpMap, bumpScale: 0.6,
+  })
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a3522, roughness: 0.9, flatShading: true })
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x68707a, roughness: 0.7, flatShading: true })
   const glowMat = new THREE.MeshStandardMaterial({
     color: 0xa8ff7e, emissive: 0x71ff4d, emissiveIntensity: 2.2, roughness: 0.4,
+  })
+  const pupilMat = new THREE.MeshStandardMaterial({
+    // hot core inside each eye — what actually finds you in the fog
+    color: 0xeaffda, emissive: 0xd2ffae, emissiveIntensity: 3.4, roughness: 0.3,
   })
   const glintMat = new THREE.MeshStandardMaterial({
     color: 0xc9ffd2, emissive: 0x9dffb0, emissiveIntensity: 0.4, roughness: 0.3,
@@ -47,15 +73,42 @@ export function createTrauco({ terrainHeight, collide, waypoints, rng }) {
   const poncho = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.46, 9), ponchoMat)
   poncho.position.y = 0.5
   root.add(poncho)
+  // rag flaps — kept, but now remembered so they can sway behind the body
+  const flaps = []
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + 0.2
     const len = 0.12 + 0.1 * (((i * 53) % 7) / 7)
     const flap = new THREE.Mesh(new THREE.ConeGeometry(0.05, len, 4), i % 2 ? ponchoMat : ponchoMat2)
     flap.position.set(Math.cos(a) * 0.3, 0.3 - len * 0.4, Math.sin(a) * 0.3)
-    flap.rotation.z = Math.cos(a) * 0.3
-    flap.rotation.x = -Math.sin(a) * 0.3
+    const bz = Math.cos(a) * 0.3
+    const bx = -Math.sin(a) * 0.3
+    flap.rotation.z = bz
+    flap.rotation.x = bx
     root.add(flap)
+    flaps.push({ m: flap, bz, bx, ph: i * 0.83 })
   }
+  // hanging quilineja fringe around the hem — pivots at the top so each
+  // strand swings; lengths vary deterministically (no rng: stays the same)
+  const fringe = []
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 + 0.42
+    const len = 0.09 + 0.07 * (((i * 37) % 5) / 5)
+    const g = new THREE.CylinderGeometry(0.011, 0.004, len, 4)
+    g.translate(0, -len / 2, 0) // origin at the knot, hangs downward
+    const s = new THREE.Mesh(g, i % 3 ? fiberMat : ponchoMat2)
+    s.position.set(Math.cos(a) * 0.305, 0.305, Math.sin(a) * 0.305)
+    const bz = Math.cos(a) * 0.42
+    const bx = -Math.sin(a) * 0.42
+    s.rotation.z = bz
+    s.rotation.x = bx
+    root.add(s)
+    fringe.push({ m: s, bz, bx, ph: i * 1.31 })
+  }
+  // woven collar — softens the head/body joint, catches the lantern rim
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.032, 5, 10), fiberMat)
+  collar.position.set(0, 0.7, 0.01)
+  collar.rotation.x = Math.PI / 2 - 0.12
+  root.add(collar)
 
   // ---------- head ----------
   const headGrp = new THREE.Group()
@@ -83,6 +136,23 @@ export function createTrauco({ terrainHeight, collide, waypoints, rng }) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), glowMat)
     eye.position.set(side * 0.052, 0.085, 0.115)
     headGrp.add(eye)
+    // hot pupil core — a brighter point inside each glowing eye
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.011, 5, 4), pupilMat)
+    pupil.position.set(side * 0.052, 0.085, 0.131)
+    headGrp.add(pupil)
+  }
+  // scraggly fiber beard under the chin — three drooping tufts
+  const beard = []
+  for (let i = -1; i <= 1; i++) {
+    const len = 0.1 + (i === 0 ? 0.05 : 0)
+    const g = new THREE.ConeGeometry(0.028, len, 4)
+    g.translate(0, -len / 2, 0)
+    const tuft = new THREE.Mesh(g, fiberMat)
+    tuft.position.set(i * 0.045, 0.015, 0.105)
+    tuft.rotation.x = 0.55 - Math.abs(i) * 0.12
+    tuft.rotation.z = i * 0.3
+    beard.push({ m: tuft, bx: tuft.rotation.x, ph: (i + 1) * 0.9 })
+    headGrp.add(tuft)
   }
   const hat = new THREE.Mesh(new THREE.ConeGeometry(0.165, 0.4, 8), hatMat)
   hat.position.set(0.015, 0.32, -0.01)
@@ -92,6 +162,24 @@ export function createTrauco({ terrainHeight, collide, waypoints, rng }) {
   brim.position.set(0.01, 0.135, -0.01)
   brim.rotation.z = -0.1
   headGrp.add(brim)
+  // braided hatband where cone meets brim
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.018, 5, 12), fiberMat)
+  band.position.set(0.013, 0.16, -0.01)
+  band.rotation.x = Math.PI / 2
+  band.rotation.y = -0.1
+  headGrp.add(band)
+  // ragged straw tufts drooping off the brim edge
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + 0.31
+    const len = 0.035 + 0.025 * (((i * 41) % 4) / 4)
+    const g = new THREE.ConeGeometry(0.012, len, 3)
+    g.translate(0, -len / 2, 0)
+    const tuft = new THREE.Mesh(g, fiberMat)
+    tuft.position.set(0.01 + Math.cos(a) * 0.205, 0.128, -0.01 + Math.sin(a) * 0.205)
+    tuft.rotation.z = Math.cos(a) * 0.9
+    tuft.rotation.x = -Math.sin(a) * 0.9
+    headGrp.add(tuft)
+  }
 
   // ---------- arms + stone hatchet ----------
   function limbDown(len, rTop, rBot, mat) {
@@ -281,10 +369,32 @@ export function createTrauco({ terrainHeight, collide, waypoints, rng }) {
       0.55 + (moving ? Math.sin(walkPhase + Math.PI) * 0.25 : Math.sin(animT * 0.85 + 2.1) * 0.1)
     foreR.rotation.x = 1.5 + Math.sin(animT * 1.3) * 0.09
 
+    // cloth lags the body — flaps, hem fringe and beard ride a delayed copy
+    // of the sway plus their own slower beat (secondary motion, no rng)
+    const swLag = moving ? Math.sin(walkPhase - 0.7) : Math.sin(animT * 0.85 - 0.7)
+    const clothAmp = moving ? 0.1 : 0.045
+    for (let i = 0; i < flaps.length; i++) {
+      const f = flaps[i]
+      f.m.rotation.z = f.bz - swLag * clothAmp + Math.sin(animT * 1.15 + f.ph) * 0.05
+      f.m.rotation.x = f.bx + Math.sin(animT * 0.9 + f.ph * 1.7) * 0.04
+    }
+    for (let i = 0; i < fringe.length; i++) {
+      const f = fringe[i]
+      f.m.rotation.z = f.bz - swLag * (clothAmp * 1.8) + Math.sin(animT * 1.6 + f.ph) * 0.1
+      f.m.rotation.x = f.bx + Math.sin(animT * 1.35 + f.ph * 1.3) * 0.08
+    }
+    for (let i = 0; i < beard.length; i++) {
+      const b = beard[i]
+      b.m.rotation.x = b.bx + Math.sin(animT * 1.3 + b.ph) * 0.06 - swLag * 0.03
+    }
+
     const g = Math.max(0, Math.sin(t * 1.45 + 0.4))
     glintMat.emissiveIntensity = 0.35 + 3.4 * g * g * g * g * g * g * g * g
     light.intensity = 13 + Math.sin(t * 3.3) * 2.2 + Math.sin(t * 8.1) * 1.3 + alertFlare * 26
     glowMat.emissiveIntensity = 2.2 + Math.sin(t * 3.3 + 0.5) * 0.45 + alertFlare * 1.5
+    // the pupil cores burn a step hotter, flare on alert, sharpen on a held gaze
+    pupilMat.emissiveIntensity =
+      3.4 + Math.sin(t * 3.3 + 0.5) * 0.5 + alertFlare * 2.5 + (gazeHot ? 1.4 : 0)
     spores.rotation.y = -t * 0.21
     spores.position.y = Math.sin(t * 0.6) * 0.05
     sporeMat.opacity = 0.42 + 0.18 * Math.sin(t * 2.2 + 2.0)

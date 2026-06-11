@@ -144,19 +144,22 @@ function card(title, epithet, body, controls, btnLabel, onClick) {
   return ov
 }
 
+// narrated lines — each card body / toast below matches its voice clip
+// (assets/voice/piuchen/*.mp3) word for word, in the collection's Neruda
+// register: sea imagery, simile over statement, restrained dread.
 const titleCard = card(
   'EL PIUCHÉN',
   'La majada',
-  'En las noches quietas del archipiélago un silbido seco cruza las estrellas: es <i>el Piuchén</i>, la serpiente alada que nadie ve dos veces, rondando hambrienta sobre los corrales. Donde se posa, al alba aparece una oveja pálida y vacía, <i>sin una gota de sangre</i>. Esta noche el pastor del cerro eres tú — solo tu ojo y tu honda se interponen entre la serpiente y <i>la majada</i> apretada contra las piedras. Vigila lo oscuro: sus ojos relampaguean en verde un instante antes del picado.',
+  'Un silbido seco cruza las estrellas, como un cuchillo que prueba la sal. Es <i>el Piuchén</i>, la sed con alas: esta noche tu honda es la única estrella despierta sobre <i>la majada</i>.',
   'MOUSE apuntar &nbsp;·&nbsp; CLIC / ESPACIO lanzar la piedra (máx. 3 en el aire) &nbsp;·&nbsp; M sonido',
   'COMENZAR',
   () => begin()
 )
 
 let endCard = null
-function showEnd(title, epithet, body, btn) {
+function showEnd(title, epithet, body, hint, btn) {
   if (endCard) endCard.remove()
-  endCard = card(title, epithet, body, '', btn, () => location.reload())
+  endCard = card(title, epithet, body, hint, btn, () => location.reload())
 }
 
 // --- state ------------------------------------------------------------------------
@@ -283,9 +286,8 @@ function win() {
     showEnd(
       'EL ALBA',
       alive === 8 ? 'La majada amanece completa' : 'La majada amanece',
-      'La primera luz sube por el canal y el silbido seco se adelgaza, titubea y se apaga — <i>el Piuchén</i> no caza bajo el sol. Las vas contando en voz baja, como te enseñó tu abuelo, y la majada responde con balidos dormidos' +
-        (alive === 8 ? ': <i>la majada amanece completa</i>.' : ', aunque algunas andan todavía <i>mareadas</i>, con el recuerdo de las alas encima.') +
-        ' La isla sabrá quién veló esta noche.<span class="tally">' + tally + '</span>',
+      'El alba sube del canal como una mano abierta, y el silbido se deshace en la sal del aire. La noche pasó de largo, como una ola que no encontró su orilla.<span class="tally">' + tally + '</span>',
+      '',
       'OTRA NOCHE'
     )
   }, 1000)
@@ -303,7 +305,8 @@ function lose(reason) {
     showEnd(
       'LA MAJADA SANGRADA',
       'Tres ovejas vacías',
-      'Tres ovejas yacen pálidas contra las piedras, <i>sin una gota de sangre</i>, y el silbido se aleja satisfecho en lo oscuro. La serpiente solo cae cuando una piedra la encuentra en el picado: espera el destello verde de sus ojos, adelanta el tiro al vuelo — y si se prende a una oveja, te quedan tres respiros para arrancarla a pedradas.',
+      'Tres ovejas yacen pálidas como espuma varada, vaciadas de su pequeño mar. El silbido se aleja lleno, y la noche cierra despacio su boca de agua.',
+      'espera el destello verde · adelanta el tiro al vuelo · si se prende, tres respiros para arrancarla a pedradas',
       'OTRA NOCHE'
     )
   }, 900)
@@ -447,7 +450,7 @@ function latch() {
   renderer.burst(s.x, s.y - 6, '#cfc4a4', 10, 80, 0.6, 2)
   if (firstLatch) {
     firstLatch = false
-    toast('¡la tiene! pégale antes de que la seque', true)
+    toast('la tiene: bebe de ella como de una marea — la piedra, ¡ahora!', true)
     audio.voice('latch')
   }
 }

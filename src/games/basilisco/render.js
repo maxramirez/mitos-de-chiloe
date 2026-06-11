@@ -147,6 +147,36 @@ function makeWeaveCanvas(seed) {
   return c
 }
 
+// tiling poncho wool: dark sea-green weave with two chilote stripes
+function makePonchoCanvas(seed) {
+  const S = 24
+  const c = document.createElement('canvas')
+  c.width = S
+  c.height = S
+  const g = c.getContext('2d')
+  const rnd = mulberry(seed)
+  g.fillStyle = '#37463e'
+  g.fillRect(0, 0, S, S)
+  // fine weave rows + warp threads
+  for (let y = 0; y < S; y += 2) {
+    g.fillStyle = 'rgba(14,20,16,' + (0.18 + rnd() * 0.12).toFixed(2) + ')'
+    g.fillRect(0, y, S, 1)
+  }
+  for (let x = 0; x < S; x += 3) {
+    g.fillStyle = 'rgba(122,140,120,' + (0.05 + rnd() * 0.05).toFixed(2) + ')'
+    g.fillRect(x, 0, 1, S)
+  }
+  // woven-in stripes: undyed cream and ruddy madder
+  g.fillStyle = 'rgba(214,196,160,0.45)'
+  g.fillRect(0, 8, S, 2)
+  g.fillStyle = 'rgba(160,68,56,0.5)'
+  g.fillRect(0, 12, S, 1.5)
+  // stray tufts of wool
+  g.fillStyle = 'rgba(150,164,142,0.12)'
+  for (let i = 0; i < 8; i++) g.fillRect((rnd() * S) | 0, (rnd() * S) | 0, 1, 1)
+  return c
+}
+
 // soft amber radial used to warm-tint the lit zones over the darkness layer
 function makeWarmGlowCanvas() {
   const S = 256
@@ -171,6 +201,13 @@ export function createRenderer(canvas) {
   const waterTex = makeWaterCanvas(29)
   const weaveTex = makeWeaveCanvas(5)
   const warmGlow = makeWarmGlowCanvas()
+  const ponchoPat = ctx.createPattern(makePonchoCanvas(17), 'repeat')
+
+  // player walk-cycle state, derived from drawn positions (allocation-free)
+  let pPrevX = -1
+  let pPrevY = 0
+  let walkPhase = 0
+  let pMoving = 0
 
   // --- offscreen layers ---------------------------------------------------
   const base = document.createElement('canvas')
@@ -722,24 +759,73 @@ export function createRenderer(canvas) {
       }
     }
 
-    // sleepers
+    // sleepers — wool mounds breathing under the blankets
     for (let i = 0; i < SLEEPERS.length; i++) {
       const s = SLEEPERS[i]
       const st = g.sleepers[i]
-      const breath = st.lost ? 0 : Math.sin(time * 1.4 + i * 2.1) * 0.5 + 0.5
+      const baby = i === 2 // la guagua sleeps small and quick
+      const hr = baby ? 6.5 : 9
+      const breath = st.lost ? 0 : Math.sin(time * (baby ? 2.3 : 1.4) + i * 2.1) * 0.5 + 0.5
       ctx.save()
       ctx.translate(s.x, s.y)
       if (st.lost) ctx.globalAlpha = 0.35
-      // body under blanket (chest rises with breath)
-      ctx.fillStyle = st.lost ? '#2a2f2c' : '#2e3a33'
+      // body under blanket (chest rises with breath) + knees bump
+      ctx.fillStyle = st.lost ? '#262b28' : '#2e3a33'
       ctx.beginPath()
-      ctx.ellipse(-26, 8, 34, 15 + breath * 1.8, 0, 0, Math.PI * 2)
+      ctx.ellipse(-26, 8, baby ? 24 : 34, (baby ? 11 : 15) + breath * 1.8, 0, 0, Math.PI * 2)
       ctx.fill()
-      // head
-      ctx.fillStyle = st.lost ? '#8a8474' : '#cdbF9d'
       ctx.beginPath()
-      ctx.arc(14, 0, 9, 0, Math.PI * 2)
+      ctx.ellipse(baby ? -34 : -42, 5, baby ? 9 : 12, baby ? 7 : 9, 0, 0, Math.PI * 2)
       ctx.fill()
+      // moonlit crest of the mound + heavy shadow where it meets the bed
+      ctx.fillStyle = st.lost ? 'rgba(160,170,160,0.05)' : 'rgba(190,210,190,0.10)'
+      ctx.beginPath()
+      ctx.ellipse(-26, 1.5 - breath, baby ? 17 : 24, 5 + breath, -0.06, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(0,0,0,0.26)'
+      ctx.beginPath()
+      ctx.ellipse(-26, (baby ? 14 : 18) + breath * 0.6, baby ? 20 : 28, 3.6, 0, 0, Math.PI * 2)
+      ctx.fill()
+      // blanket folds: one sliding with the breath, one tucked at the chin
+      ctx.strokeStyle = 'rgba(10,14,11,0.5)'
+      ctx.lineWidth = 1.2
+      ctx.beginPath()
+      ctx.moveTo(-6, -1 - breath * 1.4)
+      ctx.quadraticCurveTo(-14, 5, -10, 13)
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(214,196,160,0.20)'
+      ctx.beginPath()
+      ctx.moveTo(3, -4 - breath)
+      ctx.quadraticCurveTo(5, 2, 2, 9)
+      ctx.stroke()
+      // head on the pillow — shaded skin, brazier warmth grazing the brow
+      ctx.fillStyle = st.lost ? '#8a8474' : '#cdbf9d'
+      ctx.beginPath()
+      ctx.arc(14, 0, hr, 0, Math.PI * 2)
+      ctx.fill()
+      if (!st.lost) {
+        ctx.fillStyle = 'rgba(70,50,30,0.26)' // cheek turned from the light
+        ctx.beginPath()
+        ctx.arc(14, 0, hr, Math.PI * 0.55, Math.PI * 1.5)
+        ctx.fill()
+        ctx.fillStyle = 'rgba(255,190,120,0.12)'
+        ctx.beginPath()
+        ctx.arc(15.5, -1.5, hr * 0.66, -Math.PI * 0.6, Math.PI * 0.3)
+        ctx.fill()
+      }
+      // hair against the pillow — each sleeper their own
+      ctx.fillStyle = st.lost ? '#3c382e' : i === 1 ? '#1c130a' : i === 0 ? '#332412' : '#4a3520'
+      ctx.beginPath()
+      if (baby) ctx.arc(14, -hr * 0.5, hr * 0.62, Math.PI * 0.85, Math.PI * 2.1)
+      else ctx.arc(13, -hr * 0.28, hr * 0.92, Math.PI * 0.7, Math.PI * 1.96)
+      ctx.fill()
+      // closed eye — barely there
+      ctx.strokeStyle = 'rgba(60,44,26,0.55)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(15.5, -1.2)
+      ctx.lineTo(15.5 + hr * 0.32, -1)
+      ctx.stroke()
       ctx.restore()
       // breath wisp
       if (!st.lost && breath > 0.82) {
@@ -756,51 +842,166 @@ export function createRenderer(canvas) {
       }
     }
 
-    // the basilisco
+    // the basilisco — half culebra, half rooster, the color of drowned bone
     if (g.bas.visible) {
       const tr = g.bas.trail
+      const N = g.bas.trailN
+      const hd = g.bas.heading
       // ground shadow under head and mid-body
       ctx.fillStyle = 'rgba(0,0,0,0.30)'
       ctx.beginPath()
       ctx.ellipse(tr[0], tr[1] + 7, 9, 3.5, 0, 0, Math.PI * 2)
       ctx.fill()
-      const mid = (g.bas.trailN >> 1) * 2
+      const mid = (N >> 1) * 2
       ctx.beginPath()
       ctx.ellipse(tr[mid], tr[mid + 1] + 5, 7, 2.8, 0, 0, Math.PI * 2)
       ctx.fill()
       ctx.lineCap = 'round'
-      for (let i = g.bas.trailN - 1; i > 0; i--) {
-        const w = 3 + (1 - i / g.bas.trailN) * 7
-        ctx.lineWidth = w
-        ctx.strokeStyle = i % 2 ? '#cfc8b0' : '#b8b098'
+      // tail tapers to a whip past the last joint
+      const lx = tr[(N - 1) * 2]
+      const ly = tr[(N - 1) * 2 + 1]
+      let tdx = lx - tr[(N - 2) * 2]
+      let tdy = ly - tr[(N - 2) * 2 + 1]
+      const td = Math.hypot(tdx, tdy) || 1
+      ctx.strokeStyle = '#9a9078'
+      ctx.lineWidth = 1.6
+      ctx.beginPath()
+      ctx.moveTo(lx, ly)
+      ctx.lineTo(lx + (tdx / td) * 6, ly + (tdy / td) * 6)
+      ctx.stroke()
+      // body: contact dark beneath, bone-pale base, firelit rim on the spine,
+      // and a dark scale band at every other joint
+      for (let i = N - 1; i > 0; i--) {
+        const w = 3 + (1 - i / N) * 7
+        const x0 = tr[i * 2]
+        const y0 = tr[i * 2 + 1]
+        const x1 = tr[(i - 1) * 2]
+        const y1 = tr[(i - 1) * 2 + 1]
+        ctx.lineWidth = w + 2.2
+        ctx.strokeStyle = 'rgba(8,6,3,0.5)'
         ctx.beginPath()
-        ctx.moveTo(tr[i * 2], tr[i * 2 + 1])
-        ctx.lineTo(tr[(i - 1) * 2], tr[(i - 1) * 2 + 1])
+        ctx.moveTo(x0, y0 + 1.2)
+        ctx.lineTo(x1, y1 + 1.2)
         ctx.stroke()
+        ctx.lineWidth = w
+        ctx.strokeStyle = i % 2 ? '#cfc8b0' : '#b6ae96'
+        ctx.beginPath()
+        ctx.moveTo(x0, y0)
+        ctx.lineTo(x1, y1)
+        ctx.stroke()
+        ctx.lineWidth = Math.max(1, w * 0.34)
+        ctx.strokeStyle = 'rgba(255,231,185,0.32)'
+        ctx.beginPath()
+        ctx.moveTo(x0, y0 - w * 0.32)
+        ctx.lineTo(x1, y1 - w * 0.32)
+        ctx.stroke()
+        if (!(i % 2)) {
+          let bdx = x1 - x0
+          let bdy = y1 - y0
+          const bl = Math.hypot(bdx, bdy) || 1
+          bdx /= bl
+          bdy /= bl
+          ctx.lineWidth = 1.2
+          ctx.strokeStyle = 'rgba(74,62,40,0.55)'
+          ctx.beginPath()
+          ctx.moveTo(x0 - bdy * w * 0.42, y0 + bdx * w * 0.42)
+          ctx.lineTo(x0 + bdy * w * 0.42, y0 - bdx * w * 0.42)
+          ctx.stroke()
+        }
       }
       ctx.lineCap = 'butt'
       const hx = tr[0]
       const hy = tr[1]
-      // head
-      ctx.fillStyle = '#ded6bc'
-      circle2(ctx, hx, hy, 7)
-      // comb (cresta de gallo)
-      ctx.fillStyle = '#a04438'
+      // hackle feathers where the culebra becomes gallo, ruffling as it moves
+      ctx.fillStyle = '#a89f86'
+      for (let k = -1; k <= 1; k++) {
+        const a = hd + Math.PI + k * 0.55
+        const wob = Math.sin(time * 7 + k * 2) * 0.7
+        ctx.beginPath()
+        ctx.moveTo(hx + Math.cos(hd + Math.PI / 2) * 2 * k, hy + Math.sin(hd + Math.PI / 2) * 2 * k)
+        ctx.lineTo(hx + Math.cos(a + 0.2) * 9, hy + Math.sin(a + 0.2) * 9 + wob)
+        ctx.lineTo(hx + Math.cos(a - 0.2) * 11.5, hy + Math.sin(a - 0.2) * 11.5 + wob)
+        ctx.closePath()
+        ctx.fill()
+      }
+      // skull, shaded like wet bone, turned along its heading
+      ctx.save()
+      ctx.translate(hx, hy)
+      ctx.rotate(hd)
+      ctx.fillStyle = '#0c0a06'
       ctx.beginPath()
-      ctx.moveTo(hx - 4, hy - 5)
-      ctx.lineTo(hx - 1, hy - 11)
-      ctx.lineTo(hx + 1, hy - 6)
-      ctx.lineTo(hx + 4, hy - 11)
-      ctx.lineTo(hx + 5, hy - 5)
-      ctx.closePath()
+      ctx.ellipse(0.4, 1, 8.2, 6.5, 0, 0, Math.PI * 2)
       ctx.fill()
-      // beak toward movement
+      ctx.fillStyle = '#ded6bc'
+      ctx.beginPath()
+      ctx.ellipse(0, 0, 8, 6.2, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(70,56,34,0.30)' // jaw in shadow
+      ctx.beginPath()
+      ctx.ellipse(1, 2.4, 6.2, 3, 0, 0, Math.PI)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(255,238,200,0.40)' // brow catch-light
+      ctx.beginPath()
+      ctx.ellipse(-1, -3, 4.6, 1.7, -0.2, 0, Math.PI * 2)
+      ctx.fill()
+      // beak: two horn mandibles, parted while it drinks
+      const gape = g.bas.state === 'drinking' ? 0.16 + Math.sin(time * 10) * 0.05 : 0.05
       ctx.fillStyle = '#c8b070'
       ctx.beginPath()
-      ctx.moveTo(hx + Math.cos(g.bas.heading) * 7, hy + Math.sin(g.bas.heading) * 7)
-      ctx.lineTo(hx + Math.cos(g.bas.heading) * 14, hy + Math.sin(g.bas.heading) * 14)
-      ctx.lineTo(hx + Math.cos(g.bas.heading + 0.7) * 7, hy + Math.sin(g.bas.heading + 0.7) * 7)
+      ctx.moveTo(6, -2.6)
+      ctx.lineTo(15, -gape * 14)
+      ctx.lineTo(6.5, 0.4)
       ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = '#94804a'
+      ctx.beginPath()
+      ctx.moveTo(6, 2.8)
+      ctx.lineTo(13.5, gape * 14 + 1.5)
+      ctx.lineTo(6.5, 0.8)
+      ctx.closePath()
+      ctx.fill()
+      // forked tongue flicks out between gulps — 3-frame micro-animation
+      const tf = (time * 1.4) % 1
+      if (tf < 0.16 && g.bas.state !== 'drinking') {
+        const ext = tf < 0.06 ? 6 : tf < 0.11 ? 10 : 5
+        ctx.strokeStyle = '#7e2c22'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(12, 0.4)
+        ctx.lineTo(12 + ext, 0.2)
+        ctx.moveTo(12 + ext, 0.2)
+        ctx.lineTo(12 + ext + 2.4, -1.4)
+        ctx.moveTo(12 + ext, 0.2)
+        ctx.lineTo(12 + ext + 2.2, 1.8)
+        ctx.stroke()
+      }
+      ctx.restore()
+      // cresta de gallo — sickly comb jiggling in 3 frames, blood at the tips
+      const cf = ((time * 6) | 0) % 3
+      const cj = cf === 0 ? 0 : cf === 1 ? 0.8 : -0.6
+      ctx.fillStyle = '#7e3028'
+      ctx.beginPath()
+      ctx.moveTo(hx - 5, hy - 4.5)
+      ctx.lineTo(hx - 3, hy - 11 + cj)
+      ctx.lineTo(hx - 0.5, hy - 5.5)
+      ctx.lineTo(hx + 1, hy - 12 - cj)
+      ctx.lineTo(hx + 3.5, hy - 5.5)
+      ctx.lineTo(hx + 5, hy - 10 + cj)
+      ctx.lineTo(hx + 6, hy - 4.5)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = '#c05540'
+      circle2(ctx, hx - 3, hy - 10.4 + cj, 1.1)
+      circle2(ctx, hx + 1, hy - 11.4 - cj, 1.2)
+      circle2(ctx, hx + 5, hy - 9.4 + cj, 1)
+      // wattle swinging under the beak
+      ctx.fillStyle = '#8e342a'
+      ctx.beginPath()
+      ctx.ellipse(
+        hx + Math.cos(hd) * 5 + Math.sin(time * 9) * 0.5,
+        hy + Math.sin(hd) * 5 + 5,
+        1.6, 2.6, 0, 0, Math.PI * 2
+      )
       ctx.fill()
       // drinking: breath thread from sleeper to mouth
       if (g.bas.state === 'drinking' && g.bas.targetSleeper >= 0) {
@@ -814,26 +1015,98 @@ export function createRenderer(canvas) {
       }
     }
 
-    // player — the eldest child with a candle
+    // player — the eldest child: woven poncho, candle held out to the right
     const pl = g.player
+    const pdist = pPrevX < 0 ? 0 : Math.hypot(pl.x - pPrevX, pl.y - pPrevY)
+    pPrevX = pl.x
+    pPrevY = pl.y
+    walkPhase += Math.min(pdist, 6) * 0.22
+    pMoving += ((pdist > 0.05 ? 1 : 0) - pMoving) * 0.18
+    const bobY = Math.sin(walkPhase) * 1.1 * pMoving
     ctx.fillStyle = 'rgba(0,0,0,0.32)'
     ctx.beginPath()
-    ctx.ellipse(pl.x, pl.y + 13, 9, 3.5, 0, 0, Math.PI * 2)
+    ctx.ellipse(pl.x, pl.y + 13, 9.5, 3.6, 0, 0, Math.PI * 2)
+    ctx.fill()
+    // feet peek under the hem, alternating while walking
+    const stepO = Math.sin(walkPhase) * 1.2 * pMoving
+    ctx.fillStyle = '#17120c'
+    ctx.beginPath()
+    ctx.ellipse(pl.x - 3.4, pl.y + 11.6 + stepO, 2.2, 1.5, 0, 0, Math.PI * 2)
+    ctx.ellipse(pl.x + 3.4, pl.y + 11.6 - stepO, 2.2, 1.5, 0, 0, Math.PI * 2)
     ctx.fill()
     ctx.save()
-    ctx.translate(pl.x, pl.y)
-    if (pl.stun > 0) ctx.rotate(Math.sin(time * 30) * 0.08)
-    ctx.fillStyle = '#3a4a42'
+    ctx.translate(pl.x, pl.y + bobY)
+    ctx.rotate(Math.sin(walkPhase * 0.5) * 0.05 * pMoving + (pl.stun > 0 ? Math.sin(time * 30) * 0.08 : 0))
+    // poncho: woven wool, hem swaying a half-beat behind the step
+    const hem = Math.sin(walkPhase - 1.2) * 0.9 * pMoving
     ctx.beginPath()
-    ctx.ellipse(0, 2, 9, 11, 0, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.moveTo(-9, -3)
+    ctx.quadraticCurveTo(-10.5, 6, -7 + hem, 12)
+    ctx.quadraticCurveTo(0, 14.5, 7 + hem, 12)
+    ctx.quadraticCurveTo(10.5, 6, 9, -3)
+    ctx.quadraticCurveTo(0, -9, -9, -3)
+    ctx.closePath()
+    ctx.save()
+    ctx.clip()
+    ctx.fillStyle = ponchoPat
+    ctx.fillRect(-12, -10, 24, 26)
+    ctx.fillStyle = 'rgba(255,180,100,0.14)' // candle side of the wool
+    ctx.fillRect(2, -10, 10, 26)
+    ctx.fillStyle = 'rgba(0,0,0,0.22)' // far side falls away
+    ctx.fillRect(-12, -10, 5, 26)
+    ctx.restore()
+    ctx.strokeStyle = 'rgba(10,12,9,0.7)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+    // fringe at the hem
+    ctx.strokeStyle = 'rgba(214,196,160,0.30)'
+    for (let k = -3; k <= 3; k++) {
+      const fx = k * 2.4 + hem
+      ctx.beginPath()
+      ctx.moveTo(fx, 12.4 - Math.abs(k) * 0.55)
+      ctx.lineTo(fx + hem * 0.5, 14.6 - Math.abs(k) * 0.55)
+      ctx.stroke()
+    }
+    // right arm holds the candle out
+    ctx.strokeStyle = '#37463e'
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.moveTo(4.5, -2)
+    ctx.lineTo(8.5, -3.6)
+    ctx.stroke()
+    // head: skin lit from the candle side, dark bowl of hair
     ctx.fillStyle = '#cdbf9d'
     circle2(ctx, 0, -8, 6)
-    // candle
+    ctx.fillStyle = 'rgba(70,50,30,0.28)'
+    ctx.beginPath()
+    ctx.arc(0, -8, 6, Math.PI * 0.55, Math.PI * 1.45)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,200,130,0.28)'
+    ctx.beginPath()
+    ctx.arc(1.6, -8.4, 4.4, -Math.PI * 0.45, Math.PI * 0.45)
+    ctx.fill()
+    ctx.fillStyle = '#241a10'
+    ctx.beginPath()
+    ctx.arc(0, -9.2, 6.1, Math.PI * 0.92, Math.PI * 2.08)
+    ctx.fill()
+    // candle: brass dish, tallow stick, breathing flame with a hot core
+    ctx.fillStyle = 'rgba(120,96,50,0.9)'
+    ctx.beginPath()
+    ctx.ellipse(9.5, 3, 3.2, 1.4, 0, 0, Math.PI * 2)
+    ctx.fill()
     ctx.fillStyle = '#e8dcc0'
-    ctx.fillRect(8, -4, 3, 7)
-    ctx.fillStyle = 'rgba(255,210,120,' + (0.8 + Math.sin(time * 17) * 0.2).toFixed(2) + ')'
-    circle2(ctx, 9.5, -7, 2.6)
+    ctx.fillRect(8.2, -4, 2.6, 7)
+    ctx.fillStyle = 'rgba(180,150,110,0.5)'
+    ctx.fillRect(10, -4, 0.8, 7)
+    const fl = 0.8 + Math.sin(time * 17) * 0.2
+    ctx.fillStyle = 'rgba(255,160,70,' + (fl * 0.5).toFixed(2) + ')'
+    circle2(ctx, 9.5, -7, 3.6)
+    ctx.fillStyle = 'rgba(255,210,120,' + fl.toFixed(2) + ')'
+    ctx.beginPath()
+    ctx.ellipse(9.5, -7, 1.7, 2.6 * fl, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,250,220,0.9)'
+    circle2(ctx, 9.5, -6.4, 0.8)
     ctx.restore()
     // pry / crush progress ring
     if (pl.holdT > 0) {
@@ -904,9 +1177,24 @@ export function createRenderer(canvas) {
     if (g.bas.visible) {
       const hx = g.bas.trail[0]
       const hy = g.bas.trail[1]
+      const e1x = hx + Math.cos(g.bas.heading - 0.6) * 4.5
+      const e1y = hy + Math.sin(g.bas.heading - 0.6) * 4.5
+      const e2x = hx + Math.cos(g.bas.heading + 0.6) * 4.5
+      const e2y = hy + Math.sin(g.bas.heading + 0.6) * 4.5
       ctx.fillStyle = GLOW
-      circle2(ctx, hx + Math.cos(g.bas.heading - 0.6) * 4.5, hy + Math.sin(g.bas.heading - 0.6) * 4.5, 1.6)
-      circle2(ctx, hx + Math.cos(g.bas.heading + 0.6) * 4.5, hy + Math.sin(g.bas.heading + 0.6) * 4.5, 1.6)
+      circle2(ctx, e1x, e1y, 1.6)
+      circle2(ctx, e2x, e2y, 1.6)
+      // serpent slit pupils across the glow
+      const sx2 = Math.cos(g.bas.heading + Math.PI / 2) * 1.3
+      const sy2 = Math.sin(g.bas.heading + Math.PI / 2) * 1.3
+      ctx.strokeStyle = 'rgba(10,8,4,0.85)'
+      ctx.lineWidth = 0.9
+      ctx.beginPath()
+      ctx.moveTo(e1x - sx2, e1y - sy2)
+      ctx.lineTo(e1x + sx2, e1y + sy2)
+      ctx.moveTo(e2x - sx2, e2y - sy2)
+      ctx.lineTo(e2x + sx2, e2y + sy2)
+      ctx.stroke()
     }
 
     // squeal ripples — arcs aimed toward the egg, over the darkness (the core win hint)

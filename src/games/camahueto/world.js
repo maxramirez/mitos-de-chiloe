@@ -8,7 +8,7 @@ import {
   TRACK_LEN, SLOPE, BANK_X, CHUNK, N_CHUNKS,
   bankY, groundY, microNoise, mulberry32,
 } from './consts.js';
-import { soilTex, woodTex, clothTex, seaTex } from './textures.js';
+import { soilTex, woodTex, clothTex, seaTex, ponchoTex, faceTex, hideTex } from './textures.js';
 
 export function createWorld(container) {
   const scene = new THREE.Scene();
@@ -185,6 +185,10 @@ export function createWorld(container) {
   const calf = new THREE.Group();
   const calfMat = new THREE.MeshStandardMaterial({
     color: 0xcdd9e4, emissive: 0x8fb4cc, emissiveIntensity: 1.35, roughness: 0.5, metalness: 0.3, flatShading: true,
+    map: hideTex, bumpMap: hideTex, bumpScale: 0.12, // dappled silver hide
+  });
+  const calfDarkMat = new THREE.MeshStandardMaterial({ // hooves + tail tuft
+    color: 0x39424e, emissive: 0x1b2530, emissiveIntensity: 0.6, roughness: 0.6, metalness: 0.2, flatShading: true,
   });
   const calfHornMat = new THREE.MeshStandardMaterial({
     color: 0xffd97a, emissive: 0xffb52e, emissiveIntensity: 3.2, roughness: 0.35,
@@ -192,14 +196,55 @@ export function createWorld(container) {
   const cBody = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), calfMat);
   cBody.scale.set(0.8, 0.85, 1.7); cBody.position.y = 1.1;
   calf.add(cBody);
-  const cHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 7, 5), calfMat);
-  cHead.position.set(0, 1.45, -0.95);
-  calf.add(cHead);
+  // neck bridges body and head so the silhouette reads as one animal
+  const cNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, 0.55, 6), calfMat);
+  cNeck.position.set(0, 1.3, -0.76);
+  cNeck.rotation.x = -0.55;
+  calf.add(cNeck);
+  // head group: skull + muzzle + ears + moonlit eyes bob together
+  const cHeadG = new THREE.Group();
+  cHeadG.position.set(0, 1.45, -0.95);
+  calf.add(cHeadG);
+  cHeadG.add(new THREE.Mesh(new THREE.SphereGeometry(0.22, 7, 5), calfMat));
+  const cMuzzle = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5), calfMat);
+  cMuzzle.scale.set(0.85, 0.75, 1.25);
+  cMuzzle.position.set(0, -0.05, -0.19);
+  cHeadG.add(cMuzzle);
+  const eyeGeo = new THREE.SphereGeometry(0.028, 6, 5);
+  const eyeMat = new THREE.MeshBasicMaterial({
+    color: 0xcfeaff, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  for (let e = 0; e < 2; e++) {
+    const eye = new THREE.Mesh(eyeGeo, eyeMat);
+    eye.position.set(e === 0 ? -0.105 : 0.105, 0.055, -0.19); // proud of the skull so they catch the moon
+    cHeadG.add(eye);
+  }
+  const calfEars = [];
+  const earGeo = new THREE.ConeGeometry(0.05, 0.17, 4);
+  for (let e = 0; e < 2; e++) {
+    const ear = new THREE.Mesh(earGeo, calfMat);
+    ear.position.set(e === 0 ? -0.14 : 0.14, 0.18, 0.05);
+    ear.rotation.z = e === 0 ? 0.85 : -0.85;
+    cHeadG.add(ear);
+    calfEars.push(ear);
+  }
   const cHorn = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.62, 6), calfHornMat);
-  cHorn.position.set(0, 1.62, -1.22);
+  cHorn.position.set(0, 0.17, -0.27); // rides the head group, so it bobs too
   cHorn.rotation.x = -Math.PI / 2 + 0.55;
-  calf.add(cHorn);
+  cHeadG.add(cHorn);
+  // tail: hangs from the rump, swishing against the gallop
+  const cTailG = new THREE.Group();
+  cTailG.position.set(0, 1.28, 0.8);
+  const tailGeo = new THREE.CylinderGeometry(0.022, 0.045, 0.5, 4);
+  tailGeo.translate(0, -0.25, 0);
+  cTailG.add(new THREE.Mesh(tailGeo, calfMat));
+  const cTuft = new THREE.Mesh(new THREE.SphereGeometry(0.055, 5, 4), calfDarkMat);
+  cTuft.position.y = -0.52;
+  cTailG.add(cTuft);
+  calf.add(cTailG);
   const calfLegs = [];
+  const hoofGeo = new THREE.CylinderGeometry(0.075, 0.08, 0.1, 5);
   for (let i = 0; i < 4; i++) {
     const lx = (i % 2 === 0 ? -0.24 : 0.24);
     const lz = (i < 2 ? -0.55 : 0.55);
@@ -208,6 +253,9 @@ export function createWorld(container) {
     const lGeo = new THREE.CylinderGeometry(0.07, 0.05, 0.95, 5);
     lGeo.translate(0, -0.48, 0);
     leg.add(new THREE.Mesh(lGeo, calfMat));
+    const hoof = new THREE.Mesh(hoofGeo, calfDarkMat);
+    hoof.position.y = -0.95;
+    leg.add(hoof); // hooves swing with the leg
     calf.add(leg);
     calfLegs.push(leg);
   }
@@ -223,7 +271,19 @@ export function createWorld(container) {
     for (let i = 0; i < 4; i++) {
       calfLegs[i].rotation.x = Math.sin(tVis * 14.8 + i * 1.7) * 0.85;
     }
+    // secondary motion: head pumps with the gallop (slightly behind the legs),
+    // tail swishes on the bounce, ears ride a slow flick cycle
+    cHeadG.position.y = 1.45 + Math.sin(tVis * 14.8 + 0.9) * 0.045;
+    cHeadG.rotation.x = Math.sin(tVis * 14.8 + 0.9) * 0.07;
+    cTailG.rotation.x = -0.45 + Math.sin(tVis * 7.4 + 1.6) * 0.2;
+    cTailG.rotation.z = Math.sin(tVis * 3.1) * 0.25;
+    const fl = Math.sin(tVis * 0.9 + 2.0);
+    const fl8 = fl > 0 ? (fl * fl) * (fl * fl) * (fl * fl) * (fl * fl) : 0; // occasional flick
+    calfEars[0].rotation.x = Math.sin(tVis * 1.7) * 0.1 + fl8 * 0.5;
+    calfEars[1].rotation.x = Math.sin(tVis * 1.7 + 2.4) * 0.1 + fl8 * 0.35;
     calfHornMat.emissiveIntensity = 2.6 + Math.sin(tVis * 2.1) * 1.2;
+    calfMat.emissiveIntensity = 1.3 + 0.15 * Math.sin(tVis * 1.3); // moonlit hide breathes
+    eyeMat.opacity = 0.75 + 0.2 * Math.sin(tVis * 2.7 + 0.5);
     // living water: swell streaks drift shoreward, moonpath breathes
     seaTex.offset.y = tVis * 0.012; // uniform-only update, no re-upload
     moonpathMat.opacity = 0.14 + 0.05 * Math.sin(tVis * 0.7);
@@ -231,11 +291,16 @@ export function createWorld(container) {
 
   // ---------- player rig: hunched figure on a wooden sled ----------
   const player = new THREE.Group();
+  // woven chilote stripes carry the colour now; the old weave stays as bump
   const ponchoMat = new THREE.MeshStandardMaterial({
-    color: 0x67563c, roughness: 0.95, flatShading: true,
-    map: clothTex, bumpMap: clothTex, bumpScale: 0.12,
+    color: 0xffffff, roughness: 0.95, flatShading: true,
+    map: ponchoTex, bumpMap: clothTex, bumpScale: 0.12,
   });
   const skinMat = new THREE.MeshStandardMaterial({ color: 0x8a6e52, roughness: 0.9, flatShading: true });
+  const headMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.85, flatShading: true, map: faceTex, // hair cap + skin gradient
+  });
+  const scarfMat = new THREE.MeshStandardMaterial({ color: 0xa8895a, roughness: 1, flatShading: true });
   const woodMat = new THREE.MeshStandardMaterial({
     color: 0x59432a, roughness: 0.9, flatShading: true,
     map: woodTex, bumpMap: woodTex, bumpScale: 0.2,
@@ -251,13 +316,56 @@ export function createWorld(container) {
   torso.position.set(0, 0.62, 0.1);
   torso.rotation.x = -0.35;
   player.add(torso);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 7, 6), skinMat);
+  // drape: a wider second cone flares the poncho hem over the sled
+  const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.5, 7), ponchoMat);
+  skirt.position.set(0, 0.34, 0.16);
+  skirt.rotation.x = -0.35;
+  player.add(skirt);
+  // sleeves reach forward to mitt-hands gripping the sled's nose
+  const armGeo = new THREE.CylinderGeometry(0.055, 0.065, 0.42, 5);
+  const handGeo = new THREE.SphereGeometry(0.06, 6, 5);
+  for (let a = 0; a < 2; a++) {
+    const sx = a === 0 ? -1 : 1;
+    const arm = new THREE.Mesh(armGeo, ponchoMat);
+    arm.position.set(sx * 0.2, 0.48, -0.32); // hugs the poncho cone
+    arm.rotation.x = 0.95;
+    arm.rotation.z = sx * -0.18;
+    player.add(arm);
+    const hand = new THREE.Mesh(handGeo, skinMat);
+    hand.position.set(sx * 0.26, 0.31, -0.5);
+    player.add(hand);
+  }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 7, 6), headMat);
   head.position.set(0, 1.08, -0.12);
   player.add(head);
   const hat = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.22, 7), ponchoMat);
   hat.position.set(0, 1.2, -0.12);
   player.add(hat);
+  // wide wool brim under the crown — the silhouette reads at any distance
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.33, 0.04, 8), ponchoMat);
+  brim.position.set(0, 1.15, -0.12);
+  brim.rotation.x = -0.1;
+  player.add(brim);
+  // scarf tail streaming behind the neck (pivot group; tail extends +z = behind)
+  const scarfG = new THREE.Group();
+  scarfG.position.set(0, 1.0, 0.02);
+  const scarfGeo = new THREE.BoxGeometry(0.07, 0.02, 0.46);
+  scarfGeo.translate(0, 0, 0.23);
+  scarfG.add(new THREE.Mesh(scarfGeo, scarfMat));
+  player.add(scarfG);
   scene.add(player);
+
+  // cloth + flame nuance: skirt lags the body bob (main bobs the whole group
+  // at ~9.5 rad/s of sim time), scarf streams harder with speed, lantern
+  // flame wavers. Called once per frame from main's render(); allocation-free.
+  function updateRig(simT, tVis, spdN, grounded) {
+    const sway = Math.sin(simT * 9.5 - 1.1) * (grounded ? 1 : 0.35); // trails the bob
+    skirt.rotation.z = sway * 0.1;
+    skirt.rotation.x = -0.35 + sway * 0.05;
+    scarfG.rotation.x = -(0.2 + spdN * 0.55) + Math.sin(tVis * 11 + 1.7) * (0.1 + 0.2 * spdN);
+    scarfG.rotation.z = Math.sin(tVis * 7.3) * 0.16;
+    lantern.intensity = 18 + Math.sin(tVis * 13.7) * 1.3 + Math.sin(tVis * 29.1 + 0.7) * 0.9;
+  }
 
   // ---------- particle pool (one Points, fixed size, additive, vertex colours) ----------
   const N_P = 256;
@@ -317,7 +425,7 @@ export function createWorld(container) {
 
   return {
     scene, camera, renderer, player, ponchoMat, torso,
-    updateChunks, updateCalf, burst, updateParticles,
+    updateChunks, updateCalf, updateRig, burst, updateParticles,
     render() { renderer.render(scene, camera); },
   };
 }

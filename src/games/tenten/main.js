@@ -242,7 +242,8 @@ function commitFlood() {
     if (n > 0) {
       sfx('splash');
       renderer.shake(3);
-      ui.flash(n === 1 ? 'El agua tomó a uno — ya no camina con la gente' : 'El agua tomó a ' + n);
+      // n === 1 matches the 'taken' voice whisper word for word
+      ui.flash(n === 1 ? 'El agua dijo un nombre, y el nombre se volvió sal.' : 'El agua dijo ' + n + ' nombres, y los volvió sal.');
       if (!game.voicedTaken) {
         game.voicedTaken = true;
         playVoice('taken');

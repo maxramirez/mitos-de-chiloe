@@ -10,10 +10,12 @@ export function createAudio() {
   let master = null
   let ambBus = null // ambience + ambient one-shots; ducked while a voice speaks
   let voiceGain = null
+  let musicGain = null // looping mp3 bed; lives on ambBus so voices duck it too
   let noiseBuf = null
   let ready = false
   let muted = false
   const VOL = 0.24
+  const MUSIC_VOL = 0.2 // under the procedural cues; lowpassed so the accordion stays clear
   const VOICES = ['intro', 'win', 'lose-alba', 'lose-redes', 'whisper-sea']
   const voiceBufs = {} // name -> decoded AudioBuffer (only the ones that loaded)
   const voiceWait = {} // name -> settled-safe load promise (never rejects)
@@ -95,6 +97,7 @@ export function createAudio() {
 
       ready = true
       loadVoices() // fire-and-forget; missing files are a silent no-op
+      loadMusic() // same contract: any failure leaves the game silent-but-whole
       scheduleAmbient()
     } catch (e) {
       ctx = null
@@ -174,6 +177,44 @@ export function createAudio() {
           })
           .catch(() => {})
       } catch (e) { /* no fetch: no voices */ }
+    }
+  }
+
+  // ---- music bed -------------------------------------------------------------
+  // ~50 s seam-crossfaded loop, fetched after the unlock gesture. It feeds
+  // ambBus, so it ducks under voices with the rest of the night and dies with
+  // M/mute via master. Gently lowpassed so the accordion cues and end stingers
+  // (routed straight to master) always sit on top. Fades out on win/lose.
+  function loadMusic() {
+    try {
+      fetch('../assets/music/pincoya.mp3')
+        .then((r) => {
+          if (!r.ok) throw new Error('http ' + r.status)
+          return r.arrayBuffer()
+        })
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buf) => {
+          if (!ctx) return
+          const src = ctx.createBufferSource()
+          src.buffer = buf
+          src.loop = true // seam is pre-crossfaded
+          const lp = ctx.createBiquadFilter()
+          lp.type = 'lowpass'
+          lp.frequency.value = 2600
+          musicGain = ctx.createGain()
+          musicGain.gain.value = 0.0001
+          src.connect(lp).connect(musicGain).connect(ambBus)
+          src.start()
+          musicGain.gain.setTargetAtTime(MUSIC_VOL, ctx.currentTime, 1.6) // ease in with the night
+        })
+        .catch(() => {})
+    } catch (e) { /* no fetch: no bed */ }
+  }
+
+  // win/lose: the bed eases out under the end stingers
+  function fadeMusicOut(t) {
+    if (musicGain) {
+      try { musicGain.gain.setTargetAtTime(0.0001, t, 0.7) } catch (e) { /* ignore */ }
     }
   }
 
@@ -320,6 +361,7 @@ export function createAudio() {
           tone('sine', 70, t + 0.28, 0.7, 0.16, { slideTo: 42, slideT: 0.4 })
           break
         case 'win': // the hold is full — warm slow chord + sparkle
+          fadeMusicOut(t)
           accordion(220, t, 3.2, 0.03)
           accordion(261.63, t + 0.15, 3.0, 0.026)
           accordion(329.63, t + 0.3, 2.8, 0.026)
@@ -328,6 +370,7 @@ export function createAudio() {
           tone('triangle', 1567.98, t + 0.8, 0.8, 0.022)
           break
         case 'lose': // a minor-second beating fades with the tide
+          fadeMusicOut(t)
           tone('sine', 110, t, 3.0, 0.05, { a: 0.4 })
           tone('sine', 116.54, t, 3.0, 0.045, { a: 0.5 })
           break

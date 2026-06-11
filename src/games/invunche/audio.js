@@ -17,6 +17,14 @@
 // (0.8) into master so M mutes them too. While a clip speaks, the whole
 // procedural bed (amb bus) ducks to ~40% and eases back. Any fetch/decode
 // failure is a silent no-op — the game is identical without the files.
+//
+// Music: a pre-looped ~50 s bed (assets/music/invunche.mp3) fetched after the
+// same BEGIN gesture, looped (the seam is pre-crossfaded) through a lowpass
+// (2400 Hz, keeps it cavern-dark under the procedural drone) into musicGain
+// (0.22) on the amb bus — so it ducks under voice and obeys M with everything
+// else. It eases out on the win/caught/dark stingers (end stingers stay on
+// top) and breathes back in if a sconce relights the candle mid-dark. Any
+// fetch/decode failure is a silent no-op.
 
 export function createAudio() {
   const AC = typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null
@@ -55,7 +63,13 @@ export function createAudio() {
   let voiceSeq = 0
   let voiceSrc = null
 
+  let musicGain = null
+  let musicLP = null
+  let musicLoadStarted = false
+  let musicStopped = false // win/caught: the bed never comes back
+
   const MASTER_LEVEL = 0.32
+  const MUSIC_LEVEL = 0.22
 
   function clamp01(v) {
     return v < 0 ? 0 : v > 1 ? 1 : v
@@ -133,6 +147,15 @@ export function createAudio() {
     voiceGain = ctx.createGain()
     voiceGain.gain.value = 0.8
     voiceGain.connect(master)
+
+    // music bed: lowpassed loop on the amb bus — ducks under voice, mutes with M
+    musicLP = ctx.createBiquadFilter()
+    musicLP.type = 'lowpass'
+    musicLP.frequency.value = 2400
+    musicGain = ctx.createGain()
+    musicGain.gain.value = 0
+    musicLP.connect(musicGain)
+    musicGain.connect(amb)
 
     noiseBuf = ctx.createBuffer(1, (ctx.sampleRate * 2) | 0, ctx.sampleRate)
     const d = noiseBuf.getChannelData(0)
@@ -251,11 +274,39 @@ export function createAudio() {
       build()
       ready = true
       loadVoices()
+      loadMusic()
     }
     if (ctx.state === 'suspended') {
       const p = ctx.resume()
       if (p && p.catch) p.catch(function () {})
     }
+  }
+
+  // ---------------- looping music bed ---------------------------------------
+  // Fetched once after the BEGIN gesture; the file's loop seam is pre-
+  // crossfaded so source.loop is gapless. Every failure path is a silent
+  // no-op — the procedural cave carries the game alone.
+  function loadMusic() {
+    if (musicLoadStarted) return
+    musicLoadStarted = true
+    try {
+      fetch('../assets/music/invunche.mp3')
+        .then((r) => {
+          if (!r.ok) throw new Error('http ' + r.status)
+          return r.arrayBuffer()
+        })
+        .then((ab) => ctx.decodeAudioData(ab))
+        .then((buf) => {
+          if (!buf || !ready || musicStopped) return
+          const src = ctx.createBufferSource()
+          src.buffer = buf
+          src.loop = true
+          src.connect(musicLP)
+          src.start()
+          musicGain.gain.setTargetAtTime(MUSIC_LEVEL, ctx.currentTime, 1.2)
+        })
+        .catch(() => {})
+    } catch (e) {}
   }
 
   // ---------------- whispered voice clips ----------------------------------
@@ -459,6 +510,16 @@ export function createAudio() {
   function stinger(name) {
     if (!ready) return
     const t = ctx.currentTime + 0.02
+    // the bed eases out under the end stingers (they stay on top); a sconce
+    // relighting the candle mid-dark breathes it back in
+    if (name === 'win' || name === 'caught') {
+      musicStopped = true
+      musicGain.gain.setTargetAtTime(0, t, 0.5)
+    } else if (name === 'dark') {
+      musicGain.gain.setTargetAtTime(0, t, 0.7) // not final: 3.6 s of dying dark remain
+    } else if (name === 'sconce' && !musicStopped) {
+      musicGain.gain.setTargetAtTime(MUSIC_LEVEL, t, 1.4)
+    }
     if (name === 'toll') {
       // low brujo bell for a taken seal — long, inharmonic, echoing
       blip('sine', 65.4, t, 0.4, 0.008, 1.6, undefined, echoBus)

@@ -2,6 +2,7 @@
 // Regal and massive (~2.8 m), seated on a wet rock in the shallows, kelp
 // cloak at his back, amber crown and trident glowing through the fog.
 import * as THREE from 'three';
+import { makeTexture, applyWeave, paintFibers } from './textures.js';
 
 export function createMillalobo() {
   const group = new THREE.Group();
@@ -38,6 +39,15 @@ export function createMillalobo() {
   const whiskerMat = new THREE.MeshStandardMaterial({
     color: 0xe8e0cc, roughness: 0.7,
   });
+
+  // golden fur striation: long fine strands, drawn once, tinted by the two
+  // fur tones; the kelp cloak gets a broader weed-fiber weave
+  const furTex = makeTexture(96, 4, (g, s, r) =>
+    paintFibers(g, s, r, { count: 40, jitter: 1.6, wave: 2, range: 42, base: 230 }), 47);
+  applyWeave(furTex, [furMat, furDark], 0.016);
+  const kelpTex = makeTexture(96, 2, (g, s, r) =>
+    paintFibers(g, s, r, { count: 22, jitter: 4, wave: 5, range: 55 }), 53);
+  applyWeave(kelpTex, [kelpMat], 0.02);
 
   // ---------- throne rock in the shallows ----------
   const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(1.15, 0), rockMat);
@@ -92,6 +102,7 @@ export function createMillalobo() {
   ruff.position.y = 2.34;
   ruff.rotation.x = Math.PI / 2;
   root.add(ruff);
+  const maneLocks = [];
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2 + 0.4;
     const lock = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3 + rnd(i) * 0.14, 5), furDark);
@@ -99,6 +110,7 @@ export function createMillalobo() {
     lock.rotation.x = Math.PI - Math.sin(a) * 0.5;
     lock.rotation.z = Math.cos(a) * 0.5;
     root.add(lock);
+    maneLocks.push({ m: lock, x0: lock.rotation.x, z0: lock.rotation.z, ph: i * 0.85 });
   }
 
   // ---------- sea-lion head (group pivots at the neck) ----------
@@ -198,11 +210,13 @@ export function createMillalobo() {
   cloak.scale.set(1.15, 1, 0.5);
   cloak.rotation.x = -0.1;
   root.add(cloak);
+  const cloakStrands = [];
   for (let i = 0; i < 4; i++) {
     const strand = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.5 + rnd(i + 8) * 0.3, 5), kelpMat);
     strand.position.set((rnd(i + 16) - 0.5) * 1.1, 0.65, -0.55 - rnd(i + 24) * 0.15);
     strand.rotation.x = 0.2;
     root.add(strand);
+    cloakStrands.push({ m: strand, ph: i * 1.4 });
   }
 
   // ---------- the trident, planted on the rock ----------
@@ -222,6 +236,19 @@ export function createMillalobo() {
     p.rotation.z = -s * 0.12;
     root.add(p);
   }
+
+  // royal medallion on the chest — second amber accent, breathing off-beat
+  const medalMat = new THREE.MeshStandardMaterial({
+    color: 0x7a5518, emissive: 0xffc24f, emissiveIntensity: 1.2, roughness: 0.45,
+  });
+  const medalRing = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.028, 6, 12), medalMat);
+  medalRing.position.set(0, 1.95, 0.62);
+  medalRing.rotation.x = -0.25;
+  root.add(medalRing);
+  const medal = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.03, 8), medalMat);
+  medal.position.set(0, 1.95, 0.62);
+  medal.rotation.x = Math.PI / 2 - 0.25;
+  root.add(medal);
 
   // ---------- amber glow ----------
   const light = new THREE.PointLight(0xffb45e, 32, 34, 1.8);
@@ -263,9 +290,24 @@ export function createMillalobo() {
     flippers[0].rotation.x = 2.05 + Math.sin(t * 0.8) * 0.05;
     flippers[1].rotation.x = 2.05 + Math.sin(t * 0.8 + 2.6) * 0.05;
 
-    // crown and trident burn like slow coals
+    // mane stirs a beat behind the breath; the kelp cloak drags slower still,
+    // weed in a current that the body no longer feels
+    for (let i = 0; i < maneLocks.length; i++) {
+      const k = maneLocks[i];
+      k.m.rotation.x = k.x0 + Math.sin(t * 0.85 - 1.0 + k.ph) * 0.06;
+      k.m.rotation.z = k.z0 + Math.sin(t * 0.7 - 1.3 + k.ph) * 0.05;
+    }
+    cloak.rotation.x = -0.1 + Math.sin(t * 0.45 - 1.6) * 0.025;
+    for (let i = 0; i < cloakStrands.length; i++) {
+      const s2 = cloakStrands[i];
+      s2.m.rotation.x = 0.2 + Math.sin(t * 0.6 - 1.8 + s2.ph) * 0.1;
+      s2.m.rotation.z = Math.sin(t * 0.5 - 1.2 + s2.ph) * 0.08;
+    }
+
+    // crown and trident burn like slow coals; the medallion answers off-beat
     goldMat.emissiveIntensity = 2.6 + Math.sin(t * 1.3) * 0.5;
     eyeMat.emissiveIntensity = 1.7 + Math.sin(t * 1.3 + 0.6) * 0.25;
+    medalMat.emissiveIntensity = 1.2 + Math.sin(t * 1.3 + 2.4) * 0.4;
     light.intensity = 32 + Math.sin(t * 1.3) * 3.5 + Math.sin(t * 4.7) * 1.0;
 
     // spray drifts around the throne

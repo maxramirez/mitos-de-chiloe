@@ -7,26 +7,24 @@
 const S = {
   title: 'EL VUELO DEL BRUJO',
   subtitle: 'Macuñ',
+  /* narrated lines — these exact strings are what the voice clips speak */
   intro:
-    'En Quicaví los brujos guardan un chaleco de piel humana —el macuñ— y quien ' +
-    'lo viste puede andar el aire de la noche. Esta noche la reunión se junta al otro ' +
-    'lado del canal, y la puerta de la cueva se abre solo mientras la luna sigue sobre el agua. ' +
-    'Atraviesa los doce anillos de luz antes de que la luna se hunda; si caes, el macuñ se rasga.',
+    'Ponte el macuñ, esta piel que recuerda otro cuerpo, y anda el aire negro como quien anda la marea. ' +
+    'Doce anillos arden sobre el canal: crúzalos antes de que la luna se hunda, ' +
+    'porque tres caídas rasgan la piel que te sostiene.',
   help: 'mouse o flechas volar · W impulso · S frenar · M sonido',
   begin: 'PONTE EL MACUÑ',
   winTitle: 'LA REUNIÓN',
   winText:
-    'El duodécimo anillo se cierra a tu espalda como un aliento contenido que al fin se suelta. ' +
-    'Abajo, en la orilla negra de Quicaví, se abre una puerta que también es piedra: la reunión te espera. ' +
-    'Pliegas el aire de la noche y desciendes. El macuñ, tibio contra tus costillas, te ha traído a casa.',
+    'El último anillo se cierra a tu espalda como un párpado de luz, y la noche te reconoce. ' +
+    'Desciendes a la cueva como la espuma vuelve al agua: ' +
+    'el macuñ, tibio contra el pecho, te ha traído a casa.',
   loseMoon:
-    'La luna se hunde y el canal se apaga de punta a punta. ' +
-    'Sin su luz el macuñ es solo piel, y la piel no vuela. ' +
-    'En alguna parte, abajo, el agua te recibe sin ruido.',
+    'La luna se hunde como una moneda de hueso, y el canal se apaga de orilla a orilla. ' +
+    'Sin su luz la piel es solo piel, y el agua, abajo, te recibe sin ruido, como recibe a la lluvia.',
   loseTorn:
-    'La tercera caída es la que el macuñ no perdona. Las costuras de piel se abren ' +
-    'en pleno vuelo —se rasga el macuñ— y la noche te suelta. ' +
-    'Los brujos encontrarán a otro que lo vista. Siempre lo hacen.',
+    'A la tercera caída la costura cede, y el macuñ se abre como una vela rota. ' +
+    'La noche te suelta de su mano, y el agua, paciente como los brujos, ya espera otra espalda.',
   replay: 'VOLAR DE NUEVO',
 }
 

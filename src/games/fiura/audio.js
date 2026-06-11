@@ -4,9 +4,11 @@
 // rising inhale drone while she telegraphs, the charm pulse whoosh, splash,
 // win/lose stingers; ambient swamp one-shots (echoing drips, reed creaks,
 // insect shimmer, ground rumbles, a far night bird) on an 8-25 s scheduler;
-// sink-log bubble pops and a herb proximity glint; and whispered Spanish
+// sink-log bubble pops and a herb proximity glint; whispered Spanish
 // voice lines (mp3, fetched lazily AFTER the unlock gesture — every fetch
-// or decode failure is a silent no-op, the game is identical without them).
+// or decode failure is a silent no-op, the game is identical without them);
+// and a looping music bed (../assets/music/fiura.mp3, seam pre-crossfaded)
+// that sits under the procedural ambience on the same ducking bus.
 //
 // Graph: ambience layers -> ambBus -> master gain (0.3) ->
 // DynamicsCompressor -> destination. Voices go through voiceGain (0.8) ->
@@ -61,7 +63,12 @@ export function createAudio() {
   let pendingVoice = null
   let pendingUntil = 0
 
+  // looping music bed — loaded after unlock, silent no-op if absent
+  let musicGain = null
+  let musicSrc = null
+
   const MASTER = 0.3
+  const MUSIC = 0.22 // bed level under the swamp; ambience is non-melodic so no clash
 
   function clamp01(v) {
     return v < 0 ? 0 : v > 1 ? 1 : v
@@ -346,8 +353,47 @@ export function createAudio() {
     voiceGain.gain.value = 0.8
     voiceGain.connect(master)
 
+    // --- music bed bus: rides the ambience bus so it ducks under the voice
+    // and mutes with M; faded in once the loop decodes, eased out on win/lose
+    musicGain = ctx.createGain()
+    musicGain.gain.value = 0
+    musicGain.connect(ambBus)
+
     ready = true
     loadVoices() // only ever after the user gesture — never on page load
+    loadMusic() // ditto — and every failure path is a silent no-op
+  }
+
+  // ---------- looping music bed (seam pre-crossfaded mp3) ----------
+  function loadMusic() {
+    try {
+      fetch('../assets/music/fiura.mp3')
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status)
+          return r.arrayBuffer()
+        })
+        .then(function (ab) {
+          return new Promise(function (res, rej) {
+            ctx.decodeAudioData(ab, res, rej)
+          })
+        })
+        .then(function (buf) {
+          if (musicSrc) return // never double-start
+          const s = ctx.createBufferSource()
+          s.buffer = buf
+          s.loop = true // the seam is pre-crossfaded — no gap, no click
+          s.connect(musicGain)
+          s.start()
+          musicSrc = s
+          musicGain.gain.setTargetAtTime(MUSIC, ctx.currentTime, 1.2)
+        })
+        .catch(function () {})
+    } catch {}
+  }
+
+  // ease the bed out under the end stingers (they run on master, on top)
+  function musicOut() {
+    if (ready && musicGain) musicGain.gain.setTargetAtTime(0, ctx.currentTime, 0.9)
   }
 
   // ---------- narrator voice (mp3 clips; every failure is a silent no-op) --
@@ -579,6 +625,7 @@ export function createAudio() {
   }
   function win() {
     if (!ready) return
+    musicOut()
     const t = ctx.currentTime
     chimeA.frequency.setValueAtTime(659, t)
     chimeB.frequency.setValueAtTime(988, t)
@@ -589,6 +636,7 @@ export function createAudio() {
   }
   function lose() {
     if (!ready) return
+    musicOut()
     const t = ctx.currentTime
     thumpOsc.frequency.setValueAtTime(60, t)
     thumpOsc.frequency.exponentialRampToValueAtTime(30, t + 1.1)

@@ -4,7 +4,10 @@
 // that rises while his gaze holds you, event stingers, ambient forest
 // one-shots (creaks, twigs, gusts, a far night bird) on an 8-25 s
 // scheduler, and four whispered Spanish voice lines (mp3, fetched lazily
-// AFTER the unlock gesture; every failure is a silent no-op).
+// AFTER the unlock gesture; every failure is a silent no-op). A looping
+// mp3 music bed (seam pre-crossfaded) plays lowpassed and quiet under it
+// all: it ducks with the wind while a voice clip speaks, and eases out on
+// win/lose so the end stingers stay on top.
 //
 // Graph: layers -> master gain (0.32) -> DynamicsCompressor -> destination.
 // Voices go through voiceGain (0.8) -> master, so M mutes them too; while
@@ -44,6 +47,13 @@ export function createAudio() {
   let voiceDuck = 1
   let pendingVoice = null
   let pendingUntil = 0
+
+  // looping music bed (mp3, seam pre-crossfaded) — fetched after unlock,
+  // ducks with the wind under voice clips, eases out for the end stingers
+  let musicGain = null
+  let musicLP = null
+  let musicEnded = false
+  const MUSIC = 0.22
 
   // ambient one-shot scheduler + interaction edges
   let ambNext = 6
@@ -158,6 +168,45 @@ export function createAudio() {
     voiceDuck = v
     if (ready && lastWind > 0) {
       windBus.gain.setTargetAtTime(lastWind * voiceDuck, ctx.currentTime, 0.35)
+    }
+    // the bed steps back with the wind while the old man speaks
+    if (ready && musicGain && !musicEnded) {
+      musicGain.gain.setTargetAtTime(MUSIC * voiceDuck, ctx.currentTime, 0.35)
+    }
+  }
+
+  // ---------- music bed (looping mp3; every failure is a silent no-op) -----
+  function loadMusic() {
+    try {
+      fetch('../assets/music/trauco.mp3')
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status)
+          return r.arrayBuffer()
+        })
+        .then(function (ab) {
+          return new Promise(function (res, rej) {
+            ctx.decodeAudioData(ab, res, rej)
+          })
+        })
+        .then(function (buf) {
+          if (musicEnded || !musicGain) return // game already ended — stay out
+          const s = ctx.createBufferSource()
+          s.buffer = buf
+          s.loop = true // seam is pre-crossfaded
+          s.connect(musicLP)
+          s.start()
+          // slow fade-in under the wind, honoring any active voice duck
+          musicGain.gain.setTargetAtTime(MUSIC * voiceDuck, ctx.currentTime, 2.5)
+        })
+        .catch(function () {})
+    } catch {}
+  }
+
+  function endMusic() {
+    // win/lose: the bed eases out so the end stingers ring on top
+    musicEnded = true
+    if (ready && musicGain) {
+      musicGain.gain.setTargetAtTime(0, ctx.currentTime, 0.9)
     }
   }
 
@@ -347,6 +396,18 @@ export function createAudio() {
     voiceGain = ctx.createGain()
     voiceGain.gain.value = 0.8
     voiceGain.connect(master)
+
+    // -- music bed bus: loop -> lowpass -> musicGain -> master ----------------
+    // lowpassed so the bed sits tucked UNDER the procedural wind and drones
+    // (this forest whispers); starts silent, fades in once decoded.
+    musicLP = ctx.createBiquadFilter()
+    musicLP.type = 'lowpass'
+    musicLP.frequency.value = 2400
+    musicLP.Q.value = 0.5
+    musicGain = ctx.createGain()
+    musicGain.gain.value = 0
+    musicLP.connect(musicGain)
+    musicGain.connect(master)
   }
 
   function unlock() {
@@ -361,6 +422,7 @@ export function createAudio() {
       build()
       ready = true
       loadVoices() // only ever after the user gesture — never on page load
+      loadMusic() // same rule for the bed
     }
     if (ctx.state === 'suspended') {
       const p = ctx.resume()
@@ -501,14 +563,16 @@ export function createAudio() {
       // the gate refuses — a single low blip
       blip('sine', 58, t, 0.18, 0.01, 0.2, 40)
     } else if (name === 'win') {
-      // resolved warm chord — the forest lets you go
+      // resolved warm chord — the forest lets you go (bed eases out underneath)
+      endMusic()
       blip('triangle', 146.83, t, 0.13, 0.25, 2.4)
       blip('triangle', 220.0, t + 0.14, 0.11, 0.3, 2.2)
       blip('triangle', 293.66, t + 0.28, 0.1, 0.3, 2.2)
       blip('triangle', 369.99, t + 0.42, 0.07, 0.35, 2.0)
       blip('sine', 1174.66, t + 0.6, 0.04, 0.01, 1.2)
     } else if (name === 'lose') {
-      // green wood bending: creak, crack, deep thud
+      // green wood bending: creak, crack, deep thud (bed eases out underneath)
+      endMusic()
       blip('sawtooth', 170, t, 0.26, 0.01, 0.8, 54)
       blip('sawtooth', 134, t + 0.14, 0.2, 0.01, 0.8, 44)
       hiss(t + 0.45, 0.22, 0.012, 0.25, 'bandpass', 750, 0.8, 2)

@@ -125,7 +125,7 @@ function hit() {
   audio.debris(); // stones settling behind the impact
   world.burst(px, groundY(px, pz) + 0.9, pz, 22, 0.55, 0.38, 0.22, 5, 4, 0.7);
   if (hits >= MAX_HITS) loseGame();
-  else if (hits === MAX_HITS - 1) audio.voice('whisper'); // last life: "La quebrada no perdona."
+  else if (hits === MAX_HITS - 1) audio.voice('whisper'); // last life: "La quebrada, como el mar, no devuelve lo que toma."
 }
 
 // ---------------------------------------------------------------------------
@@ -260,6 +260,7 @@ function render(dtVis) {
   world.player.rotation.y = -vx * 0.02;
   world.ponchoMat.emissiveIntensity =
     invuln > 0 ? (Math.sin(tVis * 32) > 0 ? 0.9 : 0) : 0;
+  world.updateRig(simT, tVis, spdN, grounded); // cloth sway / scarf / lantern flame
 
   // camera: behind and above, lagging laterally, shaking when struck
   camX += (px * 0.9 - camX) * Math.min(1, 6 * dtVis);

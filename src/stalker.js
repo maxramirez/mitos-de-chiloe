@@ -15,6 +15,7 @@
 // phases.
 import * as THREE from 'three';
 import { terrainHeight } from './world/terrain.js';
+import { makeTexture, applyWeave, paintFibers } from './beings/textures.js';
 
 // ---------- tuning ----------
 const PARK_Y = -60;          // hidden: parked under the island center
@@ -49,6 +50,20 @@ export function createStalker() {
   const eyeMat = new THREE.MeshStandardMaterial({
     color: 0x16241c, emissive: 0x9fffc8, emissiveIntensity: 3.0, roughness: 0.4,
   });
+  // and, when he is close, a brujo amulet smoldering at his throat
+  const amuletMat = new THREE.MeshStandardMaterial({
+    color: 0x101713, emissive: 0x7fdc9e, emissiveIntensity: 0.9, roughness: 0.5,
+  });
+
+  // ragged coat: the tatter pattern is drawn in near-black tones (base ~13)
+  // so the silhouette stays pitch dark; only the lantern's grazing light finds
+  // the fibers (bump). When no DOM (tests), coatMat keeps its flat color.
+  const coatTex = makeTexture(96, 3, (g, s, r) =>
+    paintFibers(g, s, r, { count: 30, jitter: 3, wave: 3, base: 13, range: 9 }), 97);
+  if (coatTex) {
+    applyWeave(coatTex, [coatMat], 0.015);
+    coatMat.color.setHex(0xffffff); // the darkness lives in the map now
+  }
 
   function mesh(geo, mat, x, y, z) {
     const m = new THREE.Mesh(geo, mat);
@@ -80,6 +95,9 @@ export function createStalker() {
   headGroup.add(mesh(new THREE.SphereGeometry(0.026, 6, 5), eyeMat, 0.045, 0.02, 0.1));
   headGroup.add(mesh(new THREE.CylinderGeometry(0.42, 0.45, 0.025, 9), darkMat, 0, 0.13, 0));
   headGroup.add(mesh(new THREE.CylinderGeometry(0.13, 0.2, 0.34, 8), darkMat, 0, 0.3, 0));
+
+  // the amulet, hung where a throat should be
+  root.add(mesh(new THREE.SphereGeometry(0.028, 6, 5), amuletMat, 0, 2.13, 0.16));
 
   // ---------- too-long arms, hanging past the coat ----------
   const arms = [];
@@ -179,6 +197,15 @@ export function createStalker() {
     eyeMat.emissiveIntensity =
       3.0 * (0.72 + 0.28 * (0.5 + 0.5 * Math.sin(time * 11 + eyePhaseA)) *
                           (0.5 + 0.5 * Math.sin(time * 5.7 + eyePhaseB)));
+    // the amulet smolders on its own slower beat
+    amuletMat.emissiveIntensity =
+      0.9 * (0.55 + 0.45 * (0.5 + 0.5 * Math.sin(time * 2.3 + eyePhaseB)));
+    // the ragged coat and the too-long arms trail the body sway — even when
+    // he freezes, the cloth keeps settling around him (tiny, no RNG)
+    coat2.rotation.z = Math.sin(time * 0.7 + swayPhase + 2.1) * 0.05;
+    coat2.rotation.x = Math.sin(time * 0.55 + swayPhase + 1.4) * 0.035;
+    arms[0].rotation.x = 0.07 + Math.sin(time * 0.8 + swayPhase + 2.6) * 0.045;
+    arms[1].rotation.x = 0.07 + Math.sin(time * 0.8 + swayPhase + 4.2) * 0.045;
 
     if (!ctx || !ctx.playerPos || !ctx.playerForward) return;
     lpX = ctx.playerPos.x; lpZ = ctx.playerPos.z;

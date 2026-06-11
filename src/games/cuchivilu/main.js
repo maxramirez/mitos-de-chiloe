@@ -604,7 +604,8 @@ function beginSurface(idx) {
     whispered = true
     audio.voice('whisper') // once a night: the old voice names what is coming
   }
-  toastFirst('tele', 'El fango hierve — el Cuchivilu viene por el corral', 'bad', 2, 3000)
+  // narrated: this exact text is the whisper voice clip (poetic register)
+  toastFirst('tele', '¿Lo oyes? El fango hierve como una sangre antigua — ya viene el que deshace la piedra', 'bad', 2, 3600)
 }
 
 function doBreak(i) {
@@ -891,22 +892,17 @@ function win() {
   audio.cue('win')
   audio.voice('win')
   ui.setHUDVisible(false)
-  const walls =
-    S.standing === SEGN
-      ? 'cada muro en pie o remendado por tus propias manos frías'
-      : 'los muros que aún quedan en pie remendados por tus propias manos frías; el resto, entregado a la marea'
+  // narrated: this exact text is the win voice clip (poetic register);
+  // the tally lives in the charms line so text and voice can match
   ui.showEnd({
     won: true,
     title: 'El corral lleno',
     charms: '✦ ' + S.penned + ' / ' + GOAL + ' ✦',
     body:
-      'El alba llega gris y piadosa, y el corral tirita de plata: ' +
-      S.penned +
-      ' peces tras las piedras de tus abuelos, ' +
-      walls +
-      '. Lejos, pasada la boca, el Cuchivilu arrastra el hocico bajo la marea ' +
-      'baja, vencido, y su chillido se adelgaza sobre el bajío. Este invierno ' +
-      'nadie en tu mesa mira un plato vacío: donde el corral se cuida, el hambre no entra.',
+      'El alba llega gris y piadosa, y el corral tirita de plata como un ' +
+      'pedazo de cielo caído al agua. Lejos, el Cuchivilu se hunde vencido, ' +
+      'y su chillido se adelgaza igual que un hilo en la marea. Donde el ' +
+      'corral se cuida, el hambre no entra.',
   })
 }
 
@@ -917,17 +913,17 @@ function lose(reason) {
   audio.cue('lose')
   audio.voice(reason === 'corral' ? 'lose-corral' : 'lose-alba')
   ui.setHUDVisible(false)
+  // narrated: these exact texts are the lose voice clips (poetic register);
+  // the tallies live in the charms lines so text and voice can match
   if (reason === 'corral') {
     ui.showEnd({
       won: false,
       title: 'El corral roto',
       charms: '✕ ' + S.standing + ' / ' + SEGN,
       body:
-        'El muro que tus abuelos levantaron piedra por piedra es escombro bajo ' +
-        'la marea, y el mar lo cruza como una puerta sin casa. El Cuchivilu se ' +
-        'revuelca en la brecha, hocico a la luna, devolviendo la plata al canal — ' +
-        'donde se revuelca el chancho-serpiente, no entra más pez. Esta noche ' +
-        'ya no queda nada que remendar.',
+        'Las piedras de tus abuelos son escombro bajo la marea, y el mar entra ' +
+        'por ellas como por una puerta sin casa. Donde se revuelca el ' +
+        'chancho-serpiente, no vuelve a entrar pez.',
     })
   } else {
     ui.showEnd({
@@ -935,13 +931,9 @@ function lose(reason) {
       title: 'El alba',
       charms: '✦ ' + S.penned + ' / ' + GOAL,
       body:
-        'La luz encuentra apenas ' +
-        S.penned +
-        ' peces girando en la poza — el resto se lo quedó el mar, o se lo llevó ' +
-        'el hocico por la piedra rota. Tu familia medirá este invierno en sopa ' +
-        'aguada y harina prestada, mientras allá en el bajío el Cuchivilu se ' +
-        'revuelca, lento y harto. La familia pasa hambre, y el corral recuerda ' +
-        'quién no supo cuidarlo.',
+        'La luz encuentra la poza casi vacía: lo demás se lo llevó el hocico, ' +
+        'o el mar, que no devuelve. Este invierno el hambre se sienta a tu ' +
+        'mesa como una visita que no se va.',
     })
   }
 }

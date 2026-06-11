@@ -1,6 +1,7 @@
 // La Pincoya — beautiful dancer of the shore, arms raised toward the sea.
 // Tall slim silhouette with a raised-arm "V", warm golden glow.
 import * as THREE from 'three';
+import { makeTexture, applyWeave, paintFibers } from './textures.js';
 
 export function createPincoya() {
   const group = new THREE.Group();
@@ -26,6 +27,15 @@ export function createPincoya() {
     roughness: 0.4,
   });
 
+  // seaweed weave: wavering vertical strands, drawn once, tinted by the dress
+  // colors (and by the hair color — wet strands share the fiber feel)
+  const weaveTex = makeTexture(96, 3, (g, s, r) =>
+    paintFibers(g, s, r, { count: 30, jitter: 3.5, wave: 4, range: 52 }), 11);
+  applyWeave(weaveTex, [dressMat, dressMat2], 0.018);
+  const hairTex = makeTexture(64, 4, (g, s, r) =>
+    paintFibers(g, s, r, { count: 22, jitter: 1.5, wave: 2, range: 36 }), 23);
+  applyWeave(hairTex, [hairMat], 0.012);
+
   // ---------- skirt of seaweed (lathe gown) ----------
   const skirtPts = [
     new THREE.Vector2(0.03, 0.0),
@@ -38,7 +48,9 @@ export function createPincoya() {
   const skirt = new THREE.Mesh(new THREE.LatheGeometry(skirtPts, 10), dressMat);
   root.add(skirt);
 
-  // hanging kelp strands around the waist
+  // hanging kelp strands around the waist (kept so update() can sway them
+  // on their own beat, trailing the body like wet weed in a current)
+  const kelp = [];
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2 + 0.3;
     const len = 0.55 + 0.3 * (((i * 37) % 5) / 5);
@@ -49,6 +61,7 @@ export function createPincoya() {
     strand.rotation.z = Math.cos(a) * 0.22;
     strand.rotation.x = -Math.sin(a) * 0.22;
     root.add(strand);
+    kelp.push({ m: strand, z0: strand.rotation.z, x0: strand.rotation.x, ph: i * 0.9 });
   }
 
   // ---------- torso / chest / neck / head ----------
@@ -98,6 +111,22 @@ export function createPincoya() {
   crown.position.set(0, 1.77, -0.01);
   crown.rotation.x = Math.PI / 2 - 0.18;
   root.add(crown);
+
+  // matching waist garland + a few shell beads on the kelp — richer accents
+  // that breathe on their own beat (sashMat) without changing the silhouette
+  const sashMat = new THREE.MeshStandardMaterial({
+    color: 0xffd9a0, emissive: 0xffb347, emissiveIntensity: 1.3, roughness: 0.45,
+  });
+  const sash = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.018, 5, 16), sashMat);
+  sash.position.y = 0.98;
+  sash.rotation.x = Math.PI / 2 - 0.08;
+  root.add(sash);
+  for (let i = 0; i < 3; i++) {
+    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.022, 5, 4), sashMat);
+    const k = kelp[i * 2 + 1].m;
+    bead.position.set(k.position.x * 1.05, k.position.y + 0.1, k.position.z * 1.05);
+    root.add(bead);
+  }
 
   // ---------- raised arms (pivot groups at the shoulders) ----------
   function limb(len, rTop, rBot, mat) {
@@ -181,12 +210,23 @@ export function createPincoya() {
     foreL.rotation.z = -0.38 + Math.sin(t * 1.1 + 1.0) * 0.1;
     foreR.rotation.z = 0.38 - Math.sin(t * 1.1) * 0.1;
 
-    // hair answers the sway a beat behind
+    // hair answers the sway a beat behind; the side falls trail further still
     backHair.rotation.z = Math.sin(t * 0.9 - 0.8) * 0.07;
+    backHair.rotation.x = 0.14 + Math.sin(t * 0.6 - 1.1) * 0.04;
+    sideL.rotation.z = -0.12 + Math.sin(t * 0.9 - 1.3) * 0.05;
+    sideR.rotation.z = 0.12 + Math.sin(t * 0.9 - 1.6) * 0.05;
+
+    // the kelp skirt swings on its own beat, dragging behind the hips
+    for (let i = 0; i < kelp.length; i++) {
+      const k = kelp[i];
+      k.m.rotation.z = k.z0 + Math.sin(t * 1.15 - 1.2 + k.ph) * 0.09;
+      k.m.rotation.x = k.x0 + Math.sin(t * 0.95 - 0.9 + k.ph) * 0.07;
+    }
 
     // warm glow breathes; motes circle upward-ish
     light.intensity = 30 + Math.sin(t * 2.1) * 3 + Math.sin(t * 5.3) * 1.2;
     glowMat.emissiveIntensity = 2.4 + Math.sin(t * 2.1) * 0.5;
+    sashMat.emissiveIntensity = 1.3 + Math.sin(t * 2.1 + 2.2) * 0.45; // off-beat shimmer
     motes.rotation.y = t * 0.28;
     motes.position.y = Math.sin(t * 0.8) * 0.07;
     moteMat.opacity = 0.55 + 0.2 * Math.sin(t * 2.7 + 1.0);

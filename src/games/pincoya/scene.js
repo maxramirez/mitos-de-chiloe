@@ -131,6 +131,93 @@ function makeWoodTexture() {
   return t
 }
 
+// near-white woven cloth — warp/weft lines + slubs; multiplies into the dress
+// and poncho colors the way the wood grain multiplies into the planks
+function makeClothTexture() {
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = c.height = s
+  const g = c.getContext('2d')
+  g.fillStyle = '#d6d2c4'
+  g.fillRect(0, 0, s, s)
+  // weft (horizontal) and warp (vertical) threads, slightly jittered
+  for (let y = 0; y < s; y += 3) {
+    g.fillStyle = 'rgba(34,40,32,' + (0.05 + Math.random() * 0.09).toFixed(3) + ')'
+    g.fillRect(0, y + Math.random(), s, 1)
+  }
+  for (let x = 0; x < s; x += 3) {
+    g.fillStyle = 'rgba(255,252,240,' + (0.04 + Math.random() * 0.07).toFixed(3) + ')'
+    g.fillRect(x + Math.random(), 0, 1, s)
+  }
+  // slubs — the little knots hand-spun wool keeps
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * s
+    const y = Math.random() * s
+    g.fillStyle = Math.random() > 0.5 ? 'rgba(28,32,26,0.14)' : 'rgba(255,250,236,0.16)'
+    for (let ox = -s; ox <= s; ox += s)
+      for (let oy = -s; oy <= s; oy += s) g.fillRect(x + ox, y + oy, 1.5 + Math.random() * 2, 1.5)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// near-white skin map: soft top-lit vertical gradient, faint blush, speckle
+function makeSkinTexture() {
+  const s = 64
+  const c = document.createElement('canvas')
+  c.width = c.height = s
+  const g = c.getContext('2d')
+  const grad = g.createLinearGradient(0, 0, 0, s)
+  grad.addColorStop(0, '#ece0cd') // moonlit brow
+  grad.addColorStop(0.55, '#e0d2bd')
+  grad.addColorStop(1, '#cdbda6') // shadow under the jaw
+  g.fillStyle = grad
+  g.fillRect(0, 0, s, s)
+  g.fillStyle = 'rgba(206,128,96,0.10)' // cheeks
+  g.beginPath()
+  g.arc(s * 0.3, s * 0.52, 9, 0, Math.PI * 2)
+  g.arc(s * 0.72, s * 0.52, 9, 0, Math.PI * 2)
+  g.fill()
+  for (let i = 0; i < 110; i++) {
+    g.fillStyle = Math.random() > 0.5 ? 'rgba(120,86,58,0.07)' : 'rgba(255,248,234,0.07)'
+    g.fillRect(Math.random() * s, Math.random() * s, 1, 1)
+  }
+  return new THREE.CanvasTexture(c)
+}
+
+// near-white vertical strand map for her hair — denser, wavier than the wood
+function makeHairTexture() {
+  const s = 128
+  const c = document.createElement('canvas')
+  c.width = c.height = s
+  const g = c.getContext('2d')
+  g.fillStyle = '#dccfae'
+  g.fillRect(0, 0, s, s)
+  for (let i = 0; i < 64; i++) {
+    const x0 = Math.random() * s
+    const dark = Math.random() > 0.42
+    g.strokeStyle = dark
+      ? 'rgba(64,42,12,' + (0.08 + Math.random() * 0.14).toFixed(3) + ')'
+      : 'rgba(255,238,196,' + (0.07 + Math.random() * 0.12).toFixed(3) + ')'
+    g.lineWidth = 0.7 + Math.random() * 1.2
+    const ph = Math.random() * 6.28
+    const amp = 1.2 + Math.random() * 2.6
+    for (let ox = -s; ox <= s; ox += s) {
+      g.beginPath()
+      for (let y = -8; y <= s + 8; y += 5) {
+        const x = x0 + ox + Math.sin(y * 0.07 + ph) * amp
+        if (y === -8) g.moveTo(x, y)
+        else g.lineTo(x, y)
+      }
+      g.stroke()
+    }
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
 // sparse vertical glints, bright at center column, for the moon's glitter path
 function makeGlitterTexture() {
   const w = 128
@@ -383,7 +470,13 @@ export function createWorld(S) {
   // grain map is near-white so it multiplies into the plank colors
   // (base colors brightened to compensate for the ~0.7 map average)
   const woodTex = makeWoodTexture()
+  const clothTex = makeClothTexture()
+  clothTex.repeat.set(2, 2)
+  const skinTex = makeSkinTexture()
+  const hairTex = makeHairTexture()
+  hairTex.repeat.set(2, 1)
   const boat = new THREE.Group()
+  let fisher // the pescador sways on his own phase, offset from the hull's roll
   {
     const wood = new THREE.MeshStandardMaterial({
       color: 0x52402e, map: woodTex, bumpMap: woodTex, bumpScale: 0.03, roughness: 0.9,
@@ -424,7 +517,34 @@ export function createWorld(S) {
     lampGlow.position.set(0, 1.52, -1.25)
     const lampLight = new THREE.PointLight(0xffa868, 3.2, 9, 1.8)
     lampLight.position.set(0, 1.55, -1.25)
-    boat.add(hull, flare, bow, bench, netPile, post, lamp, lampGlow, lampLight)
+
+    // --- el pescador: woven poncho, weathered face, chupalla; he sits on the
+    // bench facing the bow, lit warm from the stern lamp behind him
+    fisher = new THREE.Group()
+    const ponchoMat = new THREE.MeshStandardMaterial({
+      color: 0x6b5238, map: clothTex, bumpMap: clothTex, bumpScale: 0.02, roughness: 0.95,
+    })
+    const fisherSkin = new THREE.MeshStandardMaterial({
+      color: 0xc9a07c, map: skinTex, emissive: 0x3a2618, emissiveIntensity: 0.35, roughness: 0.75,
+    })
+    const poncho = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.85, 8), ponchoMat)
+    poncho.position.y = 0.42
+    // a second, shorter cone breaks the silhouette into shoulder-cape + skirt
+    const cape = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.42, 8), ponchoMat)
+    cape.position.y = 0.7
+    const fHead = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), fisherSkin)
+    fHead.position.y = 0.96
+    const strawMat = new THREE.MeshStandardMaterial({
+      color: 0x7d6a3e, map: woodTex, roughness: 1,
+    })
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.025, 10), strawMat)
+    brim.position.y = 1.05
+    const crownHat = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.1, 8), strawMat)
+    crownHat.position.y = 1.1
+    fisher.add(poncho, cape, fHead, brim, crownHat)
+    fisher.position.set(0, 0.58, -0.35)
+
+    boat.add(hull, flare, bow, bench, netPile, post, lamp, lampGlow, lampLight, fisher)
   }
   scene.add(boat)
 
@@ -509,19 +629,35 @@ export function createWorld(S) {
   const SEA_YAW = Math.atan2(0 - PIN_X, 4 - PIN_Z) // faces the bay
   const LAND_YAW = SEA_YAW + Math.PI
   const pin = new THREE.Group()
-  let armL, armR
+  let armL, armR, pinDress, pinHairBack, pinStrandL, pinStrandR, pinHairMat, crownMat
   {
+    // woven dress, gradient skin, stranded hair — base colors brightened a
+    // touch since the near-white maps multiply in at ~0.85 average
     const dressMat = new THREE.MeshStandardMaterial({
-      color: 0x16352c, emissive: 0x0c241e, emissiveIntensity: 0.5, roughness: 0.8,
+      color: 0x1b4136, map: clothTex, bumpMap: clothTex, bumpScale: 0.02,
+      emissive: 0x0c241e, emissiveIntensity: 0.5, roughness: 0.85,
     })
     const skinMat = new THREE.MeshStandardMaterial({
-      color: 0xd9b394, emissive: 0x4a3624, emissiveIntensity: 0.4, roughness: 0.7,
+      color: 0xe4bd9c, map: skinTex, emissive: 0x4a3624, emissiveIntensity: 0.4, roughness: 0.7,
     })
-    const hairMat = new THREE.MeshStandardMaterial({
-      color: 0xb8923f, emissive: 0xc89a40, emissiveIntensity: 0.7, roughness: 0.6,
+    pinHairMat = new THREE.MeshStandardMaterial({
+      color: 0xc69b45, map: hairTex, bumpMap: hairTex, bumpScale: 0.015,
+      emissive: 0xc89a40, emissiveIntensity: 0.7, roughness: 0.6,
     })
-    const dress = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.5, 8), dressMat)
-    dress.position.y = 0.75
+    const hairMat = pinHairMat
+    // dress as a lathe: cinched waist, soft S-flare to the hem — a dancing
+    // silhouette instead of the old straight cone (pivot at the hem, so the
+    // sway below swings her shoulders while her feet stay on the sand)
+    const dressPts = [
+      new THREE.Vector2(0.62, 0),
+      new THREE.Vector2(0.54, 0.1),
+      new THREE.Vector2(0.4, 0.38),
+      new THREE.Vector2(0.3, 0.72),
+      new THREE.Vector2(0.24, 1.05),
+      new THREE.Vector2(0.23, 1.3),
+      new THREE.Vector2(0.27, 1.46),
+    ]
+    pinDress = new THREE.Mesh(new THREE.LatheGeometry(dressPts, 10), dressMat)
     const torso = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 8), dressMat)
     torso.position.y = 1.5
     torso.scale.set(1, 1.25, 0.8)
@@ -530,16 +666,38 @@ export function createWorld(S) {
     const hair = new THREE.Mesh(new THREE.SphereGeometry(0.23, 10, 8), hairMat)
     hair.position.set(0, 2.0, -0.08)
     hair.scale.set(1, 1.25, 1)
-    const mane = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.9, 7), hairMat)
-    mane.position.set(0, 1.55, -0.22)
-    mane.rotation.x = 0.25
+    // long fall of hair down the back + a loose strand over each shoulder
+    pinHairBack = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.2, 7), hairMat)
+    pinHairBack.position.set(0, 1.45, -0.26)
+    pinHairBack.rotation.x = 0.32
+    pinHairBack.scale.set(1, 1, 0.7)
+    pinStrandL = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.72, 5), hairMat)
+    pinStrandL.position.set(-0.19, 1.6, 0.02)
+    pinStrandL.rotation.z = -0.18
+    pinStrandR = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.72, 5), hairMat)
+    pinStrandR.position.set(0.19, 1.6, 0.02)
+    pinStrandR.rotation.z = 0.18
+    // her crown of sargazo — sea-green glow that echoes the deep buoys
+    crownMat = new THREE.MeshStandardMaterial({
+      color: 0x1e5c40, emissive: 0x6fd9a0, emissiveIntensity: 0.8, roughness: 0.6,
+    })
+    const crown = new THREE.Mesh(new THREE.TorusGeometry(0.165, 0.038, 6, 12), crownMat)
+    crown.position.set(0, 2.12, -0.02)
+    crown.rotation.x = Math.PI / 2 - 0.28 // tilted back into her hair
     armL = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.85, 6), skinMat)
     armL.position.set(-0.3, 1.85, 0)
     armL.rotation.z = -2.45
     armR = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.85, 6), skinMat)
     armR.position.set(0.3, 1.85, 0)
     armR.rotation.z = 2.45
-    pin.add(dress, torso, head, hair, mane, armL, armR)
+    // hands close the raised-arm silhouette (the -Y cylinder end is the high one)
+    const handL = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), skinMat)
+    handL.position.set(0, -0.46, 0)
+    armL.add(handL)
+    const handR = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), skinMat)
+    handR.position.set(0, -0.46, 0)
+    armR.add(handR)
+    pin.add(pinDress, torso, head, hair, pinHairBack, pinStrandL, pinStrandR, crown, armL, armR)
   }
   pin.position.set(PIN_X, PIN_BASE_Y, PIN_Z)
   pin.rotation.y = SEA_YAW
@@ -675,6 +833,10 @@ export function createWorld(S) {
     boat.rotation.y = Math.atan2(Math.sin(S.boatA), -Math.cos(S.boatA))
     boat.rotation.z = -S.boatV * 0.55 + Math.sin(tVis * 1.7) * 0.035
     boat.rotation.x = Math.sin(tVis * 1.3 + 1) * 0.028
+    // the pescador rides the roll on his own beat, half a wave behind the hull,
+    // and leans into the slide the way a body braces against a moving deck
+    fisher.rotation.z = Math.sin(tVis * 1.7 - 0.6) * 0.05 + S.boatV * 0.18
+    fisher.rotation.x = Math.sin(tVis * 1.3 + 2.2) * 0.035
 
     // stern wake while the lancha slides (throttled, pooled)
     wakeT -= dt
@@ -786,6 +948,18 @@ export function createWorld(S) {
     pin.position.y = PIN_BASE_Y + Math.abs(Math.sin(tVis * 2.6)) * 0.17 * amp
     armL.rotation.z = -2.45 + Math.sin(tVis * 2.6) * 0.2 * amp
     armR.rotation.z = 2.45 - Math.sin(tVis * 2.6 + 0.7) * 0.2 * amp
+    // secondary motion: cloth and hair trail the body by a phase, like water
+    // does — dress pivots at the hem so the sway reads as hips, not sliding
+    pinDress.rotation.z = Math.sin(tVis * 1.3 - 0.55) * 0.07 * amp
+    pinDress.rotation.x = Math.sin(tVis * 2.6 - 0.8) * 0.045 * amp
+    pinHairBack.rotation.x = 0.32 + Math.sin(tVis * 2.6 - 1.1) * 0.1 * amp
+    pinHairBack.rotation.z = Math.sin(tVis * 1.3 - 0.9) * 0.09 * amp
+    pinStrandL.rotation.z = -0.18 + Math.sin(tVis * 2.6 - 1.4) * 0.09 * amp
+    pinStrandR.rotation.z = 0.18 - Math.sin(tVis * 2.6 - 0.9) * 0.09 * amp
+    // her hair burns gold when she gives herself to the sea, dims with her back
+    pinHairMat.emissiveIntensity += ((showSea ? 0.85 : 0.4) - pinHairMat.emissiveIntensity) * damp
+    // the sargazo crown breathes with the same pulse as her aura
+    crownMat.emissiveIntensity = (showSea ? 0.95 : 0.55) + Math.sin(tVis * 2.2) * 0.18 * amp
 
     // sparkle swirl
     {

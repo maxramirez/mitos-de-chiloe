@@ -6,16 +6,13 @@
 const STR = {
   title: 'EL CUCHIVILU',
   subtitle: 'El corral roto',
+  // narrated: this exact text is the intro voice clip (poetic register)
   intro:
-    'Hace tres generaciones que el corral de pesca de tu familia bebe la marea ' +
-    'en Quetalco: una media luna de piedras grises que guarda la plata que el ' +
-    'mar olvida. Esta noche algo chapotea allá en el bajío: el Cuchivilu, la ' +
-    'serpiente con hocico de chancho, que abre los corrales hozando piedra por ' +
-    'piedra y deja hambre en el fango donde se revuelca. Arrea los cardúmenes ' +
-    'adentro mientras la marea corre alta, repara lo que él rompa y sal a su ' +
-    'encuentro de proa, a todo remo — si menos de veinticinco peces ven el alba ' +
-    'tras la piedra, la familia pasa hambre.',
-  help: 'WASD o flechas remar · E reparar la brecha (mantén) · embístelo a todo remo · M sonido',
+    'El corral de tus abuelos bebe la marea como una boca de piedra abierta a ' +
+    'la noche. Algo hoza en el bajío — hocico de chancho, cuerpo de ola: ' +
+    'encierra veinticinco peces de plata antes del alba, o el hambre se ' +
+    'sentará a tu mesa.',
+  help: 'WASD o flechas remar · la marea alta abre la boca del corral · E reparar la brecha (mantén) · embístelo a todo remo · M sonido',
   begin: 'Comenzar',
   replay: 'Otra noche',
   toHub: '⌂ volver al archipiélago',

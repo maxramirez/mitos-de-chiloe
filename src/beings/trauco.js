@@ -1,6 +1,7 @@
 // El Trauco — ugly forest dwarf of the deep woods, ~0.9 m, conical hat,
 // ragged poncho, stone hatchet. Squat triangular silhouette, sickly green glow.
 import * as THREE from 'three';
+import { makeTexture, applyWeave, paintFibers } from './textures.js';
 
 export function createTrauco() {
   const group = new THREE.Group();
@@ -34,6 +35,12 @@ export function createTrauco() {
     color: 0xc9ffd2, emissive: 0x9dffb0, emissiveIntensity: 0.4, roughness: 0.3,
   });
 
+  // coarse home-loomed fiber: heavy jittery strands for poncho and hat,
+  // drawn once and tinted by the existing wool colors
+  const fiberTex = makeTexture(96, 3, (g, s, r) =>
+    paintFibers(g, s, r, { count: 34, jitter: 2, wave: 2, range: 60, base: 226 }), 31);
+  applyWeave(fiberTex, [ponchoMat, ponchoMat2, hatMat], 0.022);
+
   // ---------- stump legs (the Trauco walks on stumps, not feet) ----------
   for (const side of [-1, 1]) {
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.075, 0.26, 6), skinMat);
@@ -54,7 +61,9 @@ export function createTrauco() {
   poncho.position.y = 0.5;
   root.add(poncho);
 
-  // jagged hanging flaps make the hem look torn
+  // jagged hanging flaps make the hem look torn (kept: update() flutters them
+  // a beat behind the weight shifts, like wool catching the night air)
+  const flaps = [];
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + 0.2;
     const len = 0.12 + 0.1 * (((i * 53) % 7) / 7);
@@ -65,6 +74,7 @@ export function createTrauco() {
     flap.rotation.z = Math.cos(a) * 0.3;
     flap.rotation.x = -Math.sin(a) * 0.3;
     root.add(flap);
+    flaps.push({ m: flap, z0: flap.rotation.z, x0: flap.rotation.x, ph: i * 0.8 });
   }
 
   // ---------- head group (head + face + hat pivot together) ----------
@@ -169,6 +179,27 @@ export function createTrauco() {
   light.position.set(0, 1.0, 0.25);
   group.add(light);
 
+  // foxfire toadstools where he stands — dim second accent on its own pulse
+  // (static in group: marsh light clings to the ground, not to him)
+  const mossMat = new THREE.MeshStandardMaterial({
+    color: 0x6fae62, emissive: 0x4fd435, emissiveIntensity: 0.7, roughness: 0.6,
+  });
+  const stemMat = new THREE.MeshStandardMaterial({
+    color: 0x5a5443, roughness: 0.95, flatShading: true,
+  });
+  for (let i = 0; i < 3; i++) {
+    const a = 1.1 + i * 2.0;
+    const x = Math.cos(a) * (0.34 + i * 0.07);
+    const z = Math.sin(a) * (0.36 + i * 0.05);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.06, 5), stemMat);
+    stem.position.set(x, 0.03, z);
+    group.add(stem);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.045, 6), mossMat);
+    cap.position.set(x, 0.075, z);
+    cap.rotation.z = Math.cos(a) * 0.2;
+    group.add(cap);
+  }
+
   // ---------- drifting spores ----------
   const SPORES = 28;
   const arr = new Float32Array(SPORES * 3);
@@ -210,13 +241,21 @@ export function createTrauco() {
     armR.rotation.x = 0.55 + Math.sin(t * 0.85 + 2.1) * 0.1;
     foreR.rotation.x = 1.5 + Math.sin(t * 1.3) * 0.09;
 
+    // the torn hem flutters a beat behind the weight shifts
+    for (let i = 0; i < flaps.length; i++) {
+      const f = flaps[i];
+      f.m.rotation.z = f.z0 + Math.sin(t * 0.85 - 1.1 + f.ph) * 0.1;
+      f.m.rotation.x = f.x0 + Math.sin(t * 1.05 - 0.7 + f.ph) * 0.08;
+    }
+
     // hatchet edge catches the moonlight in sharp glints
     const g = Math.max(0, Math.sin(t * 1.45 + 0.4));
     glintMat.emissiveIntensity = 0.35 + 3.4 * g * g * g * g * g * g * g * g;
 
-    // sickly glow gutters like marsh light
+    // sickly glow gutters like marsh light; the toadstools answer late and low
     light.intensity = 24 + Math.sin(t * 3.3) * 2.5 + Math.sin(t * 8.1) * 1.5;
     glowMat.emissiveIntensity = 2.2 + Math.sin(t * 3.3 + 0.5) * 0.45;
+    mossMat.emissiveIntensity = 0.7 + Math.sin(t * 3.3 - 1.4) * 0.3;
     spores.rotation.y = -t * 0.21;
     spores.position.y = Math.sin(t * 0.6) * 0.05;
     sporeMat.opacity = 0.42 + 0.18 * Math.sin(t * 2.2 + 2.0);

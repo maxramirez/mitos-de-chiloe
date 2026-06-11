@@ -156,11 +156,10 @@ function win() {
     won: true,
     title: 'Marea alta',
     charms: '✦ ' + GOAL + ' / ' + GOAL + ' ✦',
+    // voiced (voice/pincoya/win.mp3) — keep text and clip identical
     body:
-      'La bodega pesa de plata y la cuerda muerde tus palmas como una bendición. ' +
-      'En la playa La Pincoya sigue danzando, los brazos en alto, la cara hacia el agua: ' +
-      'la abundancia, dada de gracia y fácil de perder. Rema a casa antes de que ella ' +
-      'te recuerde, pescador: el mar fue generoso esta noche porque ella así lo quiso.',
+      'La bodega pesa de plata, como pesa la luna sobre el agua quieta. ' +
+      'Rema a casa, pescador: la abundancia es una ola que se va sin despedirse.',
   })
 }
 
@@ -175,22 +174,21 @@ function lose(reason) {
       won: false,
       title: 'Redes rotas',
       charms: '✕ ✕ ✕',
+      // voiced (voice/pincoya/lose-redes.mp3) — keep text and clip identical
       body:
-        'Tres redes contra su espalda, y la tercera subió hecha jirones. ' +
-        'La Pincoya te ha vuelto la cara, y la bahía se cierra como un puño. ' +
-        'Rema a casa con las manos vacías y remienda lo que el mar deshizo — ' +
-        'ella no perdona una red codiciosa; esta noche, no.',
+        'Tres redes contra su espalda, y la tercera subió deshecha como espuma entre los dedos. ' +
+        'La bahía se cierra como un puño: el mar no perdona a la red codiciosa.',
     })
   } else {
     ui.showEnd({
       won: false,
       title: 'El alba',
       charms: '✦ ' + S.fish + ' / ' + GOAL,
+      // voiced (voice/pincoya/lose-alba.mp3) — keep text and clip identical;
+      // the catch count lives in the charms line above so this can stay static
       body:
-        'La luna tocó el horizonte y la danza se cortó a media vuelta. ' +
-        S.fish + ' pescados brillan en la bodega — no alcanzan, y los compradores ' +
-        'de Castro cuentan lo que el mar no quiso dar. La Pincoya entra en la espuma ' +
-        'sin mirar atrás, y la marea baja se lleva todo lo que aún te faltaba.',
+        'La luna cayó al agua y la danza se apagó, como se apaga una vela bajo la ola. ' +
+        'Lo que el mar no quiso dar, ninguna red lo arranca: la marea baja se lleva tu nombre.',
     })
   }
 }
@@ -273,7 +271,7 @@ function flipFacing() {
     if (hintSea < 2) {
       hintSea++
       if (hintSea === 1) audio.voice('whisper-sea') // whispered once, with the first hint
-      ui.toast('Ella se vuelve al mar — ¡ahora!', 'good', 1800)
+      ui.toast('Ella se vuelve al mar… echa la red, ahora.', 'good', 1800)
     }
   } else {
     audio.cue('landward')

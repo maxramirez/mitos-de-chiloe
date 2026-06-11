@@ -8,22 +8,22 @@ export const STRINGS = {
     'vestido de quilineja trenzada, con un hacha de piedra que voltea el árbol más ' +
     'grueso en tres golpes. No es el hacha lo que debes temer: es su mirada, que ' +
     'dobla a un hombre hecho como vara verde. Junta siete hebras de quilineja ' +
-    'encendida y escapa por la puerta vieja, y oigas lo que oigas en la niebla, ' +
-    'no le sostengas la mirada.',
+    'encendida y escapa por la puerta vieja, y oigas lo que oigas en la niebla — ' +
+    'no le sostengas la mirada. Sus ojos son la marea, y la marea siempre vuelve.',
   help: 'WASD moverse · mouse mirar · Shift correr (hace ruido) · M sonido',
   begin: 'COMENZAR',
   winTitle: 'EL BOSQUE TE SUELTA',
   winText:
     'Siete hebras de quilineja, cortadas de la misma enredadera que lo viste. Al ' +
     'cruzar entre los troncos inclinados la lumbre tiembla y se apaga como una vela, ' +
-    'y a tu espalda algo pequeño zapatea dos veces en la niebla — y te suelta. ' +
-    'No mires atrás.',
+    'y a tu espalda algo pequeño zapatea dos veces en la niebla. El bosque te ' +
+    'suelta, como la ola suelta a la piedra. No mires atrás.',
   winReplay: 'OTRA NOCHE',
   loseTitle: 'TE DOBLÓ LA MIRADA',
   loseText:
-    'Le sostuviste la mirada un latido de más, y tu voluntad se dobló como se dobla ' +
-    'la quilineja: sin quebrarse, y sin enderezarse nunca. La niebla se queda con lo ' +
-    'que encanta. La próxima vez, pon un tronco entre tus ojos y los suyos.',
+    'Le sostuviste la mirada un latido de más. Te dobló la mirada, como dobla el ' +
+    'mar al junco verde: sin quebrarte, y sin enderezarte nunca. La niebla se queda ' +
+    'con lo que encanta. La próxima vez, pon un tronco entre tus ojos y los suyos.',
   loseReplay: 'INTENTAR DE NUEVO',
   hudVines: 'quilineja',
   charmLabel: 'la mirada',

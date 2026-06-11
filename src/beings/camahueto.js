@@ -1,6 +1,7 @@
 // El Camahueto — silver calf-bull of the rivers, ~2 m tall quadruped with a
 // single golden horn. Long horizontal silhouette, forward horn spike, pale blue glow.
 import * as THREE from 'three';
+import { makeTexture, applyWeave, paintHide } from './textures.js';
 
 export function createCamahueto() {
   const group = new THREE.Group();
@@ -9,7 +10,7 @@ export function createCamahueto() {
 
   // ---------- materials ----------
   const silverMat = new THREE.MeshStandardMaterial({
-    color: 0xbcc9d4, roughness: 0.55, metalness: 0.35, flatShading: true,
+    color: 0x9aacb9, roughness: 0.62, metalness: 0.25, flatShading: true,
   });
   const silverDark = new THREE.MeshStandardMaterial({
     color: 0x8a98a6, roughness: 0.65, metalness: 0.3, flatShading: true,
@@ -19,11 +20,17 @@ export function createCamahueto() {
   });
   const eyeMat = new THREE.MeshStandardMaterial({
     color: 0x101820, roughness: 0.25,
+    emissive: 0x2a4a66, emissiveIntensity: 0.35, // wet eyes catch the moon
   });
   // the single GOLDEN horn — emissive accent
   const hornMat = new THREE.MeshStandardMaterial({
     color: 0xffd97a, emissive: 0xffb52e, emissiveIntensity: 2.3, roughness: 0.35,
   });
+
+  // river-calf hide: wet mottled patches, drawn once, tinted by the silvers
+  const hideTex = makeTexture(96, 3, (g, s, r) =>
+    paintHide(g, s, r, { blotches: 40, range: 34 }), 71);
+  applyWeave(hideTex, [silverMat, silverDark], 0.016);
 
   // ---------- body: chest deep, hips lower, silvered flanks ----------
   const chest = new THREE.Mesh(new THREE.SphereGeometry(0.46, 9, 7), silverMat);
@@ -87,13 +94,15 @@ export function createCamahueto() {
   muzzle.rotation.x = Math.PI / 2 - 0.25;
   headGrp.add(muzzle);
 
-  // ears flicked back
+  // ears flicked back (kept: they flick on their own beats in update())
+  const ears = [];
   for (const side of [-1, 1]) {
     const ear = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.15, 4), silverDark);
     ear.position.set(side * 0.15, 0.66, 0.21);
     ear.rotation.z = side * -1.6;
     ear.rotation.y = side * 0.4;
     headGrp.add(ear);
+    ears.push({ m: ear, z0: ear.rotation.z, ph: side * 1.7 });
   }
 
   // dark wet eyes
@@ -112,6 +121,15 @@ export function createCamahueto() {
   hornBase.position.set(0, 0.66, 0.4);
   hornBase.rotation.x = -0.85;
   headGrp.add(hornBase);
+  // growth rings up the horn — richer accent along the spike, same slow pulse
+  // horn: half-length 0.25, base radius 0.05; axis dir (0, sin0.85, cos0.85)
+  for (const d of [0.06, 0.15]) {
+    const coneR = 0.05 * ((0.25 - d) / 0.5); // cone radius at offset d from center
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(coneR + 0.008, 0.009, 5, 9), hornMat);
+    ring.position.set(0, 0.72 + Math.sin(0.85) * d, 0.46 + Math.cos(0.85) * d);
+    ring.rotation.x = -0.85;
+    headGrp.add(ring);
+  }
 
   // ---------- tail with tuft ----------
   const tail = new THREE.Group();
@@ -131,8 +149,8 @@ export function createCamahueto() {
   // of every lit fragment — the pulse lives in this light's color instead)
   const C_BLUE = new THREE.Color(0x9fd4ff);
   const C_GOLD = new THREE.Color(0xffbe3a);
-  const light = new THREE.PointLight(0x9fd4ff, 26, 34, 1.8);
-  light.position.set(0, 1.85, 0.4);
+  const light = new THREE.PointLight(0x9fd4ff, 14, 26, 1.8);
+  light.position.set(0, 3.0, 0.4);
   group.add(light);
 
   // ---------- river-mist motes, pale blue ----------
@@ -176,15 +194,24 @@ export function createCamahueto() {
     headGrp.rotation.x = Math.sin(t * 0.7) * 0.05 - g * 0.22;
     headGrp.rotation.y = Math.sin(t * 0.27 + 0.8) * 0.3 * (1 - g);
 
-    // tail swishes, faster when worked up
+    // tail swishes, faster when worked up; the tuft whips a beat behind
     tail.rotation.z = Math.sin(t * (1.6 + g * 2.5)) * (0.18 + g * 0.2);
     tail.rotation.x = 0.35 + Math.sin(t * 0.9) * 0.06;
+    tuft.rotation.z = Math.sin(t * (1.6 + g * 2.5) - 1.1) * (0.22 + g * 0.18);
 
-    // the golden horn pulses like a slow heartbeat
+    // ears flick independently — quick nervous swivels over the slow scan
+    for (let i = 0; i < ears.length; i++) {
+      const e = ears[i];
+      const flick = Math.max(0, Math.sin(t * 1.9 + e.ph));
+      e.m.rotation.z = e.z0 + flick * flick * flick * 0.18 * (i === 0 ? 1 : -1);
+    }
+
+    // the golden horn pulses like a slow heartbeat; wet eyes catch it late
     const pulse = Math.sin(t * 2.3) * 0.5 + Math.sin(t * 5.9) * 0.18;
     hornMat.emissiveIntensity = 2.3 + pulse * 1.6;
+    eyeMat.emissiveIntensity = 0.35 + Math.max(0, Math.sin(t * 2.3 - 1.2)) * 0.3;
     light.color.lerpColors(C_BLUE, C_GOLD, Math.max(0, pulse) * 0.55);
-    light.intensity = 26 + Math.sin(t * 1.7 + 0.4) * 2.2 + Math.max(0, pulse) * 6;
+    light.intensity = 14 + Math.sin(t * 1.7 + 0.4) * 1.4 + Math.max(0, pulse) * 3.5;
 
     // mist drifts in a slow ring
     motes.rotation.y = t * 0.16;

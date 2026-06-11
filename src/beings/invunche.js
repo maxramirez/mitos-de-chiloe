@@ -3,6 +3,7 @@
 // and its dim red eyes — stare back out at whoever approaches. One leg is
 // folded up against its back. A small rock arch (the cave) stands behind it.
 import * as THREE from 'three';
+import { makeTexture, applyWeave, paintScars } from './textures.js';
 
 export function createInvunche() {
   const group = new THREE.Group();
@@ -31,6 +32,15 @@ export function createInvunche() {
   const mawMat = new THREE.MeshStandardMaterial({
     color: 0x050405, emissive: 0x1c0502, emissiveIntensity: 0.6, roughness: 1.0,
   });
+  // brujo brand-welts seared into the hide — dim red, breathing with the cave
+  const weltMat = new THREE.MeshStandardMaterial({
+    color: 0x3a1008, emissive: 0xb02408, emissiveIntensity: 0.8, roughness: 0.85,
+  });
+
+  // scarred skin: mottled hide crossed by gashes and pale keloids, with
+  // stitch ticks where the brujos sewed it — drawn once, tinted by skinMat
+  const scarTex = makeTexture(128, 2, (g, s, r) => paintScars(g, s, r, { scars: 14 }), 83);
+  applyWeave(scarTex, [skinMat], 0.022);
 
   // ---------- hunched body (facing -Z, toward the cave) ----------
   const torso = new THREE.Mesh(new THREE.SphereGeometry(0.34, 8, 7), skinMat);
@@ -121,7 +131,8 @@ export function createInvunche() {
   const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.018, 0.03), hairMat);
   mouth.position.set(0, 0.06, 0.145);
   headG.add(mouth);
-  // ragged ear tufts + matted scalp
+  // ragged ear tufts + matted scalp (kept: they shiver behind the head jerks)
+  const scalpTufts = [];
   for (let i = 0; i < 6; i++) {
     const tuft = new THREE.Mesh(
       new THREE.ConeGeometry(0.035, 0.12 + rnd(i) * 0.1, 5), hairMat,
@@ -131,9 +142,11 @@ export function createInvunche() {
     tuft.rotation.x = (rnd(i + 3) - 0.5) * 0.8;
     tuft.rotation.z = (rnd(i + 5) - 0.5) * 0.8;
     headG.add(tuft);
+    scalpTufts.push({ m: tuft, x0: tuft.rotation.x, z0: tuft.rotation.z, ph: i * 1.1 });
   }
 
-  // coarse hair down the spine and shoulders
+  // coarse hair down the spine and shoulders (kept: drags behind the breath)
+  const spineHair = [];
   for (let i = 0; i < 9; i++) {
     const h = new THREE.Mesh(
       new THREE.ConeGeometry(0.04, 0.14 + rnd(i + 20) * 0.16, 5), hairMat,
@@ -145,6 +158,16 @@ export function createInvunche() {
     );
     h.rotation.x = 0.9 + (rnd(i + 60) - 0.5) * 0.5;
     root.add(h);
+    spineHair.push({ m: h, x0: h.rotation.x, ph: i * 0.7 });
+  }
+
+  // brand-welts pressed into the back and shoulder — the brujos' marks
+  for (let i = 0; i < 3; i++) {
+    const welt = new THREE.Mesh(new THREE.TorusGeometry(0.045 - i * 0.008, 0.012, 5, 8), weltMat);
+    welt.position.set(-0.16 + i * 0.15, 0.76 + rnd(i + 200) * 0.22, 0.26 + i * 0.015);
+    welt.rotation.x = Math.PI / 2 - 0.45;
+    welt.rotation.y = (rnd(i + 210) - 0.5) * 0.8;
+    root.add(welt);
   }
 
   // ---------- the cave: a low rock arch behind it (static, in group) ----------
@@ -215,10 +238,22 @@ export function createInvunche() {
     armL.rotation.x = 0.42 + Math.sin(t * 1.7) * 0.03;
     armR.rotation.x = 0.52 + Math.sin(t * 1.7 + 1.3) * 0.03;
 
-    // uneasy red flicker
+    // matted hair shivers a beat behind the head jerks and the ragged breath
+    for (let i = 0; i < scalpTufts.length; i++) {
+      const k = scalpTufts[i];
+      k.m.rotation.x = k.x0 + Math.sin(t * 1.7 - 1.0 + k.ph) * 0.07;
+      k.m.rotation.z = k.z0 + Math.sin(t * 1.35 - 1.3 + k.ph) * 0.06;
+    }
+    for (let i = 0; i < spineHair.length; i++) {
+      const k = spineHair[i];
+      k.m.rotation.x = k.x0 + Math.sin(t * 1.7 - 1.5 + k.ph) * 0.05;
+    }
+
+    // uneasy red flicker; the brand-welts smolder on the cave's slow breath
     light.intensity = 20 + Math.sin(t * 7.3) * 2.2 + Math.sin(t * 2.1) * 1.5;
     eyeMat.emissiveIntensity = 3.2 + Math.sin(t * 7.3 + 1.0) * 0.7;
     mawMat.emissiveIntensity = 0.6 + 0.25 * Math.sin(t * 1.1);
+    weltMat.emissiveIntensity = 0.8 + 0.35 * Math.sin(t * 1.1 - 1.8);
 
     // embers rise and sag on the cave breath
     embers.position.y = Math.sin(t * 0.4) * 0.15;

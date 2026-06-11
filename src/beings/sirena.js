@@ -2,6 +2,7 @@
 // the water's edge, pearly tail draped down the stone, slowly combing her
 // long golden hair. Cool aqua glow.
 import * as THREE from 'three';
+import { makeTexture, applyWeave, paintFibers, paintPearl } from './textures.js';
 
 export function createSirena() {
   const group = new THREE.Group();
@@ -30,6 +31,15 @@ export function createSirena() {
   const aquaMat = new THREE.MeshStandardMaterial({
     color: 0x9ffce8, emissive: 0x7fffe0, emissiveIntensity: 2.4, roughness: 0.35,
   });
+
+  // nacre shimmer on the tail: overlapping pastel discs + wet crescents,
+  // drawn once; the aqua tail tint turns it into pearl iridescence
+  const pearlTex = makeTexture(128, 2, (g, s, r) => paintPearl(g, s, r, { discs: 34 }), 61);
+  applyWeave(pearlTex, [tailMat], 0.012);
+  // long combed strands for the golden hair
+  const hairTex = makeTexture(64, 4, (g, s, r) =>
+    paintFibers(g, s, r, { count: 24, jitter: 1.2, wave: 2, range: 38 }), 67);
+  applyWeave(hairTex, [hairMat], 0.012);
 
   // ---------- her rock, and a low stone where the tail dips ----------
   const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.95, 0), rockMat);
@@ -85,6 +95,16 @@ export function createSirena() {
   hairCap.position.set(0, 0.035, -0.035);
   hairCap.scale.set(1.02, 1.0, 1.06);
   headG.add(hairCap);
+
+  // pearl diadem along the hairline — richer accent on its own slow shimmer
+  const pearlMat = new THREE.MeshStandardMaterial({
+    color: 0xd8f6ee, emissive: 0x9fffe8, emissiveIntensity: 1.1, roughness: 0.3,
+  });
+  for (let i = -2; i <= 2; i++) {
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.018, 5, 4), pearlMat);
+    p.position.set(i * 0.045, 0.11 - Math.abs(i) * 0.012, 0.085 - Math.abs(i) * 0.01);
+    headG.add(p);
+  }
 
   // long golden hair: a fall down the back, and the lock she combs
   const backHairGeo = new THREE.CylinderGeometry(0.045, 0.16, 0.8, 7);
@@ -212,7 +232,13 @@ export function createSirena() {
     foreR.rotation.z = 2.15 + s * 0.35;
     headG.rotation.z = -0.16 + s * 0.045;
     headG.rotation.y = Math.sin(t * 0.31) * 0.12;
+
+    // the hair answers the comb and the sway a beat late — the front lock
+    // tugged by the strokes, the back fall trailing the body's roll
     frontFall.rotation.z = -0.3 + Math.sin(t * 1.5 - 0.6) * 0.05;
+    frontFall.rotation.x = 0.12 + Math.sin(t * 1.5 - 1.0) * 0.03;
+    backHair.rotation.z = Math.sin(t * 0.9 - 1.2) * 0.05;
+    backHair.rotation.x = 0.16 + Math.sin(t * 0.6 - 0.9) * 0.035;
 
     // gentle sway on the rock; tail tip flicks at the water
     fig.rotation.y = Math.sin(t * 0.4) * 0.05;
@@ -220,9 +246,10 @@ export function createSirena() {
     tailSegs[3].rotation.x = segBends[3] + Math.sin(t * 0.85) * 0.12;
     tailSegs[2].rotation.x = segBends[2] + Math.sin(t * 0.85 - 0.7) * 0.05;
 
-    // pearl-light shimmer
+    // pearl-light shimmer; the diadem glimmers on its own late beat
     aquaMat.emissiveIntensity = 2.4 + Math.sin(t * 2.2) * 0.5;
     tailMat.emissiveIntensity = 0.45 + Math.sin(t * 1.1 + 2.0) * 0.12;
+    pearlMat.emissiveIntensity = 1.1 + Math.sin(t * 2.2 - 1.5) * 0.4;
     light.intensity = 28 + Math.sin(t * 2.2) * 3 + Math.sin(t * 5.9) * 0.9;
 
     motes.rotation.y = t * 0.22;

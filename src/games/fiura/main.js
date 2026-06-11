@@ -254,14 +254,14 @@ function win() {
   phase = 'won'
   localStorage.setItem('chiloe-fiura-done', '1')
   audio.win()
-  audio.voice('win') // "Esta noche, el pantanal no te quedó."
+  audio.voice('win') // "Cruzaste el agua negra como la cruza la luna..."
   ui.showWin()
 }
 function lose() {
   if (phase !== 'playing' && phase !== 'title') return
   phase = 'lost'
   audio.lose()
-  audio.voice('lose') // "Dicen que la Fiura se peina con el encanto de los ahogados."
+  audio.voice('lose') // "La Fiura peina su cabellera con las voces de los ahogados..."
   ui.showLose()
 }
 
@@ -575,7 +575,7 @@ function simulate(dt) {
     hint = HINTS.inhale
     if (!whispered) {
       whispered = true
-      audio.voice('whisper') // "Ella inhala... viene el encanto... no estés cerca."
+      audio.voice('whisper') // "Ella toma aire como la ola antes de romper..."
     }
   }
   else if (player.grounded && player.groundIdx >= 0 && PLATFORMS[player.groundIdx].t === 'sink' && plats[player.groundIdx].stand > 0.3) hint = HINTS.sink
@@ -610,7 +610,7 @@ function begin() {
   if (phase !== 'title') return
   ui.closeOverlay() // no-op when begun via the BEGIN click (already closing)
   audio.unlock()
-  audio.voice('begin') // "En los pantanos negros de Chiloé espera la Fiura..."
+  audio.voice('begin') // "El pantano calla como un ahogado..."
   ui.buildHUD()
   phase = 'playing'
 }
