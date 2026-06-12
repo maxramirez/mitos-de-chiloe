@@ -139,6 +139,12 @@ export function createRenderer(canvas) {
     r.t = 0
   }
 
+  function clearFx() {
+    for (let i = 0; i < parts.length; i++) parts[i].on = false
+    for (let i = 0; i < pops.length; i++) pops[i].on = false
+    for (let i = 0; i < rips.length; i++) rips[i].on = false
+  }
+
   let shakeT = 1
   let shakeMag = 0
   function shake(mag) {
@@ -239,12 +245,12 @@ export function createRenderer(canvas) {
     const cx = isoX(gx, gy)
     const cy = isoY(gx, gy, z)
     // inner glow on the tile
-    const gr = ctx.createRadialGradient(cx, cy, 2, cx, cy, HW * 1.1)
-    gr.addColorStop(0, 'rgba(255,224,176,' + (0.30 + 0.45 * k).toFixed(3) + ')')
+    const gr = ctx.createRadialGradient(cx, cy, 2, cx, cy, HW * 0.9)
+    gr.addColorStop(0, 'rgba(255,224,176,' + (0.16 + 0.42 * k).toFixed(3) + ')')
     gr.addColorStop(1, 'rgba(255,217,160,0)')
     ctx.fillStyle = gr
     ctx.beginPath()
-    ctx.ellipse(cx, cy, HW * 1.1, HH * 1.1, 0, 0, 6.283)
+    ctx.ellipse(cx, cy, HW * 0.9, HH * 0.9, 0, 0, 6.283)
     ctx.fill()
     // two pillars + lintel arc, the puerta on the back corner
     ctx.strokeStyle = '#2c3d4e'
@@ -284,7 +290,7 @@ export function createRenderer(canvas) {
     const cy = isoY(r.cx, r.cy, r.dz) + HH * 0.9
     const R = (r.maxd + 0.95) * HW
     const ry = R * HH / HW
-    const busy = r.animT < r.dur
+    const busy = r.anim
     // stone disc
     const gr = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R)
     gr.addColorStop(0, '#15222e')
@@ -424,12 +430,14 @@ export function createRenderer(canvas) {
         if (alpha * tw > 0.18) ctx.fillRect(x - 1.4 * s, wy, 2.8 * s, 3.6 * s)
       }
     }
-    // ground line of mist under the city
-    const ml = ctx.createLinearGradient(0, baseY - 6 * s, 0, baseY + 26 * s)
+    // ground line of mist under the city (fades back out — no hard seam)
+    const ma = 0.7 * Math.min(1, alpha + 0.3)
+    const ml = ctx.createLinearGradient(0, baseY - 8 * s, 0, baseY + 54 * s)
     ml.addColorStop(0, 'rgba(10,16,20,0)')
-    ml.addColorStop(1, 'rgba(8,13,18,' + (0.8 * Math.min(1, alpha + 0.3)).toFixed(3) + ')')
+    ml.addColorStop(0.4, 'rgba(8,13,18,' + ma.toFixed(3) + ')')
+    ml.addColorStop(1, 'rgba(8,13,18,0)')
     ctx.fillStyle = ml
-    ctx.fillRect(0, baseY - 6 * s, cw, 34 * s)
+    ctx.fillRect(0, baseY - 8 * s, cw, 62 * s)
   }
 
   // --- main draw -------------------------------------------------------------
@@ -548,8 +556,10 @@ export function createRenderer(canvas) {
     }
     ctx.globalAlpha = 1
 
-    // popups (world space, drifting up)
+    // front fog + popups + ripples + pulse (screen space)
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.textAlign = 'center'
+    ctx.font = 'italic ' + Math.round(15 * fit.dpr) + 'px Georgia, serif'
     for (let i = 0; i < pops.length; i++) {
       const p = pops[i]
       if (!p.on) continue
@@ -559,15 +569,13 @@ export function createRenderer(canvas) {
         continue
       }
       const k = Math.min(1, p.t / 0.18)
+      const px = Math.max(95 * fit.dpr, Math.min(cw - 95 * fit.dpr, fit.ox + p.x * fit.sc))
+      const py = fit.oy + p.y * fit.sc - p.t * 30 * fit.dpr
       ctx.globalAlpha = k * (p.t > 0.9 ? 1 - (p.t - 0.9) / 0.5 : 1)
       ctx.fillStyle = p.c
-      ctx.font = 'italic 15px Georgia, serif'
-      ctx.fillText(p.text, p.x, p.y - p.t * 26)
+      ctx.fillText(p.text, px, py)
     }
     ctx.globalAlpha = 1
-
-    // front fog + ripples + pulse (screen space)
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
     for (let i = 3; i < 5; i++) {
       const f = fogs[i]
       const fx = (0.5 + f.x * 0.45 + 0.05 * Math.sin(t / f.sp + f.ph)) * cw
@@ -603,5 +611,5 @@ export function createRenderer(canvas) {
     }
   }
 
-  return { draw, project, burst, popup, ripple, shake, pulse, get scale() { return fit.sc } }
+  return { draw, project, burst, popup, ripple, shake, pulse, clearFx, get scale() { return fit.sc } }
 }

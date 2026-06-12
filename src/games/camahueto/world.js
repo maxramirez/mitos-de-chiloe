@@ -43,6 +43,9 @@ export function createWorld(container) {
   const soilA = new THREE.Color(0x3c2a16);   // gouged dark soil
   const soilB = new THREE.Color(0x2a3a25);   // mossy banks
   const gougeC = new THREE.Color(0x140c06);  // torn streaks
+  const strataA = new THREE.Color(0x584026); // pale sandy seam in the wall
+  const strataB = new THREE.Color(0x16100a); // damp clay layer
+  const rimC = new THREE.Color(0x3a4650);    // moon catches the dry rim
   const tmpC = new THREE.Color();
   // one shared ground material: procedural soil grain as map + self-bump
   const groundMat = new THREE.MeshStandardMaterial({
@@ -50,6 +53,10 @@ export function createWorld(container) {
     map: soilTex, bumpMap: soilTex, bumpScale: 0.25,
   });
   const shrubMat = new THREE.MeshStandardMaterial({ color: 0x1c2618, roughness: 1, flatShading: true });
+  // torn roots jutting from the gully walls (near-silhouette, chained tapering segments)
+  const rootSegGeo = new THREE.CylinderGeometry(0.05, 0.095, 0.8, 5);
+  rootSegGeo.translate(0, 0.38, 0); // pivot at the thick end
+  const rootMat = new THREE.MeshStandardMaterial({ color: 0x241710, roughness: 1, flatShading: true });
 
   for (let ci = 0; ci < N_CHUNKS; ci++) {
     const geo = new THREE.PlaneGeometry(38, CHUNK, 26, 34);
@@ -67,6 +74,15 @@ export function createWorld(container) {
       tmpC.lerpColors(soilA, soilB, t * t * (3 - 2 * t));
       const wig = Math.sin(zl * 0.21 + ci * 1.7) * 1.6;
       if (Math.abs(x - wig) < 0.7 || Math.abs(x + wig * 0.6 - 2.2) < 0.45) tmpC.lerp(gougeC, 0.75);
+      // wall strata: horizontal soil layers following the bank contours, so the
+      // big dark planes read as cut earth instead of flat card
+      if (a > BANK_X) {
+        const h = bankY(x);
+        const band = Math.sin(h * 2.4 + Math.sin(zl * 0.23 + ci * 0.8) * 0.55 + ci * 1.1);
+        if (band > 0.25) tmpC.lerp(strataA, 0.62 * (band - 0.25) / 0.75);
+        else if (band < -0.35) tmpC.lerp(strataB, 0.65 * (-band - 0.35) / 0.65);
+        if (h > 7.0) tmpC.lerp(rimC, Math.min(1, (h - 7.0) / 1.8) * 0.55);
+      }
       const dim = 0.85 + 0.15 * Math.sin(x * 12.3 + zl * 7.7);
       colors[i * 3] = tmpC.r * dim;
       colors[i * 3 + 1] = tmpC.g * dim;
@@ -107,6 +123,31 @@ export function createWorld(container) {
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     mesh.add(dust);
+    // root silhouettes torn loose where the calf gouged the walls
+    // (rng draws appended after shrubs+dust, so the existing layout is unchanged)
+    for (let rt = 0; rt < 5; rt++) {
+      const side = rng() < 0.5 ? -1 : 1;
+      const rx = side * (BANK_X + 0.9 + rng() * 2.7); // farther out = higher up the wall (some near the rim)
+      const rz = -rng() * CHUNK;
+      const rootG = new THREE.Group();
+      rootG.position.set(rx - side * 0.2, bankY(rx) + rz * SLOPE - 0.1, rz);
+      rootG.rotation.y = (rng() - 0.5) * 1.2;
+      rootG.rotation.z = side * (Math.PI / 2 + 0.25 + rng() * 0.5); // pokes out and droops
+      let parent = rootG;
+      for (let sg = 0; sg < 3; sg++) {
+        const seg = new THREE.Mesh(rootSegGeo, rootMat);
+        if (sg > 0) {
+          seg.position.y = 0.74;
+          const sc = 0.72; // child scale compounds: the root tapers
+          seg.scale.set(sc, 0.9, sc);
+        }
+        seg.rotation.z = side * (0.25 + rng() * 0.45); // curls back toward the wall
+        seg.rotation.x = (rng() - 0.5) * 0.8;
+        parent.add(seg);
+        parent = seg;
+      }
+      mesh.add(rootG);
+    }
     chunks.push(mesh);
   }
 
@@ -305,13 +346,67 @@ export function createWorld(container) {
     color: 0x59432a, roughness: 0.9, flatShading: true,
     map: woodTex, bumpMap: woodTex, bumpScale: 0.2,
   });
-  // a hooded lantern above the sled — a warm moving pool of light
-  const lantern = new THREE.PointLight(0xffd9a0, 18, 21, 1.8);
-  lantern.position.set(0, 2.2, -0.2);
-  player.add(lantern);
   const sled = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.12, 1.7), woodMat);
   sled.position.y = 0.1;
   player.add(sled);
+  // runners, upturned prow horns and deck slats: the box reads as a built sled
+  const runnerGeo = new THREE.BoxGeometry(0.09, 0.08, 1.95);
+  const prowGeo = new THREE.BoxGeometry(0.09, 0.08, 0.4);
+  for (let s = 0; s < 2; s++) {
+    const sx = s === 0 ? -0.41 : 0.41;
+    const runner = new THREE.Mesh(runnerGeo, woodMat);
+    runner.position.set(sx, 0.03, 0.05);
+    player.add(runner);
+    const prow = new THREE.Mesh(prowGeo, woodMat);
+    prow.position.set(sx, 0.16, -1.04);
+    prow.rotation.x = -0.85; // kicked up at the nose
+    player.add(prow);
+  }
+  const slatGeo = new THREE.BoxGeometry(1.0, 0.03, 0.16);
+  for (let s = 0; s < 3; s++) {
+    const slat = new THREE.Mesh(slatGeo, woodMat);
+    slat.position.set(0, 0.17, -0.52 + s * 0.52);
+    player.add(slat);
+  }
+  // the lantern is now a real object: wooden pole at the nose, iron caps,
+  // glowing glass and a soft sprite halo. The same PointLight (no new lights)
+  // rides inside the lantern group, so the warm pool swings with it.
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.04, 1.3, 5), woodMat);
+  pole.position.set(0.42, 0.7, -0.6);
+  pole.rotation.z = -0.16;
+  player.add(pole);
+  const lanternG = new THREE.Group();
+  lanternG.position.set(0.52, 1.4, -0.6);
+  player.add(lanternG);
+  const lantern = new THREE.PointLight(0xffd9a0, 18, 21, 1.8);
+  lanternG.add(lantern);
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x23262c, roughness: 0.55, metalness: 0.6, flatShading: true });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffb352, emissiveIntensity: 2.3, roughness: 0.4 });
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.08, 6), ironMat);
+  cap.position.y = 0.11;
+  lanternG.add(cap);
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.12, 6), glassMat);
+  lanternG.add(glass);
+  const lBase = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.05, 0.035, 6), ironMat);
+  lBase.position.y = -0.08;
+  lanternG.add(lBase);
+  // halo sprite: tiny radial-gradient canvas, made once at boot
+  const glowCv = document.createElement('canvas');
+  glowCv.width = glowCv.height = 64;
+  const gctx = glowCv.getContext('2d');
+  const grad = gctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255, 206, 130, 0.8)');
+  grad.addColorStop(0.4, 'rgba(255, 168, 70, 0.26)');
+  grad.addColorStop(1, 'rgba(255, 150, 50, 0)');
+  gctx.fillStyle = grad;
+  gctx.fillRect(0, 0, 64, 64);
+  const glowMat = new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(glowCv), transparent: true, opacity: 0.75,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const lGlow = new THREE.Sprite(glowMat);
+  lGlow.scale.set(0.8, 0.8, 1);
+  lanternG.add(lGlow);
   const torso = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.95, 7), ponchoMat);
   torso.position.set(0, 0.62, 0.1);
   torso.rotation.x = -0.35;
@@ -365,6 +460,12 @@ export function createWorld(container) {
     scarfG.rotation.x = -(0.2 + spdN * 0.55) + Math.sin(tVis * 11 + 1.7) * (0.1 + 0.2 * spdN);
     scarfG.rotation.z = Math.sin(tVis * 7.3) * 0.16;
     lantern.intensity = 18 + Math.sin(tVis * 13.7) * 1.3 + Math.sin(tVis * 29.1 + 0.7) * 0.9;
+    // the lantern hangs back with speed and pendulums with the bob; the glass
+    // and halo flicker in step with the light
+    lanternG.rotation.x = spdN * 0.24 + sway * 0.06;
+    lanternG.rotation.z = Math.sin(tVis * 5.3 + 0.4) * 0.05;
+    glassMat.emissiveIntensity = 2.3 + Math.sin(tVis * 13.7) * 0.22 + Math.sin(tVis * 29.1 + 0.7) * 0.15;
+    glowMat.opacity = 0.72 + Math.sin(tVis * 13.7) * 0.07 + Math.sin(tVis * 23.3) * 0.05;
   }
 
   // ---------- particle pool (one Points, fixed size, additive, vertex colours) ----------

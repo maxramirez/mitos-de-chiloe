@@ -78,7 +78,8 @@ scene.add(camera)
 const world = buildWorld(scene, rng)
 
 // the dim hand-lantern — warm near-field light following the camera
-const lantern = new THREE.PointLight(0xffd9a0, 24, 18, 1.8)
+// (wider, warmer pool: longer reach + gentler decay, amber over peach)
+const lantern = new THREE.PointLight(0xffce92, 26, 23, 1.55)
 lantern.position.set(0.35, -0.45, -0.5)
 camera.add(lantern)
 
@@ -320,10 +321,10 @@ function frame(rawDt) {
 
   // the lantern gutters as the charm takes hold
   lantern.intensity =
-    24 +
+    26 +
     Math.sin(tAmb * 7.3) * 1.6 +
     Math.sin(tAmb * 13.1) * 1.0 -
-    charm * (11 + Math.sin(tAmb * 29.7) * 4)
+    charm * (12 + Math.sin(tAmb * 29.7) * 4)
 
   // small screen shake under a heavy gaze
   if (playing && charm > 0.35) {

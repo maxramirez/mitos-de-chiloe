@@ -62,18 +62,35 @@ export function makeGroundTextures(repeat) {
         g.fill()
       }
   }
-  // leaf-litter speckle
-  for (let i = 0; i < 1500; i++) {
+  // leaf-litter speckle — denser and a touch harder so the lantern pool
+  // shows real litter at the player's feet instead of a flat wash
+  for (let i = 0; i < 2300; i++) {
     const x = rng() * size
     const y = rng() * size
     const r = 0.6 + rng() * 2.2
     const dark = rng() < 0.6
     g.fillStyle = dark
-      ? `rgba(70, 78, 64, ${0.10 + rng() * 0.12})`
-      : `rgba(238, 232, 210, ${0.07 + rng() * 0.09})`
+      ? `rgba(70, 78, 64, ${0.12 + rng() * 0.15})`
+      : `rgba(238, 232, 210, ${0.09 + rng() * 0.11})`
     g.beginPath()
     g.ellipse((x + size) % size, (y + size) % size, r * (1 + rng()), r, rng() * Math.PI, 0, Math.PI * 2)
     g.fill()
+  }
+  // fallen twigs — short hard strokes the bump map echoes
+  g.lineCap = 'round'
+  for (let i = 0; i < 70; i++) {
+    const x = rng() * size
+    const y = rng() * size
+    const ang = rng() * Math.PI
+    const len = 5 + rng() * 14
+    g.strokeStyle = rng() < 0.7
+      ? `rgba(74, 66, 52, ${0.12 + rng() * 0.12})`
+      : `rgba(230, 222, 198, ${0.08 + rng() * 0.08})`
+    g.lineWidth = 0.8 + rng() * 1.1
+    g.beginPath()
+    g.moveTo(x, y)
+    g.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len)
+    g.stroke()
   }
   // faint root/runner streaks
   g.lineCap = 'round'
@@ -113,12 +130,27 @@ export function makeGroundTextures(repeat) {
         bg.fill()
       }
   }
-  for (let i = 0; i < 900; i++) {
+  for (let i = 0; i < 1400; i++) {
     const v = brng() < 0.5 ? 60 : 195
-    bg.fillStyle = `rgba(${v},${v},${v},${0.16 + brng() * 0.2})`
+    bg.fillStyle = `rgba(${v},${v},${v},${0.18 + brng() * 0.22})`
     bg.beginPath()
     bg.arc(brng() * 256, brng() * 256, 0.6 + brng() * 1.8, 0, Math.PI * 2)
     bg.fill()
+  }
+  // twig relief matching the color map's strokes in spirit
+  bg.lineCap = 'round'
+  for (let i = 0; i < 50; i++) {
+    const x = brng() * 256
+    const y = brng() * 256
+    const ang = brng() * Math.PI
+    const len = 5 + brng() * 14
+    const v = brng() < 0.5 ? 55 : 200
+    bg.strokeStyle = `rgba(${v},${v},${v},${0.20 + brng() * 0.18})`
+    bg.lineWidth = 0.8 + brng() * 1.2
+    bg.beginPath()
+    bg.moveTo(x, y)
+    bg.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len)
+    bg.stroke()
   }
   return { map: colorTex(c, repeat), bumpMap: dataTex(bc, repeat) }
 }
@@ -382,6 +414,46 @@ export function makeTraucoTextures() {
     weave: { map: colorTex(c), bumpMap: dataTex(bc) },
     skin: { map: colorTex(cs), bumpMap: dataTex(bs) },
   }
+}
+
+// ---------- night sky: faint moonlit gradient behind the trunk line ----------
+// Mapped onto a tall open cylinder (fog: false) so the wall-forest crowns
+// read as silhouettes against a band of sky that is *slightly* brighter than
+// they are. Dithered speckle breaks banding on the large gradient.
+export function makeSkyTexture() {
+  const rng = texRng(1409)
+  const W = 256
+  const H = 512
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const g = c.getContext('2d')
+  // top of canvas = top of sky. Brightest band sits just above the canopy
+  // line (canvas y ~0.62–0.74); extremes match scene.background (0x060d16)
+  // so the cylinder edges dissolve invisibly.
+  const grad = g.createLinearGradient(0, 0, 0, H)
+  grad.addColorStop(0, 'rgb(6, 13, 22)')
+  grad.addColorStop(0.45, 'rgb(10, 18, 28)')
+  grad.addColorStop(0.62, 'rgb(16, 28, 42)')
+  grad.addColorStop(0.74, 'rgb(13, 23, 35)')
+  grad.addColorStop(0.86, 'rgb(7, 12, 18)')
+  grad.addColorStop(1, 'rgb(4, 7, 11)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, W, H)
+  // soft brightening toward the moon azimuth (cylinder u ≈ 0.34), high up
+  const mg = g.createRadialGradient(0.34 * W, 0.16 * H, 0, 0.34 * W, 0.16 * H, 0.55 * W)
+  mg.addColorStop(0, 'rgba(150, 180, 210, 0.10)')
+  mg.addColorStop(0.5, 'rgba(150, 180, 210, 0.04)')
+  mg.addColorStop(1, 'rgba(150, 180, 210, 0)')
+  g.fillStyle = mg
+  g.fillRect(0, 0, W, H)
+  // dither: low-alpha speckle kills gradient banding at this scale
+  for (let i = 0; i < 1600; i++) {
+    const v = rng() < 0.5 ? 0 : 255
+    g.fillStyle = `rgba(${v},${v},${v},${0.015 + rng() * 0.03})`
+    g.fillRect(rng() * W, rng() * H, 1, 1)
+  }
+  return colorTex(c)
 }
 
 // ---------- mist puff: soft irregular blob for the drifting ground-fog ----------

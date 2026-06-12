@@ -12,6 +12,7 @@ import {
   makeBarkTextures,
   makeFoliageTexture,
   makeMistTexture,
+  makeSkyTexture,
 } from './textures.js'
 
 // ---------- deterministic value noise ----------
@@ -44,15 +45,18 @@ export function terrainHeight(x, z) {
 }
 
 function makeGlowTexture() {
+  // 128 px + an extra stop: the moon halo scales to ~85 m and the old 64 px
+  // two-stop falloff banded visibly on that big a sprite
   const c = document.createElement('canvas')
-  c.width = c.height = 64
+  c.width = c.height = 128
   const g = c.getContext('2d')
-  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64)
   grad.addColorStop(0, 'rgba(255,255,255,1)')
-  grad.addColorStop(0.35, 'rgba(255,255,255,0.45)')
+  grad.addColorStop(0.3, 'rgba(255,255,255,0.5)')
+  grad.addColorStop(0.6, 'rgba(255,255,255,0.16)')
   grad.addColorStop(1, 'rgba(255,255,255,0)')
   g.fillStyle = grad
-  g.fillRect(0, 0, 64, 64)
+  g.fillRect(0, 0, 128, 128)
   return new THREE.CanvasTexture(c)
 }
 
@@ -65,16 +69,30 @@ export function buildWorld(scene, rng) {
   const barkTex = makeBarkTextures()
   const foliageTex = makeFoliageTexture()
   const mistTex = makeMistTexture()
+  const skyTex = makeSkyTexture()
 
-  scene.background = new THREE.Color(0x050a10)
-  scene.fog = new THREE.FogExp2(0x050a10, 0.034)
+  // lifted off pure black toward deep slate-blue: distant trees now read as
+  // silhouettes IN fog instead of vanishing into it
+  scene.background = new THREE.Color(0x060d16)
+  scene.fog = new THREE.FogExp2(0x060d16, 0.034)
 
   // ---------- environment light ----------
-  const hemi = new THREE.HemisphereLight(0x2a3a46, 0x04060a, 0.3)
+  const hemi = new THREE.HemisphereLight(0x2e4050, 0x04060a, 0.34)
   scene.add(hemi)
-  const moonDir = new THREE.DirectionalLight(0x93b8d8, 0.38)
+  const moonDir = new THREE.DirectionalLight(0x93b8d8, 0.46)
   moonDir.position.set(60, 90, -40)
   scene.add(moonDir)
+
+  // ---------- sky: faint moonlit band behind the trunk line ----------
+  // open cylinder, fog-immune, no depth write — everything draws over it,
+  // so the wall-forest crowns cut clean silhouettes against the gradient
+  const sky = new THREE.Mesh(
+    new THREE.CylinderGeometry(170, 170, 140, 48, 1, true),
+    new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false })
+  )
+  sky.position.y = 40
+  sky.renderOrder = -1
+  scene.add(sky)
 
   // ---------- the moon ----------
   const glowTex = makeGlowTexture()
@@ -177,9 +195,10 @@ export function buildWorld(scene, rng) {
     gPos.setY(i, terrainHeight(x, z))
     const m = vnoise(x * 0.11 + 31.7, z * 0.11 + 8.2)
     const p = vnoise(x * 0.045 + 77.7, z * 0.045 + 21.2)
-    gCol[i * 3] = 0.03 + 0.03 * p + 0.012 * m
-    gCol[i * 3 + 1] = 0.045 + 0.038 * (1 - p) + 0.015 * m
-    gCol[i * 3 + 2] = 0.03 + 0.02 * (1 - p)
+    const f = vnoise(x * 0.16 + 5.1, z * 0.16 + 60.3) - 0.5 // fine moss/dirt patchiness — reads inside the lantern pool
+    gCol[i * 3] = 0.03 + 0.03 * p + 0.012 * m + 0.018 * f
+    gCol[i * 3 + 1] = 0.045 + 0.038 * (1 - p) + 0.015 * m + 0.026 * f
+    gCol[i * 3 + 2] = 0.03 + 0.02 * (1 - p) + 0.012 * f
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(gCol, 3))
   groundGeo.computeVertexNormals()
@@ -190,7 +209,7 @@ export function buildWorld(scene, rng) {
       roughness: 1,
       map: groundTex.map, // near-white mottle — modulates the vertex colors
       bumpMap: groundTex.bumpMap,
-      bumpScale: 0.5, // leaf-litter relief the hand-lantern can rake across
+      bumpScale: 0.62, // leaf-litter relief the hand-lantern can rake across
     })
   )
   scene.add(ground)
@@ -221,10 +240,28 @@ export function buildWorld(scene, rng) {
 
   const folGeo = new THREE.ConeGeometry(1, 1, 7)
   folGeo.translate(0, 0.5, 0)
+  // moonlit rim baked into the cone: a cool brightening that gathers hard at
+  // the tip (pow curve), rotation-invariant so every instance's crown catches
+  // the same skylight. Multiplies the per-instance tints below.
+  {
+    const fp = folGeo.attributes.position
+    const fc = new Float32Array(fp.count * 3)
+    for (let i = 0; i < fp.count; i++) {
+      let y = fp.getY(i)
+      if (y < 0) y = 0
+      else if (y > 1) y = 1
+      const t = Math.pow(y, 2.4)
+      fc[i * 3] = 0.75 + t * 0.85 // -> 1.60 at the tip
+      fc[i * 3 + 1] = 0.78 + t * 1.07 // -> 1.85
+      fc[i * 3 + 2] = 0.76 + t * 1.29 // -> 2.05 — blue-shifted moonlight
+    }
+    folGeo.setAttribute('color', new THREE.BufferAttribute(fc, 3))
+  }
   const folMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 1,
     flatShading: true,
+    vertexColors: true, // the baked crown rim above
     map: foliageTex, // needle-clump mottle breaks the flat cone faces
   })
   const foliage = new THREE.InstancedMesh(folGeo, folMat, cypCount * 2)
@@ -257,14 +294,14 @@ export function buildWorld(scene, rng) {
       dummy.scale.set(h * 0.3, h * 0.78, h * 0.3)
       dummy.updateMatrix()
       foliage.setMatrixAt(fi, dummy.matrix)
-      tint.setHex(0x14241c).multiplyScalar(0.7 + rng() * 0.55)
+      tint.setHex(0x17281e).multiplyScalar(0.7 + rng() * 0.55)
       foliage.setColorAt(fi, tint)
       fi++
       dummy.position.set(x, gy + h * 0.62, z)
       dummy.scale.set(h * 0.17, h * 0.46, h * 0.17)
       dummy.updateMatrix()
       foliage.setMatrixAt(fi, dummy.matrix)
-      tint.setHex(0x18291f).multiplyScalar(0.7 + rng() * 0.55)
+      tint.setHex(0x1b2d22).multiplyScalar(0.7 + rng() * 0.55)
       foliage.setColorAt(fi, tint)
       fi++
     } else {

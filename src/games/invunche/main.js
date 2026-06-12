@@ -528,7 +528,7 @@ function frame(dt) {
   candleState.wax01 = wax / WAX_MAX
   candleState.dieFactor = wax > 0 ? 1 : Math.max(0, 1 - dying / (DARK_SECONDS - 0.2))
   candleState.flare = flare
-  world.update(dt, simT, candleState)
+  world.update(dt, simT, candleState, player.position.x, player.position.z)
 
   updateHUD()
 

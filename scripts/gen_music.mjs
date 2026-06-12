@@ -28,6 +28,9 @@ const GAMES = {
   fiura: { bpm: 78, prompts: [`${BASE}, swampy eerie folk, detuned plucked strings, frog-pond night textures, mischief and threat`] },
   quicavi: { bpm: 48, prompts: [`${BASE}, near-silence dread, faint dissonant drone, rare sparse piano notes, something behind you`] },
   cesares: { bpm: 70, prompts: [`${BASE}, weightless music-box puzzle garden, soft bells and harp, slow wonder with melancholy, enchanted hidden city`] },
+  recta: { bpm: 56, prompts: [`${BASE}, secret candlelit tribunal, low male hums, sparse bowed bass, ticking like a slow clock, judgment`] },
+  viuda: { bpm: 88, prompts: [`${BASE}, slow ox-cart rhythm like creaking wheels, lonely guitar plucks, empty night road, dread that keeps pace`] },
+  animas: { bpm: 58, prompts: [`${BASE}, funeral barcarolle, slow rowing pulse, low choir pads, water lapping, lanterns on black water`] },
   piuchen: { bpm: 108, prompts: [`${BASE}, tense arcade pulse on folk instruments, staccato strings, swooping danger, starry night`] },
 }
 

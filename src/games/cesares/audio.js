@@ -1,13 +1,14 @@
 // audio.js — LA CIUDAD DE LOS CÉSARES · WebAudio, all procedural except the
-// looping music bed (../assets/music/cesares.mp3 — this IS the music game of
-// the set, so the bed runs at ~0.3) and the Neruda voice clips
-// (../assets/voice/cesares/{title,win,lose}.mp3). Lazy AudioContext created
-// in unlock(); every call is a safe no-op before unlock or without WebAudio.
-// The procedural layer rides an `amb` bus that DUCKS to ~40% under a voice
-// clip. M toggles mute. Layers: thin high wind, the puerta's hum (swells via
-// update(dt, hum) when a complete path to the door exists), and one-shots:
-// rotor stone-grind (continuous while turning) + 90° ticks + snap chime,
-// footsteps, denied dull tap, illusion shimmer, level bells, win peal.
+// optional looping music bed (../assets/music/cesares.mp3) and the whispered
+// voice clips (../assets/voice/cesares/{title,win,lose}.mp3) — every fetch
+// failure is a silent no-op. Lazy AudioContext created in unlock() (the
+// COMENZAR gesture); every call is a safe no-op before unlock or without
+// WebAudio. The procedural layer rides an `amb` bus that DUCKS to ~40% under
+// a voice clip. M toggles mute. Layers: thin high wind, the puerta's hum
+// (setHum(k) swells while the path connects), and one-shots: rotor
+// stone-grind (continuous while turning) + 90° ticks + snap chime, footsteps,
+// denied dull tap, illusion shimmer (boarding / the impossible link), level
+// bells, win peal.
 
 export function createAudio() {
   const AC = typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null

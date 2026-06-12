@@ -186,10 +186,56 @@ function makeWarmGlowCanvas() {
   const g = c.getContext('2d')
   const grad = g.createRadialGradient(S / 2, S / 2, 4, S / 2, S / 2, S / 2)
   grad.addColorStop(0, 'rgba(255,176,96,0.55)')
+  grad.addColorStop(0.25, 'rgba(255,162,82,0.36)')
   grad.addColorStop(0.5, 'rgba(255,150,70,0.20)')
+  grad.addColorStop(0.75, 'rgba(255,144,64,0.08)')
   grad.addColorStop(1, 'rgba(255,140,60,0)')
   g.fillStyle = grad
   g.fillRect(0, 0, S, S)
+  return c
+}
+
+// tall rain-curtain texture: faded vertical streaks, drawn drifting over the
+// outside water band (above the darkness layer)
+function makeRainSheetCanvas(seed) {
+  const w = 160
+  const h = 512
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const g = c.getContext('2d')
+  const rnd = mulberry(seed)
+  for (let i = 0; i < 46; i++) {
+    const x = rnd() * w
+    const y0 = rnd() * (h - 40)
+    const len = 60 + rnd() * 160
+    const grad = g.createLinearGradient(0, y0, 0, y0 + len)
+    grad.addColorStop(0, 'rgba(170,200,215,0)')
+    grad.addColorStop(0.5, 'rgba(170,200,215,' + (0.05 + rnd() * 0.07).toFixed(3) + ')')
+    grad.addColorStop(1, 'rgba(170,200,215,0)')
+    g.strokeStyle = grad
+    g.lineWidth = 0.8 + rnd() * 1.2
+    g.beginPath()
+    g.moveTo(x + 3, y0)
+    g.lineTo(x - 3, y0 + len)
+    g.stroke()
+  }
+  return c
+}
+
+// stretched moon-glint ellipse for the far water (drawn over the darkness)
+function makeGlintCanvas() {
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 64
+  const g = c.getContext('2d')
+  g.scale(4, 1)
+  const grad = g.createRadialGradient(32, 32, 2, 32, 32, 32)
+  grad.addColorStop(0, 'rgba(186,255,224,0.32)')
+  grad.addColorStop(0.45, 'rgba(159,255,208,0.13)')
+  grad.addColorStop(1, 'rgba(159,255,208,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 64, 64)
   return c
 }
 
@@ -201,7 +247,10 @@ export function createRenderer(canvas) {
   const waterTex = makeWaterCanvas(29)
   const weaveTex = makeWeaveCanvas(5)
   const warmGlow = makeWarmGlowCanvas()
+  const rainSheet = makeRainSheetCanvas(41)
+  const glintTex = makeGlintCanvas()
   const ponchoPat = ctx.createPattern(makePonchoCanvas(17), 'repeat')
+  const weavePat = ctx.createPattern(weaveTex, 'repeat')
 
   // player walk-cycle state, derived from drawn positions (allocation-free)
   let pPrevX = -1
@@ -239,13 +288,13 @@ export function createRenderer(canvas) {
   })
 
   // --- pools ---------------------------------------------------------------
-  const RAIN_N = 90
+  const RAIN_N = 130
   const rain = new Float32Array(RAIN_N * 3) // x, y, speed
   for (let i = 0; i < RAIN_N; i++) {
     rain[i * 3] = Math.random() * W
     rain[i * 3 + 1] = Math.random() * H
-    // first 60 fall far/slow, last 30 near/fast (drawn as two depth layers)
-    rain[i * 3 + 2] = i < 60 ? 380 + Math.random() * 220 : 600 + Math.random() * 260
+    // three depth layers: 60 far/slow, 30 near/fast, 40 distant drizzle
+    rain[i * 3 + 2] = i < 60 ? 380 + Math.random() * 220 : i < 90 ? 600 + Math.random() * 260 : 230 + Math.random() * 110
   }
 
   const P_N = 220
@@ -580,19 +629,6 @@ export function createRenderer(canvas) {
 
     ctx.drawImage(base, 0, 0)
 
-    // sea shimmer outside the house
-    ctx.strokeStyle = 'rgba(159,255,208,0.07)'
-    ctx.lineWidth = 1
-    for (let i = 0; i < 10; i++) {
-      const yy = 18 + i * 60 + Math.sin(time * 0.7 + i * 1.7) * 6
-      const xx = ((i * 173 + time * 14) % (W + 160)) - 80
-      if (yy > HOUSE.y0 - 34 && yy < HOUSE.y1 + 34 && xx > HOUSE.x0 - 60 && xx < HOUSE.x1 + 60) continue
-      ctx.beginPath()
-      ctx.moveTo(xx, yy)
-      ctx.lineTo(xx + 46, yy)
-      ctx.stroke()
-    }
-
     // suspect tiles
     for (let i = 0; i < TILES.length; i++) {
       const t = TILES[i]
@@ -765,18 +801,22 @@ export function createRenderer(canvas) {
       const st = g.sleepers[i]
       const baby = i === 2 // la guagua sleeps small and quick
       const hr = baby ? 6.5 : 9
-      const breath = st.lost ? 0 : Math.sin(time * (baby ? 2.3 : 1.4) + i * 2.1) * 0.5 + 0.5
+      const ph = time * (baby ? 2.3 : 1.4) + i * 2.1
+      const breath = st.lost ? 0 : Math.sin(ph) * 0.5 + 0.5
       ctx.save()
       ctx.translate(s.x, s.y)
       if (st.lost) ctx.globalAlpha = 0.35
       // body under blanket (chest rises with breath) + knees bump
       ctx.fillStyle = st.lost ? '#262b28' : '#2e3a33'
       ctx.beginPath()
-      ctx.ellipse(-26, 8, baby ? 24 : 34, (baby ? 11 : 15) + breath * 1.8, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.beginPath()
+      ctx.ellipse(-26, 8, baby ? 24 : 34, (baby ? 11 : 15) + breath * 2.6, 0, 0, Math.PI * 2)
       ctx.ellipse(baby ? -34 : -42, 5, baby ? 9 : 12, baby ? 7 : 9, 0, 0, Math.PI * 2)
       ctx.fill()
+      // the mound IS the blanket — woven texture over the wool form
+      ctx.globalAlpha = (st.lost ? 0.35 : 1) * 0.5
+      ctx.fillStyle = weavePat
+      ctx.fill()
+      ctx.globalAlpha = st.lost ? 0.35 : 1
       // moonlit crest of the mound + heavy shadow where it meets the bed
       ctx.fillStyle = st.lost ? 'rgba(160,170,160,0.05)' : 'rgba(190,210,190,0.10)'
       ctx.beginPath()
@@ -827,10 +867,16 @@ export function createRenderer(canvas) {
       ctx.lineTo(15.5 + hr * 0.32, -1)
       ctx.stroke()
       ctx.restore()
-      // breath wisp
-      if (!st.lost && breath > 0.82) {
-        ctx.fillStyle = 'rgba(232,220,192,0.18)'
-        circle2(ctx, s.x + 22, s.y - 8 - breath * 4, 2.4)
+      // breath wisp — born at the peak of the chest rise, drifts up and fades
+      if (!st.lost) {
+        const q = ((ph % (Math.PI * 2)) / (Math.PI * 2) + 0.75) % 1
+        const wa = q < 0.12 ? q / 0.12 : Math.max(0, 1 - (q - 0.12) / 0.55)
+        if (wa > 0.02) {
+          ctx.fillStyle = 'rgba(232,220,192,' + (0.2 * wa).toFixed(2) + ')'
+          circle2(ctx, s.x + 20 + q * 10, s.y - 6 - q * 9, 1.6 + q * 2.2)
+          ctx.fillStyle = 'rgba(232,220,192,' + (0.09 * wa).toFixed(2) + ')'
+          circle2(ctx, s.x + 23 + q * 13, s.y - 9 - q * 12, 1 + q * 3)
+        }
       }
       // drain meter
       if (!st.lost && st.drain > 0.02) {
@@ -884,13 +930,15 @@ export function createRenderer(canvas) {
         ctx.lineTo(x1, y1 + 1.2)
         ctx.stroke()
         ctx.lineWidth = w
-        ctx.strokeStyle = i % 2 ? '#cfc8b0' : '#b6ae96'
+        ctx.strokeStyle = i % 2 ? '#d6cfb4' : '#a99f84'
         ctx.beginPath()
         ctx.moveTo(x0, y0)
         ctx.lineTo(x1, y1)
         ctx.stroke()
+        // wet-bone sheen: a glint travels down the spine, segment by segment
+        const sheen = Math.max(0, Math.sin(time * 2.8 - i * 0.55))
         ctx.lineWidth = Math.max(1, w * 0.34)
-        ctx.strokeStyle = 'rgba(255,231,185,0.32)'
+        ctx.strokeStyle = 'rgba(255,231,185,' + (0.2 + sheen * 0.3).toFixed(2) + ')'
         ctx.beginPath()
         ctx.moveTo(x0, y0 - w * 0.32)
         ctx.lineTo(x1, y1 - w * 0.32)
@@ -912,15 +960,17 @@ export function createRenderer(canvas) {
       ctx.lineCap = 'butt'
       const hx = tr[0]
       const hy = tr[1]
-      // hackle feathers where the culebra becomes gallo, ruffling as it moves
-      ctx.fillStyle = '#a89f86'
-      for (let k = -1; k <= 1; k++) {
-        const a = hd + Math.PI + k * 0.55
+      // hackle ruff where the culebra becomes gallo — five feathers in two
+      // tones, longest at the center, ruffling as it moves
+      for (let k = -2; k <= 2; k++) {
+        const a = hd + Math.PI + k * 0.38
         const wob = Math.sin(time * 7 + k * 2) * 0.7
+        const ln = 11.5 - Math.abs(k) * 1.5
+        ctx.fillStyle = k % 2 ? '#8e8468' : '#a89f86'
         ctx.beginPath()
-        ctx.moveTo(hx + Math.cos(hd + Math.PI / 2) * 2 * k, hy + Math.sin(hd + Math.PI / 2) * 2 * k)
-        ctx.lineTo(hx + Math.cos(a + 0.2) * 9, hy + Math.sin(a + 0.2) * 9 + wob)
-        ctx.lineTo(hx + Math.cos(a - 0.2) * 11.5, hy + Math.sin(a - 0.2) * 11.5 + wob)
+        ctx.moveTo(hx + Math.cos(hd + Math.PI / 2) * 1.6 * k, hy + Math.sin(hd + Math.PI / 2) * 1.6 * k)
+        ctx.lineTo(hx + Math.cos(a + 0.18) * (ln - 2.5), hy + Math.sin(a + 0.18) * (ln - 2.5) + wob)
+        ctx.lineTo(hx + Math.cos(a - 0.18) * (ln + 2), hy + Math.sin(a - 0.18) * (ln + 2) + wob)
         ctx.closePath()
         ctx.fill()
       }
@@ -976,24 +1026,28 @@ export function createRenderer(canvas) {
         ctx.stroke()
       }
       ctx.restore()
-      // cresta de gallo — sickly comb jiggling in 3 frames, blood at the tips
+      // cresta de gallo — taller sickly comb jiggling in 3 frames, dark-edged
+      // so it reads against the pale skull, blood at the tips
       const cf = ((time * 6) | 0) % 3
       const cj = cf === 0 ? 0 : cf === 1 ? 0.8 : -0.6
-      ctx.fillStyle = '#7e3028'
+      ctx.fillStyle = '#8e352a'
+      ctx.strokeStyle = 'rgba(8,5,3,0.6)'
+      ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.moveTo(hx - 5, hy - 4.5)
-      ctx.lineTo(hx - 3, hy - 11 + cj)
-      ctx.lineTo(hx - 0.5, hy - 5.5)
-      ctx.lineTo(hx + 1, hy - 12 - cj)
-      ctx.lineTo(hx + 3.5, hy - 5.5)
-      ctx.lineTo(hx + 5, hy - 10 + cj)
-      ctx.lineTo(hx + 6, hy - 4.5)
+      ctx.moveTo(hx - 6, hy - 4.5)
+      ctx.lineTo(hx - 3.5, hy - 13 + cj)
+      ctx.lineTo(hx - 0.5, hy - 6)
+      ctx.lineTo(hx + 1, hy - 14.5 - cj)
+      ctx.lineTo(hx + 4, hy - 6)
+      ctx.lineTo(hx + 5.5, hy - 12 + cj)
+      ctx.lineTo(hx + 7, hy - 4.5)
       ctx.closePath()
       ctx.fill()
-      ctx.fillStyle = '#c05540'
-      circle2(ctx, hx - 3, hy - 10.4 + cj, 1.1)
-      circle2(ctx, hx + 1, hy - 11.4 - cj, 1.2)
-      circle2(ctx, hx + 5, hy - 9.4 + cj, 1)
+      ctx.stroke()
+      ctx.fillStyle = '#d05a42'
+      circle2(ctx, hx - 3.5, hy - 12.4 + cj, 1.3)
+      circle2(ctx, hx + 1, hy - 13.9 - cj, 1.4)
+      circle2(ctx, hx + 5.5, hy - 11.4 + cj, 1.2)
       // wattle swinging under the beak
       ctx.fillStyle = '#8e342a'
       ctx.beginPath()
@@ -1145,7 +1199,7 @@ export function createRenderer(canvas) {
     for (let i = 0; i < BRAZIERS.length; i++) {
       if (g.braziers[i] <= 0) continue
       const br = BRAZIERS[i]
-      const f = 0.55 + g.braziers[i] * 0.45 + Math.sin(time * 11 + i * 7) * 0.04
+      const f = 0.55 + g.braziers[i] * 0.45 + Math.sin(time * 11 + i * 7) * 0.05 + Math.sin(time * 23 + i * 13) * 0.025
       dctx.setTransform(f, 0, 0, f, br.x, br.y)
       dctx.fillStyle = brazierLight
       dctx.fillRect(-250, -250, 500, 500)
@@ -1157,21 +1211,51 @@ export function createRenderer(canvas) {
     dctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.drawImage(dark, 0, 0)
 
-    // warm firelight tint inside the lit pools (overlay keeps it restrained)
+    // warm firelight tint inside the lit pools (overlay keeps it restrained);
+    // the pools breathe — slow flicker dancing on the floorboards
     ctx.globalCompositeOperation = 'overlay'
     for (let i = 0; i < BRAZIERS.length; i++) {
       if (g.braziers[i] <= 0) continue
       const br = BRAZIERS[i]
-      const f = 0.55 + g.braziers[i] * 0.45 + Math.sin(time * 11 + i * 7) * 0.04
+      const f = 0.55 + g.braziers[i] * 0.45 + Math.sin(time * 11 + i * 7) * 0.05 + Math.sin(time * 23 + i * 13) * 0.025
       const r = 185 * f
-      ctx.globalAlpha = 0.5
+      ctx.globalAlpha = 0.44 + Math.sin(time * 12 + i * 5) * 0.09 + Math.sin(time * 27 + i * 9) * 0.04
       ctx.drawImage(warmGlow, br.x - r, br.y - r, r * 2, r * 2)
     }
     const cr = 72 * (1 + Math.sin(time * 15) * 0.05)
-    ctx.globalAlpha = 0.4
+    ctx.globalAlpha = 0.37 + Math.sin(time * 17) * 0.05
     ctx.drawImage(warmGlow, pl.x - cr, pl.y - cr, cr * 2, cr * 2)
     ctx.globalAlpha = 1
     ctx.globalCompositeOperation = 'source-over'
+
+    // the outside band, over the darkness so the night sea isn't flat black:
+    // distant moon glints, drifting rain curtains, slow wave shimmer
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, W, H)
+    ctx.rect(HOUSE.x0 - 12, HOUSE.y0 - 12, HOUSE.x1 - HOUSE.x0 + 24, HOUSE.y1 - HOUSE.y0 + 24)
+    ctx.clip('evenodd')
+    ctx.globalAlpha = 0.55 + Math.sin(time * 0.5) * 0.25
+    ctx.drawImage(glintTex, 520, 8, 360, 56)
+    ctx.globalAlpha = 0.3 + Math.sin(time * 0.7 + 2) * 0.15
+    ctx.drawImage(glintTex, 40, 18, 240, 40)
+    for (let k = 0; k < 3; k++) {
+      const rx = ((k * 380 + time * (46 + k * 18)) % (W + 320)) - 160
+      ctx.globalAlpha = 0.5 + Math.sin(time * 0.9 + k * 2.4) * 0.3
+      ctx.drawImage(rainSheet, rx, 0, 160, H)
+    }
+    ctx.globalAlpha = 1
+    ctx.strokeStyle = 'rgba(159,255,208,0.09)'
+    ctx.lineWidth = 1
+    for (let i = 0; i < 10; i++) {
+      const yy = 18 + i * 60 + Math.sin(time * 0.7 + i * 1.7) * 6
+      const xx = ((i * 173 + time * 14) % (W + 160)) - 80
+      ctx.beginPath()
+      ctx.moveTo(xx, yy)
+      ctx.lineTo(xx + 46, yy)
+      ctx.stroke()
+    }
+    ctx.restore()
 
     // eyes glow — drawn over the darkness so they read even with both braziers out
     if (g.bas.visible) {
@@ -1212,7 +1296,17 @@ export function createRenderer(canvas) {
       }
     }
 
-    // rain over everything — two depths for parallax
+    // rain over everything — three depths for parallax, faintest first
+    ctx.lineWidth = 0.8
+    ctx.strokeStyle = 'rgba(160,190,205,0.06)'
+    ctx.beginPath()
+    for (let i = 90; i < RAIN_N; i++) {
+      const rx = rain[i * 3]
+      const ry = rain[i * 3 + 1]
+      ctx.moveTo(rx, ry)
+      ctx.lineTo(rx - 1.4, ry + 7)
+    }
+    ctx.stroke()
     ctx.lineWidth = 1
     ctx.strokeStyle = 'rgba(170,200,210,0.11)'
     ctx.beginPath()
@@ -1226,7 +1320,7 @@ export function createRenderer(canvas) {
     ctx.lineWidth = 1.3
     ctx.strokeStyle = 'rgba(180,210,218,0.20)'
     ctx.beginPath()
-    for (let i = 60; i < RAIN_N; i++) {
+    for (let i = 60; i < 90; i++) {
       const rx = rain[i * 3]
       const ry = rain[i * 3 + 1]
       ctx.moveTo(rx, ry)

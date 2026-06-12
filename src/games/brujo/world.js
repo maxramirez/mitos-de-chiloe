@@ -138,11 +138,19 @@ export function buildWorld(scene) {
   scene.add(moonLight)
   scene.add(moonLight.target)
 
+  /* moon azimuth: down-channel, sinking ahead of the flight path.
+     Hoisted here so the islet vertex colors can bake a moonlit rim. */
+  const moonAz = { x: 0.22, z: 1 }
+  const azl = Math.hypot(moonAz.x, moonAz.z)
+  moonAz.x /= azl
+  moonAz.z /= azl
+
   /* ---- islets: per-islet displaced planes, vertex colored ---- */
   const cSand = new THREE.Color(0x4c483c)
   const cGrass = new THREE.Color(0x202c24)
   const cMoss = new THREE.Color(0x1c2f33) /* cold blue-teal moss patches */
   const cRock = new THREE.Color(0x3c4046)
+  const cMoonlit = new THREE.Color(0xa9c4d4) /* cool rim where the moon grazes */
   const tmpC = new THREE.Color()
   /* grain canvas as map+bump; vertex colors brightened ~1.4x to repay
      the mid-gray map multiply, so overall value stays where it was */
@@ -170,6 +178,11 @@ export function buildWorld(scene) {
       else if (t < 0.65) tmpC.copy(cGrass).lerp(cMoss, clamp(fbm(wx * 0.026 + 11.3, wz * 0.026 - 5.1, 2) * 1.5 - 0.3, 0, 1))
       else tmpC.copy(cRock)
       tmpC.multiplyScalar(1.2 + fbm(wx * 0.1, wz * 0.1, 2) * 0.42)
+      /* moonlit rim: crowns and moon-facing slopes catch a cool edge,
+         so the islets read as moonlit masses, not flat black holes */
+      const drop = h - heightAt(wx + moonAz.x * 3, wz + moonAz.z * 3)
+      const rim = clamp(drop * 0.5, 0, 1) * clamp((h - 1.6) / 5, 0, 1)
+      if (rim > 0) tmpC.lerp(cMoonlit, rim * 0.5)
       colors[i * 3] = tmpC.r
       colors[i * 3 + 1] = tmpC.g
       colors[i * 3 + 2] = tmpC.b
@@ -240,8 +253,8 @@ export function buildWorld(scene) {
 
   /* ---- one hut + warm window light per islet ---- */
   const hutMat = new THREE.MeshStandardMaterial({ color: 0x14110d, roughness: 1 })
-  const winMat = new THREE.MeshStandardMaterial({ color: 0x100c08, roughness: 1, emissive: 0xffb860, emissiveIntensity: 2.2 })
-  const winTex = glowTexture('rgba(255,190,110,0.85)', 'rgba(255,190,110,0)')
+  const winMat = new THREE.MeshStandardMaterial({ color: 0x100c08, roughness: 1, emissive: 0xffa050, emissiveIntensity: 3.2 })
+  const winTex = glowTexture('rgba(255,178,92,0.9)', 'rgba(255,150,60,0)')
   for (let i = 0; i < ISLETS.length; i++) {
     const isl = ISLETS[i]
     const a = (i * 2.39996) % (Math.PI * 2)
@@ -339,12 +352,6 @@ export function buildWorld(scene) {
   moonHalo.scale.setScalar(340)
   moonGroup.add(moonDisc, moonHalo)
   scene.add(moonGroup)
-
-  /* moon azimuth: down-channel, sinking ahead of the flight path */
-  const moonAz = { x: 0.22, z: 1 }
-  const azl = Math.hypot(moonAz.x, moonAz.z)
-  moonAz.x /= azl
-  moonAz.z /= azl
 
   /* ---- moonglade: glitter lane on the water toward the moon.
      Vertex colors fade it in toward the horizon; opacity follows

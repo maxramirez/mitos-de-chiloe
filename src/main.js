@@ -83,20 +83,64 @@ function buildDock(x0) {
   const lampPost = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 2.6, 6), wood)
   lampPost.position.set(x0 + DOCK_LEN - 5, 2.1, 0)
   g.add(lampPost)
-  const bulb = new THREE.Mesh(
-    new THREE.SphereGeometry(0.16, 8, 8),
-    new THREE.MeshStandardMaterial({ color: 0x110a00, emissive: 0xffc87a, emissiveIntensity: 2.5 })
-  )
+  // beacon base 1.9: below every being accent (2.2–3.2) so the beings stay
+  // on top of the glow hierarchy until the ship is summoned and the dock
+  // becomes the destination — then it swells (see update below).
+  const bulbMat = new THREE.MeshStandardMaterial({
+    color: 0x110a00, emissive: 0xffc87a, emissiveIntensity: 1.9,
+  })
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), bulbMat)
   bulb.position.set(x0 + DOCK_LEN - 5, 3.0, 0)
   g.add(bulb)
   const lamp = new THREE.PointLight(0xffc87a, 20, 28, 1.8)
   lamp.position.set(x0 + DOCK_LEN - 5, 3.1, 0)
   g.add(lamp)
-  return g
+
+  // ceremonial rail lanterns — spectral glass over four post pairs, dark
+  // until the Caleuche answers, then kindling shore→sea as it closes.
+  // Emissive only, NO new PointLights: the scene's light count stays
+  // constant from boot (shader-recompile rule). Materials exist and render
+  // (unlit) from frame one, so kindling never compiles anything.
+  const railLanterns = []
+  const glassGeo = new THREE.OctahedronGeometry(0.11, 0) // echoes the ship's lanterns
+  const stalkGeo = new THREE.CylinderGeometry(0.035, 0.05, 0.62, 5)
+  for (let p = 0; p < 4; p++) {
+    const x = x0 - 4 + (p + 1) * ((DOCK_LEN + 8) / 5) // atop posts 1..4
+    for (const s of [-1, 1]) {
+      const stalk = new THREE.Mesh(stalkGeo, wood)
+      stalk.position.set(x, 1.31, s * 2.0)
+      g.add(stalk)
+      const m = new THREE.MeshStandardMaterial({
+        color: 0x0d1411, emissive: 0x9fffd0, emissiveIntensity: 0.05, roughness: 0.35,
+      })
+      const glass = new THREE.Mesh(glassGeo, m)
+      glass.position.set(x, 1.74, s * 2.0)
+      g.add(glass)
+      // at: kindle threshold along the sail-in; ph: private gutter phase
+      railLanterns.push({ m, at: 0.1 + p * 0.22, ph: p * 2.7 + (s + 1) * 1.9 })
+    }
+  }
+
+  function update(t, progress) {
+    const arriving = progress < 0 ? 0 : progress
+    for (let i = 0; i < railLanterns.length; i++) {
+      const L = railLanterns[i]
+      const k = THREE.MathUtils.smoothstep(arriving, L.at, L.at + 0.1)
+      // peak ~2.2: ceremony, but still under the beings' accents (2.2–3.2)
+      // and well under the ship's own lanterns (3.0+)
+      L.m.emissiveIntensity = 0.05 + k * (1.9 + Math.sin(t * 4.3 + L.ph) * 0.3)
+    }
+    // the beacon swells to answer the ship, guttering like a live flame
+    const kAll = THREE.MathUtils.smoothstep(arriving, 0.1, 0.9)
+    bulbMat.emissiveIntensity = 1.9 + kAll * (0.7 + Math.sin(t * 5.3) * 0.15)
+    lamp.intensity = 20 + kAll * (5 + Math.sin(t * 6.1) * 1.5)
+  }
+
+  return { group: g, update }
 }
 const dock = buildDock(shoreX)
-enableShadows(dock)
-scene.add(dock)
+enableShadows(dock.group)
+scene.add(dock.group)
 // reference points for the ambient one-shot picker (rigging creaks, cave knocks)
 const dockCenter = new THREE.Vector3(shoreX + DOCK_LEN / 2, 0, 0)
 const caveBeing = BEINGS.find((b) => b.id === 'invunche')
@@ -141,6 +185,7 @@ const caleucheEnd = new THREE.Vector3(shoreX + DOCK_LEN + 26, 0, 0)
 let caleucheProgress = -1 // -1 = not summoned, 0..1 = sailing in
 
 const state = { started: false, won: false, modal: false }
+let winCalm = 0 // 0..1 post-grade ease while the win card is up
 
 const fx = createFX(renderer, scene, camera)
 const dread = createDread()
@@ -453,6 +498,10 @@ function frame(dt) {
     dread.update(dt, { stalker: stalker.state, stalkerDist, nearestDist: guideDist })
   } else if (state.won) {
     dread.relieve(dt * 0.06)
+    // ease the post grade under the win card: grain settles to a faint
+    // whisper, aberration/pulse fade — the card is read in still water
+    winCalm = Math.min(1, winCalm + dt * 0.4)
+    fx.calm = winCalm
   }
 
   // the lantern gutters as dread rises
@@ -473,6 +522,7 @@ function frame(dt) {
     if (dx * dx + dz * dz < 300 * 300) b.inst.update(t)
   }
   updateCaleuche(dt, t)
+  dock.update(t, caleucheProgress)
   if (state.started) updateHUD()
 
   audio.update(dt, {

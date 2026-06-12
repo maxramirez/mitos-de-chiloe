@@ -14,6 +14,25 @@ export function createRings(scene) {
   const pillarGeo = new THREE.CylinderGeometry(1.6, 2.6, 300, 10, 1, true)
   pillarGeo.translate(0, 150, 0)
 
+  /* glow hierarchy: the ACTIVE ring is the brightest thing in the scene.
+     Its torus gets an HDR-hot color (ACES tames it into a mint-white core)
+     and one shared additive halo torus rides whichever ring is active —
+     built once at boot, only ever repositioned. */
+  const COL_BASE = new THREE.Color(0x9fffd0)
+  const COL_HOT = new THREE.Color(0x9fffd0).multiplyScalar(1.7)
+  const halo = new THREE.Mesh(
+    new THREE.TorusGeometry(RING_RADIUS, 1.25, 8, 36),
+    new THREE.MeshBasicMaterial({
+      color: 0x9fffd0,
+      transparent: true,
+      opacity: 0.16,
+      fog: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+  )
+  scene.add(halo)
+
   const rings = RINGS.map((r, i) => {
     const mat = new THREE.MeshBasicMaterial({
       color: 0x9fffd0,
@@ -56,19 +75,26 @@ export function createRings(scene) {
     for (let i = 0; i < rings.length; i++) {
       const rg = rings[i]
       rg.passed = i < n
+      rg.mat.color.copy(i === n ? COL_HOT : COL_BASE)
       if (i < n) {
         rg.mat.opacity = 0.05
         rg.pmat.opacity = 0
       } else if (i === n) {
         rg.mat.opacity = 0.95
-        rg.pmat.opacity = 0.1
+        rg.pmat.opacity = 0.2
       } else if (i === n + 1) {
         rg.mat.opacity = 0.3
-        rg.pmat.opacity = 0.025
+        rg.pmat.opacity = 0.05
       } else {
-        rg.mat.opacity = 0.14
+        rg.mat.opacity = 0.12
         rg.pmat.opacity = 0
       }
+    }
+    const act = rings[n]
+    halo.visible = !!act
+    if (act) {
+      halo.position.copy(act.torus.position)
+      halo.rotation.copy(act.torus.rotation)
     }
   }
   setActive(0)
@@ -90,10 +116,12 @@ export function createRings(scene) {
     }
     const rg = rings[active]
     if (rg) {
-      const pulse = 0.78 + Math.sin(t * 3.1) * 0.22
+      const pulse = 0.82 + Math.sin(t * 3.1) * 0.18
       rg.mat.opacity = pulse
-      rg.pmat.opacity = 0.08 + Math.sin(t * 2.2) * 0.03
+      rg.pmat.opacity = 0.18 + Math.sin(t * 2.2) * 0.06
       rg.torus.scale.setScalar(1 + Math.sin(t * 3.1) * 0.025)
+      halo.scale.setScalar(1 + Math.sin(t * 3.1) * 0.04)
+      halo.material.opacity = 0.14 + (Math.sin(t * 3.1) * 0.5 + 0.5) * 0.12
     }
   }
 

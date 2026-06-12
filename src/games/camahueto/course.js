@@ -19,12 +19,21 @@ export function buildCourse(scene, seed = 20260610) {
   const gushes = [];    // also pushed into obstacles for telegraphs/visibility
 
   // ---------- shared geometry & materials ----------
-  const boulderGeo = new THREE.IcosahedronGeometry(1, 0);
+  const boulderGeoBase = (() => {
+    const g = new THREE.IcosahedronGeometry(1, 0);
+    return g.index ? g.toNonIndexed() : g; // per-face vertex colours need unshared verts
+  })();
   // base colours lifted ~12% to offset the textures' sub-white average
   const boulderMat = new THREE.MeshStandardMaterial({
-    color: 0x83786c, roughness: 0.85, flatShading: true,
+    color: 0x83786c, roughness: 0.85, flatShading: true, vertexColors: true,
     map: rockTex, bumpMap: rockTex, bumpScale: 0.45,
   });
+  // facet bake helpers — cosmetic RNG is separate so the course layout RNG
+  // keeps its exact draw order (?seed= stays reproducible)
+  const crng = mulberry32(404011);
+  const MOON_DIR = new THREE.Vector3(26, 60, -80).normalize(); // matches world.js moonLight
+  const fA = new THREE.Vector3(), fB = new THREE.Vector3(), fC = new THREE.Vector3();
+  const fN = new THREE.Vector3(), fM = new THREE.Matrix4(), fE = new THREE.Euler();
   const logMat = new THREE.MeshStandardMaterial({
     color: 0x7a5e3c, roughness: 0.95, flatShading: true,
     map: woodTex, bumpMap: woodTex, bumpScale: 0.3,
@@ -60,9 +69,34 @@ export function buildCourse(scene, seed = 20260610) {
 
   function makeBoulder(x, z, r) {
     const root = new THREE.Group();
-    const m = new THREE.Mesh(boulderGeo, boulderMat);
-    m.scale.set(r * (0.9 + rng() * 0.3), r * (0.85 + rng() * 0.3), r * (0.9 + rng() * 0.3));
-    m.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+    // course rng draws in the original order: scale triple, then rotation triple
+    const sx = r * (0.9 + rng() * 0.3), sy = r * (0.85 + rng() * 0.3), sz = r * (0.9 + rng() * 0.3);
+    const rx = rng() * 3, ry = rng() * 3, rz = rng() * 3;
+    // bake per-facet shading + a cool sheen on the facets that catch the moon
+    const geo = boulderGeoBase.clone();
+    const pos = geo.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    fM.makeRotationFromEuler(fE.set(rx, ry, rz));
+    for (let f = 0; f < pos.count; f += 3) {
+      fA.fromBufferAttribute(pos, f);
+      fB.fromBufferAttribute(pos, f + 1).sub(fA);
+      fC.fromBufferAttribute(pos, f + 2).sub(fA);
+      fN.crossVectors(fB, fC).normalize().transformDirection(fM);
+      const v = 0.78 + crng() * 0.34; // facet-to-facet tonal variation
+      let cr = v, cg = v, cb = v;
+      const d = fN.dot(MOON_DIR);
+      if (d > 0.45) { // moonlit facet: cold glint, blue-biased
+        const t = (d - 0.45) / 0.55;
+        cr += t * 0.26; cg += t * 0.4; cb += t * 0.6;
+      }
+      for (let k = 0; k < 3; k++) {
+        col[(f + k) * 3] = cr; col[(f + k) * 3 + 1] = cg; col[(f + k) * 3 + 2] = cb;
+      }
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const m = new THREE.Mesh(geo, boulderMat);
+    m.scale.set(sx, sy, sz);
+    m.rotation.set(rx, ry, rz);
     m.position.y = r * 0.55;
     root.add(m);
     root.position.set(x, groundY(x, z), z);

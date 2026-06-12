@@ -37,6 +37,7 @@ body {
 .hud-right {
   position: fixed; top: 16px; right: 18px; z-index: 20; text-align: right;
   font-variant: small-caps; letter-spacing: 0.22em; font-size: 13px; color: var(--ink-dim);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.7); /* legible over the moonlit sea */
 }
 .hud-right > div { margin-bottom: 7px; }
 #hud-shv b { color: var(--gold); font-weight: normal; text-shadow: 0 0 12px rgba(255, 217, 122, 0.5); }
@@ -48,6 +49,7 @@ body {
   position: fixed; bottom: 14px; right: 18px; z-index: 20;
   font-variant: small-caps; letter-spacing: 0.22em; font-size: 11px;
   color: var(--ink-dim); opacity: 0.6;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 #hud-mute.off { opacity: 0.35; }
 

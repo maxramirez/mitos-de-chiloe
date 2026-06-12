@@ -133,7 +133,7 @@ function showEnd({ won, title, charms, body }) {
   const btn = el('button', 'btn', STR.replay)
   btn.addEventListener('click', () => location.reload())
   const hub = el('a', 'btn btn-quiet', STR.toHub)
-  hub.href = '/'
+  hub.href = '../' // relative: works at / in dev and under /mitos-de-chiloe/ on Pages
   stack.appendChild(btn)
   stack.appendChild(hub)
   card.appendChild(stack)

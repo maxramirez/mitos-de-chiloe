@@ -1,78 +1,157 @@
 // ============================================================================
 // LA CIUDAD DE LOS CÉSARES — La que no quiere ser vista · Mitos de Chiloé
-// Monument-Valley-style isometric perspective-illusion puzzle (three.js,
-// OrthographicCamera fixed on the (1,1,1) diagonal: azimuth 45°, elevation
-// ≈35.264°). Three handcrafted levels. Each level is static geometry plus
-// 1–2 ROTATING SECTIONS that snap to 90°, and a node graph: static edges are
-// always walkable, conditional edges only at one rotor index — including
-// ILLUSION edges whose endpoints are far apart in 3D but project to the SAME
-// pixel at the right rotation (endpoints differ by t·(1,1,1); verified at
-// load in levels.js). Click a node to walk (BFS over currently-valid edges);
-// drag a mechanism or use its ⟲ ⟳ buttons to rotate; the pilgrim rides a
-// section he is standing on. Reach the glowing puerta (it hums when a path
-// exists). Win after level 3: la ciudad se deja ver
-// (localStorage 'chiloe-cesares-done' = '1').
+// Isometric perspective puzzle, canvas2d. The enchanted city only exists from
+// the right angle: a broken pilgrim's path floats in night fog, and sections
+// of it sit on circular stone ROTORS. TAP a rotor to grind it 90° clockwise
+// (hold ~0.35 s or right-click for counter-clockwise — never required); when
+// tile edges align the path reconnects and the pilgrim AUTO-WALKS toward the
+// glowing gate, waiting at every break. A rotor turns WITH the pilgrim if he
+// stands on it. As the path connects, the city fades in on the horizon
+// (alpha = connected fraction). Six hand-authored levels under a per-level
+// moon timer; reach the gate of level vi and la ciudad se deja ver.
 //
-// TEST API — window.__game (sim is a pure frame(dt); rAF drives it live and
-// is throttled in hidden tabs; step() drives it deterministically):
+// TEST API — window.__game (sim is a pure frame(dt), driven by both rAF and
+// manual stepping; rAF is throttled in hidden tabs — tests drive step()):
 //   begin()                 — same as clicking COMENZAR (unlocks audio)
-//   step(dt=1/60, steps=1)  — advance the sim, then draw once. dt clamped to
-//                             0.05. The sim pauses under overlays (phases
-//                             'title' | 'won' | 'lost'); 'transition' (the
-//                             between-level assembly) advances with step().
-//   getState()              — { phase:'title'|'playing'|'transition'|'won'
-//                               |'lost', level:1..3, pilgrimNode:id,
-//                               rotors:[index 0..3 per rotor],
-//                               pathExists:bool (BFS pilgrim→door over
-//                               currently valid edges) }
-//   forceWin()              — runs the real win handler (sets localStorage
-//                             'chiloe-cesares-done'='1', shows the win card)
-//   forceLose()             — real lose handler: 'la ciudad volvió a
-//                             esconderse' card; its button restarts the
-//                             current level
-//   setLevel(n)             — build level n (1..3) and play it at once
-//   rotate(rotorIdx, steps) — turn a rotor by steps×90° (signed). Starts the
-//                             eased snap animation; returns false while that
-//                             rotor is busy / the pilgrim is walking /
-//                             phase !== 'playing'. Drive with step().
-//   clickNode(nodeId)       — same as tapping a node: walk if reachable,
-//                             denied flash otherwise. Returns 'ok'|'denied'
-//                             |'busy'.
-//   nodes()                 — [{ id, screen:[px,py], world:[x,y,z] }]
-//   solve()                 — play the current level's scripted solution
-//                             synchronously (steps the sim internally,
-//                             including the level transition); returns
-//                             getState()
-// dt is clamped at 0.05 s; no allocations inside frame(dt).
+//   step(dt=1/60, steps=1)  — advance the sim deterministically, then draw
+//                             once. dt clamped to 0.05.
+//   getState()              — { phase:'title'|'playing'|'won'|'lost', level,
+//                               levelName, rotorAngles:[deg 0|90|180|270],
+//                               pathConnected:0..1 (fraction of tiles in the
+//                               pilgrim's connected component; 1 once he has
+//                               reached the gate), pilgrimTile:[x,y],
+//                               walking, carried, timeLeft, taps, steps,
+//                               gateReachable, muted }
+//   forceWin()              — runs the real win handler (incl. localStorage
+//                             'chiloe-cesares-done' = '1')
+//   forceLose()             — runs the real lose handler (moon ran out)
+//   level()                 — current level 1..6
+//   setLevel(n)             — load level n and play it at once (works from
+//                             any phase; removes overlays)
+//   rotors()                — array of rotor angles in degrees (rot * 90)
+//   rotate(i, dir=1)        — rotate rotor i as if tapped (dir 1 = CW,
+//                             -1 = CCW). Queues if grinding or if the pilgrim
+//                             is mid-step on that rotor; returns true if
+//                             accepted. Drive the 0.35 s grind with step().
+//   pilgrim()               — { tile:[x,y], walking, carried }
+//   setTime(s)              — set the current level's remaining seconds
+//   pressKey(code, down, shift) — drive keyboard input ('Digit1'..'Digit6'
+//                             rotate CW / +shift CCW, 'KeyR' retry level,
+//                             'KeyM' mute)
 // ============================================================================
 
-import * as THREE from 'three'
-import { LEVELS } from './levels.js'
-import {
-  createRenderer, createCamera, applyFrame, createLights,
-  createPilgrim, buildLevel, disposeLevel, createPuffs,
-} from './world.js'
+import { createRenderer, isoX, isoY, rotOff, HW, HH } from './render.js'
 import { createAudio } from './audio.js'
 
-const HALF_PI = Math.PI / 2
-const UP = new THREE.Vector3(0, 1, 0)
-const EDGE_T = 0.45 // s per normal edge
-const ILL_T = 0.32 // s per illusion edge (the screen-still step)
+const STEP_T = 0.34 // s per tile walked
+const ROT_T = 0.35 // s per 90° grind
+const HOLD_T = 0.35 // s press-and-hold => counter-clockwise
 const LS_DONE = 'chiloe-cesares-done'
+const HALF_PI = Math.PI / 2
+
+// tile masks: E=1 S=2 W=4 N=8 — a bit per open edge (grid +x +y -x -y)
+const rotM = (m, k) => {
+  let r = m
+  for (let i = 0; i < ((k % 4) + 4) % 4; i++) r = ((r << 1) | (r >>> 3)) & 15
+  return r
+}
+const rotO = (dx, dy, k, out) => {
+  let x = dx
+  let y = dy
+  for (let i = 0; i < ((k % 4) + 4) % 4; i++) {
+    const t = x
+    x = -y
+    y = t
+  }
+  out[0] = x
+  out[1] = y
+  return out
+}
+
+// --- the six pilgrimages ------------------------------------------------------
+// tiles: [x, y, mask, z] static stones. rotors: cx/cy pivot, rot = starting
+// quarter-turns CW, cells: [dx, dy, mask, z] at rot 0. Every level is solvable
+// with CW taps only (the rotation group is a 4-cycle, so always recoverable).
+const LEVELS = [
+  {
+    name: 'la primera torre', time: 45,
+    toast: 'toca el disco de piedra: el camino se acuerda de sí mismo',
+    start: [0, 0], gate: [4, 0],
+    tiles: [[0, 0, 1, 0], [1, 0, 5, 0], [3, 0, 5, 0], [4, 0, 4, 0]],
+    rotors: [{ cx: 2, cy: 0, rot: 1, cells: [[0, 0, 5, 0]] }],
+  },
+  {
+    name: 'el codo del agua', time: 55,
+    toast: 'dos discos, un solo camino',
+    start: [0, 0], gate: [2, 3],
+    tiles: [[0, 0, 1, 0], [2, 0, 6, 0], [2, 2, 10, 0], [2, 3, 8, 0]],
+    rotors: [
+      { cx: 1, cy: 0, rot: 1, cells: [[0, 0, 5, 0]] },
+      { cx: 2, cy: 1, rot: 1, cells: [[0, 0, 10, 0]] },
+    ],
+  },
+  {
+    name: 'la balsa de piedra', time: 65,
+    toast: 'la piedra también puede llevarte — gira con él encima',
+    start: [0, 0], gate: [4, 3],
+    tiles: [[0, 0, 1, 0], [1, 0, 5, 0], [4, 2, 10, 0], [4, 3, 8, 0]],
+    rotors: [{ cx: 3, cy: 1, rot: 0, cells: [[0, -1, 5, 0], [-1, -1, 5, 0]] }],
+  },
+  {
+    name: 'los puentes gemelos', time: 75,
+    toast: 'deja que cruce primero, y vuelve a girar',
+    start: [0, 2], gate: [6, 4],
+    tiles: [[0, 2, 1, 0], [1, 2, 5, 0], [3, 2, 6, 0], [3, 4, 9, 0], [4, 4, 5, 0], [6, 4, 4, 0]],
+    rotors: [
+      { cx: 2, cy: 2, rot: 1, cells: [[0, 0, 5, 0]] },
+      { cx: 4, cy: 3, rot: 0, cells: [[-1, 0, 10, 0], [1, -1, 10, 0]] },
+    ],
+  },
+  {
+    name: 'la escalera del agua', time: 95,
+    toast: 'la piedra errante busca su lugar — y luego te lleva',
+    start: [0, 0], gate: [9, 3],
+    tiles: [
+      [0, 0, 1, 0], [1, 0, 5, 0], [3, 0, 6, 0], [3, 2, 9, 0],
+      [4, 2, 5, 0], [5, 2, 5, 0], [8, 3, 5, 0], [9, 3, 4, 0],
+    ],
+    rotors: [
+      { cx: 2, cy: 0, rot: 1, cells: [[0, 0, 5, 0]] },
+      { cx: 4, cy: 1, rot: 2, cells: [[-1, 0, 10, 0]] },
+      { cx: 6, cy: 3, rot: 3, cells: [[0, -1, 12, 0]] },
+    ],
+  },
+  {
+    name: 'el puente imposible', time: 110,
+    toast: 'tres discos: un puente que no debería existir',
+    start: [0, 4], gate: [8, 4],
+    tiles: [[0, 4, 1, 0], [1, 4, 5, 0], [2, 4, 5, 0], [8, 4, 4, 3]],
+    rotors: [
+      { cx: 3, cy: 3, rot: 2, cells: [[0, 1, 5, 1]] },
+      { cx: 5, cy: 4, rot: 3, cells: [[-1, 0, 5, 1], [0, 0, 5, 1], [1, 0, 5, 2]] },
+      { cx: 7, cy: 3, rot: 2, cells: [[0, 1, 5, 3]] },
+    ],
+  },
+]
+const ROMAN = ['i', 'ii', 'iii', 'iv', 'v', 'vi']
+const DOOR_TOAST = [
+  'la primera puerta cede — la ciudad se reordena',
+  'la segunda puerta cede — algo brilla a lo lejos',
+  'la tercera puerta cede — ya conoce tus pasos',
+  'la cuarta puerta cede — las torres te esperan',
+  'la quinta puerta cede — solo falta el ángulo justo',
+]
 
 const TEXTS = {
-  title: 'LA CIUDAD DE LOS CÉSARES',
-  epithet: 'La que no quiere ser vista',
   // card bodies match the voice clips (assets/voice/cesares/*.mp3) word for
   // word, in the collection's Neruda register.
   intro: 'Hay una ciudad que nadie encuentra dos veces. Se esconde en el ángulo de la luz, y solo se deja ver cuando el camino la mira <i>como ella quiere ser mirada</i>.',
   win: 'La ciudad se deja ver. Torre por torre despierta su oro, campana por campana recuerda tu nombre. Guárdala en los ojos, peregrino: mañana volverá a ser niebla.',
   lose: 'La ciudad volvió a esconderse, como se esconde el agua dentro del agua. Busca otra vez el ángulo justo: ella espera a quien sabe mirar.',
-  controls: 'CLIC un punto del camino: caminar &nbsp;·&nbsp; ARRASTRA un mecanismo o usa ⟲ ⟳: girar &nbsp;·&nbsp; M sonido',
-  doorToast: ['', 'la primera puerta cede — la ciudad se reordena', 'la segunda puerta cede — ya casi te deja verla'],
+  controls: 'TOCA un disco de piedra: girar &nbsp;·&nbsp; MANTÉN o CLIC DERECHO: girar al revés &nbsp;·&nbsp; 1–6 teclas &nbsp;·&nbsp; M sonido',
 }
 
-// --- dom ---------------------------------------------------------------------
+// --- dom -----------------------------------------------------------------------
 const canvas = document.getElementById('game')
 const ui = document.getElementById('ui')
 const vignette = document.createElement('div')
@@ -87,11 +166,15 @@ function el(tag, cls, html, parent) {
   return e
 }
 
+const moonBar = el('div', '', '', ui)
+moonBar.id = 'moon'
+const moonFill = el('div', '', '', moonBar)
+moonFill.id = 'moon-fill'
 const hud = el('div', '', '', ui)
 hud.id = 'hud'
 const toastEl = el('div', '', '', ui)
 toastEl.id = 'toast'
-const hint = el('div', '', TEXTS.controls.replace(/&nbsp;/g, ' '), ui)
+const hint = el('div', '', 'toca un disco: gira · mantén: al revés · M sonido', ui)
 hint.id = 'hint'
 
 let toastTimer = null
@@ -116,526 +199,552 @@ function card(title, epithet, body, controls, btnLabel, onClick) {
 }
 
 const titleCard = card(
-  TEXTS.title, TEXTS.epithet, TEXTS.intro, TEXTS.controls, 'COMENZAR', () => begin()
+  'LA CIUDAD DE LOS CÉSARES', 'La que no quiere ser vista', TEXTS.intro,
+  TEXTS.controls, 'COMENZAR', () => begin()
 )
 let endCard = null
+let endAction = null
+function showEnd(title, epithet, body, btn, action) {
+  if (endCard) endCard.remove()
+  endAction = action
+  endCard = card(title, epithet, body, '', btn, () => {
+    if (endAction) endAction()
+  })
+}
 
-// --- three ------------------------------------------------------------------
+// --- state -----------------------------------------------------------------------
 const renderer = createRenderer(canvas)
-const scene = new THREE.Scene()
-scene.fog = new THREE.Fog(0x14253f, 30, 60)
-const camera = createCamera()
-const lights = createLights(scene)
-const puffs = createPuffs(14)
-scene.add(puffs.group)
-const pilgrim = createPilgrim()
-scene.add(pilgrim.group)
 const audio = createAudio()
 
-// --- game state ---------------------------------------------------------------
-const game = { phase: 'title', level: 1 } // title | playing | transition | won | lost
-const stats = { rot: 0, steps: 0 }
-let visT = 0 // visual clock — always advances
-let pathOK = false
-let pathK = 0 // eased 0..1 door-hum/glow level
-let glowK = 0 // final-win city glow
-let firstRotation = false
-
-let L = null // current level runtime (see buildLevelState)
-
-const frameC = { c: new THREE.Vector3(), v: 5 } // current camera frame
-const trans = {
-  active: false, t: 0, built: false, next: 1,
-  c0: new THREE.Vector3(), v0: 5, c1: new THREE.Vector3(), v1: 5,
+const game = {
+  phase: 'title', // title | playing | won | lost
+  level: 1,
+  visT: 0,
+  time: 0, // moon seconds left in this level
+  inter: 0, // gate-reached intermission countdown
+  connFrac: 0,
+  cityFloor: 0, // the city remembers solved levels
+  pathK: 0, // eased 0..1 gate glow (gate reachable)
+  lvl: null, // runtime level (set by loadLevel)
+  rotors: [],
+  drawList: [],
+  pil: null,
 }
+const stats = { taps: 0, steps: 0, totalT: 0 }
 
 const pil = {
-  node: 0, walking: false, path: null, pathLen: 0, pathPos: 0,
-  from: 0, to: 0, t: 0, dur: EDGE_T, ill: false, stepBits: 0,
-  yaw: 0, scaleK: 1,
+  tile: [0, 0], from: [0, 0], to: [0, 0],
+  gx: 0, gy: 0, gz: 0, fromZ: 0, toZ: 0,
+  t: 0, walking: false, face: 1, bobT: 0,
+  carriedBy: -1, carryOff: [0, 0], carryZ: 0,
 }
+game.pil = pil
 
-const denied = { mat: null, t: 1 }
+let gateReach = false
+let connSet = new Set()
+const _o = [0, 0] // scratch offset
+const _o2 = [0, 0]
 
-// scratch (frame loop is allocation-free)
-const _a = new THREE.Vector3()
-const _b = new THREE.Vector3()
-const _c = new THREE.Vector3()
-
-// --- level runtime ------------------------------------------------------------
-const ctls = [] // floating ⟲ ⟳ controls, one per rotor
-function clearCtls() {
-  for (const c of ctls) c.root.remove()
-  ctls.length = 0
-}
-let rotorHintEl = null
-
-function buildLevelState(n) {
-  if (L) {
-    scene.remove(L.handle.group)
-    disposeLevel(L.handle)
+// --- map + connectivity ------------------------------------------------------------
+// settled positions of rotor r's cells (current rot); cb(x, y, mask, z, cellIdx)
+function eachCell(r, cb) {
+  for (let j = 0; j < r.def.cells.length; j++) {
+    const c = r.def.cells[j]
+    rotO(c[0], c[1], r.rot, _o)
+    cb(r.cx + _o[0], r.cy + _o[1], rotM(c[2], r.rot), c[3], j)
   }
-  clearCtls()
-  if (rotorHintEl) { rotorHintEl.remove(); rotorHintEl = null }
+}
 
-  const def = LEVELS[n - 1]
-  const handle = buildLevel(def)
-  scene.add(handle.group)
-  game.level = n
-
-  const ids = []
-  const idToIdx = {}
-  const nodeStatic = []
-  const nodeLocal = []
-  const nodeRotor = []
-  def.nodes.forEach((nd, i) => {
-    ids.push(nd.id)
-    idToIdx[nd.id] = i
-    if (nd.l) {
-      nodeStatic.push(null)
-      nodeLocal.push(new THREE.Vector3(nd.l[0], nd.l[1], nd.l[2]))
-      nodeRotor.push(nd.r)
-    } else {
-      nodeStatic.push(new THREE.Vector3(nd.p[0], nd.p[1], nd.p[2]))
-      nodeLocal.push(null)
-      nodeRotor.push(-1)
-    }
-  })
-  const edges = def.edges.map((e) => ({
-    a: idToIdx[e.a], b: idToIdx[e.b],
-    r: e.r === undefined ? -1 : e.r, at: e.at === undefined ? 0 : e.at,
-    ill: !!e.ill,
-  }))
-  const adj = ids.map(() => [])
-  edges.forEach((e, i) => {
-    adj[e.a].push(i)
-    adj[e.b].push(i)
-  })
-
-  const rotors = def.rotors.map((rd, i) => {
-    const rb = handle.rotors[i]
-    const angle = rd.start * HALF_PI
-    rb.group.rotation.y = angle
-    return {
-      def: rd, group: rb.group, ringMat: rb.ringMat,
-      pivotV: new THREE.Vector3(rd.pivot[0], rd.pivot[1], rd.pivot[2]),
-      angle, index: rd.start, busy: false, dragging: false,
-      from: 0, to: 0, t: 0, dur: 0.4, lastQ: rd.start, prevAngle: angle,
-      lastX: -1, lastY: -1,
-    }
-  })
-
-  L = {
-    def, handle, ids, idToIdx, nodeStatic, nodeLocal, nodeRotor, edges, adj, rotors,
-    door: idToIdx[def.door], start: idToIdx[def.start],
-    visited: new Uint8Array(ids.length),
-    prev: new Int16Array(ids.length),
-    queue: new Int16Array(ids.length),
+// tile map at the current settled state. Animating rotors contribute nothing
+// (their stones are mid-air). Rotor cells override statics on the same coords.
+function buildMap() {
+  const map = new Map()
+  const ts = game.lvl.def.tiles
+  for (let i = 0; i < ts.length; i++) {
+    map.set(ts[i][0] + ',' + ts[i][1], { m: ts[i][2], z: ts[i][3] })
   }
-
-  // pilgrim to the start node
-  pil.node = L.start
-  pil.walking = false
-  pil.path = new Int16Array(ids.length)
-  pil.yaw = Math.PI
-  nodeWorld(pil.node, _a)
-  pilgrim.group.position.copy(_a)
-  pilgrim.group.visible = true
-  pil.scaleK = 1
-  pilgrim.group.scale.setScalar(1)
-
-  // camera frame + light rig
-  frameC.c.set(def.center[0], def.center[1], def.center[2])
-  frameC.v = def.view
-  lights.center(frameC.c)
-  refreshFrame()
-
-  // HUD + floating rotor controls
-  hud.innerHTML = '<b>' + def.name + '</b>'
-  rotors.forEach((r, i) => {
-    const root = el('div', 'rotor-ctl', '', ui)
-    const bl = el('button', '', '⟲', root)
-    const br = el('button', '', '⟳', root)
-    bl.addEventListener('click', () => rotate(i, -1))
-    br.addEventListener('click', () => rotate(i, 1))
-    ctls.push({ root, r })
-  })
-  if (n === 1) rotorHintEl = el('div', 'rotor-hint', 'gira el mecanismo', ui)
-
-  recomputePath()
-  return L
+  for (let i = 0; i < game.rotors.length; i++) {
+    const r = game.rotors[i]
+    if (r.anim) continue
+    eachCell(r, (x, y, m, z) => map.set(x + ',' + y, { m, z }))
+  }
+  return map
 }
 
-// --- node / edge math -----------------------------------------------------------
-function nodeWorld(i, out) {
-  const st = L.nodeStatic[i]
-  if (st) return out.copy(st)
-  const r = L.rotors[L.nodeRotor[i]]
-  return out.copy(L.nodeLocal[i]).applyAxisAngle(UP, r.angle).add(r.pivotV)
-}
+const DX = [1, 0, -1, 0]
+const DY = [0, 1, 0, -1]
 
-function rotorSettled(ri) {
-  const r = L.rotors[ri]
-  return !r.busy && !r.dragging
-}
-
-function edgeValid(e) {
-  const ra = L.nodeRotor[e.a]
-  const rb = L.nodeRotor[e.b]
-  if (ra >= 0 && !rotorSettled(ra)) return false
-  if (rb >= 0 && !rotorSettled(rb)) return false
-  if (e.r < 0) return true
-  if (!rotorSettled(e.r)) return false
-  return L.rotors[e.r].index === e.at
-}
-
-// BFS from pil.node to `target`; fills pil.path when found. Returns length or -1.
-function findPath(target, write) {
-  const vis = L.visited
-  const prev = L.prev
-  const q = L.queue
-  vis.fill(0)
+// BFS over mutually-open edges from `fromKey`. Returns { set, parent, order }.
+function bfs(map, fromKey) {
+  const set = new Set()
+  const parent = new Map()
+  const order = []
+  if (!map.has(fromKey)) return { set, parent, order }
+  set.add(fromKey)
+  order.push(fromKey)
+  parent.set(fromKey, null)
   let head = 0
-  let tail = 0
-  q[tail++] = pil.node
-  vis[pil.node] = 1
-  prev[pil.node] = -1
-  while (head < tail) {
-    const cur = q[head++]
-    if (cur === target) {
-      let len = 0
-      let n = cur
-      while (n !== -1) {
-        len++
-        n = prev[n]
-      }
-      if (write) {
-        let k = len - 1
-        n = cur
-        while (n !== -1) {
-          pil.path[k--] = n
-          n = prev[n]
-        }
-        pil.pathLen = len
-      }
-      return len
-    }
-    const list = L.adj[cur]
-    for (let i = 0; i < list.length; i++) {
-      const e = L.edges[list[i]]
-      if (!edgeValid(e)) continue
-      const nxt = e.a === cur ? e.b : e.a
-      if (vis[nxt]) continue
-      vis[nxt] = 1
-      prev[nxt] = cur
-      q[tail++] = nxt
+  while (head < order.length) {
+    const key = order[head++]
+    const ix = key.indexOf(',')
+    const x = +key.slice(0, ix)
+    const y = +key.slice(ix + 1)
+    const t = map.get(key)
+    for (let d = 0; d < 4; d++) {
+      if (!(t.m & (1 << d))) continue
+      const nk = (x + DX[d]) + ',' + (y + DY[d])
+      if (set.has(nk)) continue
+      const nt = map.get(nk)
+      if (!nt) continue
+      if (!(nt.m & (1 << ((d + 2) % 4)))) continue // mutual edge
+      set.add(nk)
+      parent.set(nk, key)
+      order.push(nk)
     }
   }
-  return -1
+  return { set, parent, order }
 }
 
-function recomputePath() {
-  pathOK = findPath(L.door, false) >= 0
-  audio.setHum(pathOK ? 1 : 0)
+// recompute the pilgrim's connected component, the city fraction, gate reach,
+// and the per-tile glow flags. Called on events only (never per frame).
+function recompute() {
+  const map = buildMap()
+  const pk = pil.tile[0] + ',' + pil.tile[1]
+  const res = bfs(map, pk)
+  connSet = res.set
+  const gateKey = game.lvl.def.gate[0] + ',' + game.lvl.def.gate[1]
+  gateReach = connSet.has(gateKey)
+  game.connFrac = Math.min(1, connSet.size / game.lvl.total)
+  if (game.inter > 0 || pk === gateKey) game.connFrac = 1
+  const items = game.drawList
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].kind !== 2) items[i].conn = connSet.has(items[i].key)
+  }
+  audio.setHum(game.connFrac * (gateReach ? 1 : 0.55))
+  return res
 }
 
-// --- walking ----------------------------------------------------------------------
-function clickNode(idOrIdx) {
-  if (game.phase !== 'playing') return 'busy'
-  if (pil.walking) return 'busy'
-  const idx = typeof idOrIdx === 'number' ? idOrIdx : L.idToIdx[idOrIdx]
-  if (idx === undefined || idx === pil.node) return 'busy'
-  const len = findPath(idx, true)
-  if (len < 0) {
-    const mat = L.handle.markers[L.ids[idx]]
-    if (mat) {
-      denied.mat = mat
-      denied.t = 0
+// where should the pilgrim walk? BFS from his tile; target = the reachable
+// tile nearest the gate (manhattan, then BFS depth). Returns the first step
+// [x,y] toward it, or null if he is already as far as the path goes.
+function planStep() {
+  const res = recompute()
+  const gx = game.lvl.def.gate[0]
+  const gy = game.lvl.def.gate[1]
+  let best = null
+  let bestM = Infinity
+  let bestD = Infinity
+  const depth = new Map()
+  for (let i = 0; i < res.order.length; i++) {
+    const key = res.order[i]
+    const par = res.parent.get(key)
+    depth.set(key, par === null ? 0 : depth.get(par) + 1)
+    const ix = key.indexOf(',')
+    const x = +key.slice(0, ix)
+    const y = +key.slice(ix + 1)
+    const m = Math.abs(x - gx) + Math.abs(y - gy)
+    const d = depth.get(key)
+    if (m < bestM || (m === bestM && d < bestD)) {
+      bestM = m
+      bestD = d
+      best = key
     }
-    if (visT - lastDeniedAt > 0.25) {
-      audio.sfx.denied()
-      lastDeniedAt = visT
-    }
-    return 'denied'
   }
-  pil.pathPos = 0
-  startEdge()
-  return 'ok'
+  const pk = pil.tile[0] + ',' + pil.tile[1]
+  if (!best || best === pk) return null
+  let cur = best
+  while (res.parent.get(cur) !== pk) cur = res.parent.get(cur)
+  const ix = cur.indexOf(',')
+  return [+cur.slice(0, ix), +cur.slice(ix + 1)]
 }
-let lastDeniedAt = -1
 
-function startEdge() {
-  if (pil.pathPos >= pil.pathLen - 1) {
-    pil.walking = false
-    arrive()
-    return
-  }
-  pil.from = pil.path[pil.pathPos]
-  pil.to = pil.path[pil.pathPos + 1]
-  // the edge being crossed (for illusion detection)
-  pil.ill = false
-  const list = L.adj[pil.from]
-  for (let i = 0; i < list.length; i++) {
-    const e = L.edges[list[i]]
-    if ((e.a === pil.from && e.b === pil.to) || (e.b === pil.from && e.a === pil.to)) {
-      pil.ill = e.ill
-      break
-    }
-  }
+function tileZ(x, y) {
+  const t = buildMap().get(x + ',' + y)
+  return t ? t.z : 0
+}
+
+// --- pilgrim ------------------------------------------------------------------------
+let planDirty = true // re-plan only on events (no per-frame BFS allocations)
+
+function anyAnim() {
+  for (let i = 0; i < game.rotors.length; i++) if (game.rotors[i].anim) return true
+  return false
+}
+
+function startStep(next) {
+  pil.from[0] = pil.tile[0]
+  pil.from[1] = pil.tile[1]
+  pil.to[0] = next[0]
+  pil.to[1] = next[1]
+  pil.fromZ = tileZ(pil.from[0], pil.from[1])
+  pil.toZ = tileZ(pil.to[0], pil.to[1])
   pil.t = 0
-  pil.dur = pil.ill ? ILL_T : EDGE_T
-  pil.stepBits = 0
   pil.walking = true
-  if (pil.ill) {
-    audio.sfx.illusion()
-    nodeWorld(pil.from, _a)
-    puffs.spawn(_a.x, _a.y + 0.3, _a.z, 0.9)
-  }
-}
-
-function arrive() {
-  recomputePath()
-  if (pil.node === L.door) {
-    if (game.level >= 3) win()
-    else levelComplete()
-  }
+  const sdx = isoX(pil.to[0], pil.to[1]) - isoX(pil.from[0], pil.from[1])
+  if (Math.abs(sdx) > 0.5) pil.face = sdx > 0 ? 1 : -1
+  audio.sfx.step()
 }
 
 function smooth(t) { return t * t * (3 - 2 * t) }
 
-function updateWalk(dt) {
-  if (!pil.walking) return
-  pil.t += dt
-  const k = smooth(Math.min(1, pil.t / pil.dur))
-  nodeWorld(pil.from, _a)
-  nodeWorld(pil.to, _b)
-  pilgrim.group.position.lerpVectors(_a, _b, k)
-  // face the travel direction (screen-still on illusion edges — keep yaw)
-  if (!pil.ill) {
-    const dx = _b.x - _a.x
-    const dz = _b.z - _a.z
-    if (Math.abs(dx) + Math.abs(dz) > 0.001) {
-      const target = Math.atan2(dx, dz)
-      let d = target - pil.yaw
-      while (d > Math.PI) d -= Math.PI * 2
-      while (d < -Math.PI) d += Math.PI * 2
-      pil.yaw += d * Math.min(1, dt * 12)
-    }
-    if (k > 0.25 && !(pil.stepBits & 1)) {
-      pil.stepBits |= 1
+function updatePilgrim(dt) {
+  if (pil.carriedBy >= 0) return // the rotor moves him
+  if (pil.walking) {
+    pil.t += dt / STEP_T
+    pil.bobT += dt
+    const k = smooth(Math.min(1, pil.t))
+    pil.gx = pil.from[0] + (pil.to[0] - pil.from[0]) * k
+    pil.gy = pil.from[1] + (pil.to[1] - pil.from[1]) * k
+    pil.gz = pil.fromZ + (pil.toZ - pil.fromZ) * k
+    if (pil.t >= 1) {
+      pil.walking = false
+      pil.tile[0] = pil.to[0]
+      pil.tile[1] = pil.to[1]
+      stats.steps++
       audio.sfx.step()
+      arrive()
     }
-    if (k > 0.7 && !(pil.stepBits & 2)) {
-      pil.stepBits |= 2
-      audio.sfx.step()
-    }
+    return
   }
-  if (pil.t >= pil.dur) {
-    pil.node = pil.to
-    pil.pathPos++
-    stats.steps++
-    startEdge()
+  // idle: walk on when something changed (planning waits for grinding stones)
+  if (planDirty && !anyAnim() && game.inter <= 0) {
+    planDirty = false
+    const next = planStep()
+    if (next) startStep(next)
   }
 }
 
-// --- rotors ------------------------------------------------------------------------
-function rotate(ri, steps) {
-  if (game.phase !== 'playing') return false
-  if (pil.walking) return false
-  const r = L.rotors[ri]
-  if (!r || r.busy || r.dragging) return false
-  const s = steps | 0
-  if (s === 0) return false
-  r.from = r.angle
-  r.to = r.angle + s * HALF_PI
-  r.t = 0
-  r.dur = 0.38 * Math.min(3, Math.abs(s))
-  r.busy = true
-  r.lastQ = Math.round(r.angle / HALF_PI)
-  audio.sfx.grindStart()
-  markRotated()
+function arrive() {
+  const g = game.lvl.def.gate
+  if (pil.tile[0] === g[0] && pil.tile[1] === g[1]) {
+    gateReached()
+    return
+  }
+  if (!anyAnim()) {
+    const next = planStep()
+    if (next) startStep(next)
+    else {
+      planDirty = false
+      recompute()
+    }
+  } else planDirty = true
+}
+
+// --- rotors -------------------------------------------------------------------------
+function makeRotors(def) {
+  game.rotors = def.rotors.map((rd) => {
+    let maxd = 0
+    let dz = Infinity
+    for (const c of rd.cells) {
+      maxd = Math.max(maxd, Math.hypot(c[0], c[1]))
+      dz = Math.min(dz, c[3])
+    }
+    return {
+      def: rd, cx: rd.cx, cy: rd.cy, rot: rd.rot,
+      maxd, dz: dz === Infinity ? 0 : dz,
+      anim: false, animT: ROT_T, dur: ROT_T, dir: 1, angVis: rd.rot * HALF_PI,
+      queue: [],
+    }
+  })
+}
+
+// is the pilgrim's current step touching rotor r's settled cells?
+function stepTouches(r) {
+  let hit = false
+  eachCell(r, (x, y) => {
+    if ((x === pil.from[0] && y === pil.from[1]) || (x === pil.to[0] && y === pil.to[1])) hit = true
+  })
+  return hit
+}
+
+function tapRotor(i, dir) {
+  if (game.phase !== 'playing' || game.inter > 0) return false
+  const r = game.rotors[i]
+  if (!r) return false
+  const d = dir < 0 ? -1 : 1
+  if (r.anim || (pil.walking && stepTouches(r))) {
+    if (r.queue.length >= 2) {
+      audio.sfx.denied()
+      return false
+    }
+    r.queue.push(d)
+    return true
+  }
+  startRotation(r, d)
   return true
 }
 
-function markRotated() {
-  stats.rot++
-  if (!firstRotation) {
-    firstRotation = true
-    if (rotorHintEl) {
-      rotorHintEl.remove()
-      rotorHintEl = null
-    }
+function startRotation(r, dir) {
+  r.anim = true
+  r.animT = 0
+  r.dur = ROT_T
+  r.dir = dir
+  stats.taps++
+  audio.sfx.grindStart()
+  // carry: standing on one of this rotor's stones
+  if (!pil.walking && pil.carriedBy < 0) {
+    eachCell(r, (x, y, m, z, j) => {
+      if (x === pil.tile[0] && y === pil.tile[1]) {
+        pil.carriedBy = game.rotors.indexOf(r)
+        rotO(r.def.cells[j][0], r.def.cells[j][1], r.rot, _o2)
+        pil.carryOff[0] = _o2[0]
+        pil.carryOff[1] = _o2[1]
+        pil.carryZ = z
+        audio.sfx.illusion()
+      }
+    })
   }
+  recompute() // this rotor's stones leave the map while grinding
 }
 
-function finishRotor(r) {
-  r.angle = Math.round(r.angle / HALF_PI) * HALF_PI
-  r.index = ((Math.round(r.angle / HALF_PI) % 4) + 4) % 4
-  r.group.rotation.y = r.angle
-  r.busy = false
+function finishRotation(r) {
+  r.rot = ((r.rot + r.dir) % 4 + 4) % 4
+  r.anim = false
+  r.angVis = r.rot * HALF_PI
   audio.sfx.grindStop()
   audio.sfx.snap()
-  recomputePath()
+  renderer.shake(1.4)
+  syncCells(r)
+  // dust where the stones land
+  eachCell(r, (x, y, m, z) => renderer.burst(x, y, z, '#8fa3b5', 3, 40, 8, 0.5))
+  if (pil.carriedBy === game.rotors.indexOf(r)) {
+    rotO(pil.carryOff[0], pil.carryOff[1], r.dir, _o2)
+    pil.tile[0] = r.cx + _o2[0]
+    pil.tile[1] = r.cy + _o2[1]
+    pil.gx = pil.tile[0]
+    pil.gy = pil.tile[1]
+    pil.gz = pil.carryZ
+    pil.carriedBy = -1
+  }
+  const wasGate = gateReach
+  const wasFrac = game.connFrac
+  recompute()
+  planDirty = true
+  if (!wasGate && gateReach) {
+    audio.sfx.illusion()
+    renderer.pulse('#ffd9a0')
+    const g = game.lvl.def.gate
+    renderer.popup(g[0], g[1], tileZ(g[0], g[1]), 'el camino existe', '#ffd9a0')
+  } else if (game.connFrac > wasFrac + 0.01) {
+    audio.sfx.tick()
+  }
 }
 
 function updateRotors(dt) {
-  for (let i = 0; i < L.rotors.length; i++) {
-    const r = L.rotors[i]
-    if (r.busy) {
-      r.t += dt
-      const k = smooth(Math.min(1, r.t / r.dur))
-      r.angle = r.from + (r.to - r.from) * k
-      r.group.rotation.y = r.angle
-      const q = Math.round(r.angle / HALF_PI)
-      if (q !== r.lastQ) {
-        r.lastQ = q
-        audio.sfx.tick()
+  for (let i = 0; i < game.rotors.length; i++) {
+    const r = game.rotors[i]
+    if (r.anim) {
+      r.animT += dt
+      const k = smooth(Math.min(1, r.animT / r.dur))
+      r.angVis = r.rot * HALF_PI + k * r.dir * HALF_PI
+      if (pil.carriedBy === i) {
+        const th = k * r.dir * HALF_PI
+        rotOff(pil.carryOff[0], pil.carryOff[1], th, _o2)
+        pil.gx = r.cx + _o2[0]
+        pil.gy = r.cy + _o2[1]
+        pil.gz = pil.carryZ
       }
-      if (r.t >= r.dur) {
-        r.angle = r.to
-        finishRotor(r)
-      }
+      if (r.animT >= r.dur) finishRotation(r)
+    } else if (r.queue.length && !(pil.walking && stepTouches(r))) {
+      startRotation(r, r.queue.shift())
     }
-    // carry: the pilgrim rides a section he is standing on
-    const dA = r.angle - r.prevAngle
-    r.prevAngle = r.angle
-    if (dA !== 0 && !pil.walking && L.nodeRotor[pil.node] === i) {
-      nodeWorld(pil.node, _a)
-      pilgrim.group.position.copy(_a)
-      pil.yaw += dA
-    }
-    r.ringMat.emissiveIntensity = 0.22 + (r.busy || r.dragging ? 0.5 : 0) + 0.08 * Math.sin(visT * 2.4 + i)
   }
 }
 
-// --- win / lose / level flow -----------------------------------------------------------
-function levelComplete() {
-  game.phase = 'transition'
+// --- draw list (renderer consumes; cells re-synced on every snap) ----------------
+function buildDrawList() {
+  const items = []
+  const def = game.lvl.def
+  for (const t of def.tiles) {
+    items.push({
+      kind: 0, gx: t[0], gy: t[1], gz: t[3], mask: t[2], ang: 0,
+      conn: false, shade: (t[0] * 3 + t[1] * 7) % 2, sort: 0,
+      key: t[0] + ',' + t[1],
+      gate: t[0] === def.gate[0] && t[1] === def.gate[1],
+      start: t[0] === def.start[0] && t[1] === def.start[1],
+    })
+  }
+  game.rotors.forEach((r, ri) => {
+    r.def.cells.forEach((c, ci) => {
+      items.push({
+        kind: 1, rotor: ri, cell: ci, gx: 0, gy: 0, gz: c[3], mask: 0, ang: 0,
+        conn: false, shade: (ri + ci) % 2, sort: 0, key: '', gate: false, start: false,
+      })
+    })
+  })
+  items.push({ kind: 2, sort: 0 })
+  game.drawList = items
+  for (const r of game.rotors) syncCells(r)
+}
+
+function syncCells(r) {
+  const ri = game.rotors.indexOf(r)
+  const items = game.drawList
+  eachCell(r, (x, y, m, z, j) => {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i]
+      if (it.kind === 1 && it.rotor === ri && it.cell === j) {
+        it.gx = x
+        it.gy = y
+        it.gz = z
+        it.mask = m
+        it.ang = 0
+        it.key = x + ',' + y
+      }
+    }
+  })
+}
+
+// while grinding, cells sweep around the pivot (visual only)
+function animateCells() {
+  const items = game.drawList
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    if (it.kind !== 1) continue
+    const r = game.rotors[it.rotor]
+    if (!r.anim) continue
+    const k = smooth(Math.min(1, r.animT / r.dur))
+    const th = k * r.dir * HALF_PI
+    const c = r.def.cells[it.cell]
+    rotO(c[0], c[1], r.rot, _o)
+    rotOff(_o[0], _o[1], th, _o2)
+    it.gx = r.cx + _o2[0]
+    it.gy = r.cy + _o2[1]
+    it.mask = rotM(c[2], r.rot)
+    it.ang = th
+    it.conn = false
+  }
+}
+
+// --- level flow ----------------------------------------------------------------------
+function computeBounds(def) {
+  let x0 = Infinity
+  let x1 = -Infinity
+  let y0 = Infinity
+  let y1 = -Infinity
+  const acc = (gx, gy, z) => {
+    const wx = isoX(gx, gy)
+    x0 = Math.min(x0, wx - HW - 8)
+    x1 = Math.max(x1, wx + HW + 8)
+    y0 = Math.min(y0, isoY(gx, gy, z) - HH - 14)
+    y1 = Math.max(y1, isoY(gx, gy, 0) + HH + 26)
+  }
+  for (const t of def.tiles) acc(t[0], t[1], t[3])
+  for (const rd of def.rotors) {
+    let maxd = 0
+    for (const c of rd.cells) maxd = Math.max(maxd, Math.hypot(c[0], c[1]))
+    const R = (maxd + 0.95) * HW
+    const cx = isoX(rd.cx, rd.cy)
+    let dz = Infinity
+    for (const c of rd.cells) dz = Math.min(dz, c[3])
+    const cy = isoY(rd.cx, rd.cy, dz === Infinity ? 0 : dz) + HH * 0.9
+    x0 = Math.min(x0, cx - R - 6)
+    x1 = Math.max(x1, cx + R + 6)
+    y0 = Math.min(y0, cy - R * HH / HW - 6)
+    y1 = Math.max(y1, cy + R * HH / HW + 10)
+    for (const c of rd.cells) {
+      for (let k = 0; k < 4; k++) {
+        rotO(c[0], c[1], k, _o)
+        acc(rd.cx + _o[0], rd.cy + _o[1], c[3])
+      }
+    }
+  }
+  return { x0, x1, y0, y1 }
+}
+
+function loadLevel(n) {
+  const num = Math.max(1, Math.min(LEVELS.length, n | 0))
+  const def = LEVELS[num - 1]
+  game.level = num
+  game.lvl = { def, total: 0, bounds: computeBounds(def) }
+  let total = def.tiles.length
+  for (const rd of def.rotors) total += rd.cells.length
+  game.lvl.total = total
+  game.time = def.time
+  game.inter = 0
+  game.cityFloor = ((num - 1) / 6) * 0.30
+  makeRotors(def)
+  pil.tile[0] = def.start[0]
+  pil.tile[1] = def.start[1]
+  pil.gx = def.start[0]
+  pil.gy = def.start[1]
+  pil.gz = tileZ(def.start[0], def.start[1])
+  pil.walking = false
+  pil.carriedBy = -1
+  pil.face = 1
+  pil.t = 0
+  planDirty = true
+  renderer.clearFx()
+  buildDrawList()
+  recompute()
+  hud.innerHTML = 'nivel <b>' + ROMAN[num - 1] + '/vi</b> — ' + def.name
+  lastPct = -1
+  if (game.phase === 'playing') toast(def.toast, true)
+}
+
+function gateReached() {
+  game.inter = 2.1
+  game.connFrac = 1
   audio.sfx.levelBell()
-  toast(TEXTS.doorToast[game.level], true)
-  trans.active = true
-  trans.t = 0
-  trans.built = false
-  trans.next = game.level + 1
-  trans.c0.copy(frameC.c)
-  trans.v0 = frameC.v
-  const nd = LEVELS[trans.next - 1]
-  trans.c1.set(nd.center[0], nd.center[1], nd.center[2])
-  trans.v1 = nd.view
-}
-
-function updateTransition(dt) {
-  if (!trans.active) return
-  trans.t += dt
-  const t = trans.t
-  // old level fades and sinks
-  if (!trans.built) {
-    const f = Math.min(1, t / 0.7)
-    const mats = L.handle.mats
-    for (let i = 0; i < mats.length; i++) {
-      mats[i].transparent = true
-      mats[i].opacity = 1 - f
-    }
-    L.handle.group.position.y -= dt * 0.9
-    pilgrim.group.visible = false
-    if (t >= 0.7) {
-      trans.built = true
-      buildLevelState(trans.next)
-      // restore the camera lerp origin (buildLevelState jumped the frame)
-      frameC.c.copy(trans.c0)
-      frameC.v = trans.v0
-      pilgrim.group.visible = false
-      // pieces start folded into the fog
-      const as = L.handle.assemble
-      for (let i = 0; i < as.length; i++) {
-        as[i].delay = (i % 12) * 0.07
-        as[i].spawned = false
-        as[i].obj.scale.setScalar(0.001)
-      }
-    }
-  } else {
-    const as = L.handle.assemble
-    for (let i = 0; i < as.length; i++) {
-      const p = as[i]
-      const k = Math.min(1, Math.max(0, (t - 0.75 - p.delay) / 0.55))
-      if (k > 0 && !p.spawned) {
-        p.spawned = true
-        puffs.spawn(p.obj.position.x, p.y0 + 0.6, p.obj.position.z, 1.6)
-      }
-      const c1 = 1.70158
-      const c3 = c1 + 1
-      const e = k >= 1 ? 1 : 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2)
-      p.obj.scale.setScalar(Math.max(0.001, e))
-      p.obj.position.y = p.y0 - (1 - k) * 1.1
-    }
-    if (t > 1.9 && !pilgrim.group.visible) {
-      pilgrim.group.visible = true
-      pil.scaleK = 0
-    }
-  }
-  // slow camera drift across the whole transition
-  const ck = smooth(Math.min(1, t / 2.4))
-  frameC.c.lerpVectors(trans.c0, trans.c1, ck)
-  frameC.v = trans.v0 + (trans.v1 - trans.v0) * ck
-  lights.center(frameC.c)
-  refreshFrame()
-  if (t >= 2.6) {
-    trans.active = false
-    game.phase = 'playing'
-    toast(L.def.toast, true)
-  }
+  renderer.pulse('#ffd9a0')
+  const g = game.lvl.def.gate
+  const z = tileZ(g[0], g[1])
+  renderer.burst(g[0], g[1], z, '#ffd9a0', 22, 60, 30, 1.1)
+  renderer.popup(g[0], g[1], z, '✦', '#ffe6b0')
+  if (game.level < 6) toast(DOOR_TOAST[game.level - 1], true)
 }
 
 function win() {
-  if (game.phase === 'won') return
+  if (game.phase !== 'playing' && game.phase !== 'title') return
   game.phase = 'won'
-  try { localStorage.setItem(LS_DONE, '1') } catch (e) { /* storage may be unavailable */ }
   titleCard.remove()
+  try { localStorage.setItem(LS_DONE, '1') } catch (e) { /* storage may be off */ }
   audio.sfx.winBells()
+  audio.musicOut()
+  renderer.pulse('#ffe6b0')
+  const m = Math.floor(stats.totalT / 60)
+  const s = Math.floor(stats.totalT % 60)
+  const tally = 'giros ' + stats.taps + ' · pasos ' + stats.steps +
+    ' · luna ' + m + ':' + (s < 10 ? '0' : '') + s + ' · ✦ seña guardada'
   setTimeout(() => {
     audio.voice('win')
-    if (endCard) endCard.remove()
-    endCard = card(
+    showEnd(
       'LA CIUDAD SE DEJA VER', 'Por una sola noche',
-      TEXTS.win + '<span class="tally">giros ' + stats.rot + ' · pasos ' + stats.steps + ' · ✦ seña guardada</span>',
-      '', 'VOLVER A BUSCARLA', () => location.reload()
+      TEXTS.win + '<span class="tally">' + tally + '</span>',
+      'REINTENTAR', () => restartAll()
     )
-  }, 2200)
+  }, 1600)
 }
 
 function lose() {
-  if (game.phase === 'won' || game.phase === 'lost') return
+  if (game.phase !== 'playing' && game.phase !== 'title') return
   game.phase = 'lost'
   titleCard.remove()
   audio.sfx.lose()
   const lvl = game.level
   setTimeout(() => {
     audio.voice('lose')
-    if (endCard) endCard.remove()
-    endCard = card(
-      'LA CIUDAD SE ESCONDE', 'la ciudad volvió a esconderse', TEXTS.lose,
-      '', 'BUSCAR DE NUEVO',
-      () => {
-        if (endCard) {
-          endCard.remove()
-          endCard = null
-        }
-        setLevel(lvl)
+    showEnd('LA CIUDAD SE ESCONDE', 'La luna se movió', TEXTS.lose, 'REINTENTAR', () => {
+      if (endCard) {
+        endCard.remove()
+        endCard = null
       }
-    )
+      game.phase = 'playing'
+      loadLevel(lvl)
+    })
   }, 800)
 }
 
-function setLevel(n) {
-  const lvl = Math.max(1, Math.min(3, n | 0))
-  trans.active = false
+function restartAll() {
   if (endCard) {
     endCard.remove()
     endCard = null
   }
-  buildLevelState(lvl)
+  stats.taps = 0
+  stats.steps = 0
+  stats.totalT = 0
   game.phase = 'playing'
-  toast(L.def.toast, true)
+  loadLevel(1)
 }
 
 function begin() {
@@ -644,7 +753,7 @@ function begin() {
   speakIntro()
   titleCard.remove()
   game.phase = 'playing'
-  toast(L.def.toast, true)
+  toast(game.lvl.def.toast, true)
 }
 
 // --- title narration (best-effort before BEGIN; every path silent-safe) --------
@@ -678,52 +787,23 @@ if (!introSpoken) {
   window.addEventListener('touchstart', introTap, true)
 }
 
-// --- camera / projection ------------------------------------------------------------
-let cw = 1
-let ch = 1
-function refreshFrame() {
-  applyFrame(camera, frameC.c, frameC.v, cw / ch)
-}
-function resize() {
-  cw = window.innerWidth
-  ch = window.innerHeight
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
-  renderer.setSize(cw, ch)
-  refreshFrame()
-}
-window.addEventListener('resize', resize)
-resize()
+// --- input -------------------------------------------------------------------------
+// one thumb: tap a disc = CW. Hold 0.35 s (or right-click) = CCW.
+const press = { on: false, rotor: -1, t: 0, fired: false, x: 0, y: 0 }
 
-// world → screen px (no allocations; writes into out {x,y})
-function toScreen(v3, out) {
-  _c.copy(v3).project(camera)
-  out.x = (_c.x * 0.5 + 0.5) * cw
-  out.y = (-_c.y * 0.5 + 0.5) * ch
-}
-const _s = { x: 0, y: 0 }
-
-// --- input ----------------------------------------------------------------------------
-const drag = { rotor: -1, moved: false, x0: 0, y0: 0, a0: 0 }
-
-function rotorAt(px, py) {
-  const pxPerWorld = ch / (2 * frameC.v)
-  for (let i = 0; i < L.rotors.length; i++) {
-    toScreen(L.rotors[i].pivotV, _s)
-    const dx = _s.x - px
-    const dy = _s.y - py
-    if (Math.hypot(dx, dy) < 1.55 * pxPerWorld) return i
-  }
-  return -1
-}
-
-function nodeAt(px, py) {
+function rotorAtCss(cssX, cssY) {
   let best = -1
-  let bestD = 38
-  for (let i = 0; i < L.ids.length; i++) {
-    nodeWorld(i, _a)
-    toScreen(_a, _s)
-    const d = Math.hypot(_s.x - px, _s.y - py)
-    if (d < bestD) {
+  let bestD = Infinity
+  for (let i = 0; i < game.rotors.length; i++) {
+    const r = game.rotors[i]
+    const p = renderer.project(r.cx, r.cy, r.dz)
+    const py = p.y + HH * 0.9 * renderer.scale / (canvas.width / window.innerWidth)
+    const rx = Math.max((r.maxd + 0.95) * HW * renderer.scale / (canvas.width / window.innerWidth), 46)
+    const ry = Math.max(rx * HH / HW, 34)
+    const nx = (cssX - p.x) / rx
+    const ny = (cssY - py) / ry
+    const d = nx * nx + ny * ny
+    if (d <= 1.25 && d < bestD) {
       bestD = d
       best = i
     }
@@ -732,235 +812,169 @@ function nodeAt(px, py) {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
-  if (game.phase !== 'playing' || !L) return
-  drag.rotor = -1
-  drag.moved = false
-  drag.x0 = e.clientX
-  drag.y0 = e.clientY
-  const ri = rotorAt(e.clientX, e.clientY)
-  if (ri >= 0 && !L.rotors[ri].busy && !pil.walking) {
-    drag.rotor = ri
-    drag.a0 = L.rotors[ri].angle
+  if (game.phase !== 'playing') return
+  e.preventDefault()
+  renderer.ripple(e.clientX, e.clientY)
+  const ri = rotorAtCss(e.clientX, e.clientY)
+  press.on = true
+  press.rotor = ri
+  press.t = 0
+  press.fired = false
+  press.x = e.clientX
+  press.y = e.clientY
+  if (e.button === 2 && ri >= 0) {
+    press.fired = true
+    tapRotor(ri, -1)
   }
 })
-
 window.addEventListener('pointermove', (e) => {
-  if (drag.rotor < 0 || game.phase !== 'playing') return
-  const r = L.rotors[drag.rotor]
-  const dx = e.clientX - drag.x0
-  const dy = e.clientY - drag.y0
-  if (!drag.moved && Math.hypot(dx, dy) > 6) {
-    drag.moved = true
-    r.dragging = true
-    r.lastQ = Math.round(r.angle / HALF_PI)
-    audio.sfx.grindStart()
-    markRotated()
-    recomputePath()
-  }
-  if (drag.moved) {
-    r.angle = drag.a0 + dx * 0.012
-    r.group.rotation.y = r.angle
-    const q = Math.round(r.angle / HALF_PI)
-    if (q !== r.lastQ) {
-      r.lastQ = q
-      audio.sfx.tick()
-    }
-  }
+  if (!press.on) return
+  if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 16) press.on = false
 })
-
-window.addEventListener('pointerup', (e) => {
-  if (game.phase !== 'playing' || !L) return
-  if (drag.rotor >= 0 && drag.moved) {
-    const r = L.rotors[drag.rotor]
-    r.dragging = false
-    // snap to the nearest 90°
-    r.from = r.angle
-    r.to = Math.round(r.angle / HALF_PI) * HALF_PI
-    r.t = 0
-    r.dur = Math.max(0.12, Math.abs(r.to - r.from) / HALF_PI * 0.38)
-    r.busy = true
-    r.lastQ = Math.round(r.from / HALF_PI)
-    drag.rotor = -1
-    return
-  }
-  drag.rotor = -1
-  if (e.target !== canvas) return
-  const ni = nodeAt(e.clientX, e.clientY)
-  if (ni >= 0) clickNode(ni)
+window.addEventListener('pointerup', () => {
+  if (!press.on) return
+  press.on = false
+  if (!press.fired && press.rotor >= 0) tapRotor(press.rotor, 1)
 })
+window.addEventListener('pointercancel', () => { press.on = false })
+canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false })
+canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false })
 
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'KeyM') {
+function keyEvent(code, down, shift) {
+  if (!down) return
+  if (code === 'KeyM') {
     const m = audio.toggleMute()
     toast(m ? 'silencio' : 'sonido')
+  } else if (code === 'KeyR' && game.phase === 'playing') {
+    loadLevel(game.level)
+    toast('el ángulo se busca de nuevo')
+  } else if ((code === 'Enter' || code === 'Space') && game.phase === 'title') {
+    begin()
+  } else if (code.indexOf('Digit') === 0) {
+    const i = +code.slice(5) - 1
+    if (i >= 0 && i < game.rotors.length) tapRotor(i, shift ? -1 : 1)
   }
+}
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') e.preventDefault()
+  keyEvent(e.code, true, e.shiftKey)
 })
 
-// --- frame ------------------------------------------------------------------------------
+// --- frame -----------------------------------------------------------------------------
+let lastPct = -1
+function updateHud() {
+  const pct = Math.max(0, Math.floor((game.time / game.lvl.def.time) * 200) / 2)
+  if (pct !== lastPct) {
+    lastPct = pct
+    moonFill.style.width = pct + '%'
+    moonBar.classList.toggle('low', game.time < 10 && game.phase === 'playing')
+  }
+}
+
 function frame(dt) {
-  visT += dt
-  puffs.update(dt)
-
-  // pilgrim idle dressing (always, so the title scene breathes)
-  const bobA = pil.walking ? 0.018 : 0.028
-  const bobF = pil.walking ? 11 : 2.1
-  pilgrim.group.rotation.y = pil.yaw
-  pilgrim.group.rotation.z = pil.walking ? Math.sin(visT * 10) * 0.04 : Math.sin(visT * 1.3) * 0.02
-  pilgrim.lanternMat.emissiveIntensity = 1.5 + Math.sin(visT * 7.3) * 0.25
-  pilgrim.light.intensity = 0.75 + Math.sin(visT * 6.1) * 0.12
-  if (pil.scaleK < 1) {
-    pil.scaleK = Math.min(1, pil.scaleK + dt * 2.5)
-    pilgrim.group.scale.setScalar(Math.max(0.001, smooth(pil.scaleK)))
-  }
-
-  // door glow follows pathExists (and the final win floods the city)
-  const pathTarget = pathOK ? 1 : 0
-  pathK += (pathTarget - pathK) * Math.min(1, dt * 3)
-  const dg = L.handle.doorGlow
-  dg.emissiveIntensity = 0.35 + pathK * (0.6 + 0.3 * Math.sin(visT * 3.1)) + glowK * 1.2
-  dg.opacity = 0.7 + pathK * 0.15 + 0.1 * Math.sin(visT * 2.2)
-  L.handle.doorLight.intensity = 0.4 + pathK * (0.9 + 0.25 * Math.sin(visT * 3.1)) + glowK * 2
-  const wins = L.handle.windows
-  for (let i = 0; i < wins.length; i++) {
-    wins[i].emissiveIntensity = 0.45 + 0.12 * Math.sin(visT * 1.7 + i * 2.1) + glowK * 1.3
-  }
-  if (denied.t < 1) {
-    denied.t = Math.min(1, denied.t + dt * 2.2)
-    if (denied.mat) denied.mat.emissiveIntensity = 0.3 + (1 - denied.t) * 1.5
-  }
-
+  game.visT += dt
   if (game.phase === 'playing') {
+    if (press.on && !press.fired && press.rotor >= 0) {
+      press.t += dt
+      if (press.t >= HOLD_T) {
+        press.fired = true
+        tapRotor(press.rotor, -1)
+      }
+    }
+    if (game.inter > 0) {
+      game.inter -= dt
+      if (Math.random() < dt * 8) {
+        const g = game.lvl.def.gate
+        renderer.burst(g[0], g[1], tileZ(g[0], g[1]), '#ffe6b0', 2, 40, 26, 0.9)
+      }
+      if (game.inter <= 0) {
+        if (game.level >= 6) win()
+        else loadLevel(game.level + 1)
+      }
+    } else {
+      stats.totalT += dt
+      game.time -= dt
+      if (game.time <= 0) {
+        game.time = 0
+        lose()
+      }
+    }
     updateRotors(dt)
-    updateWalk(dt)
-    if (!pil.walking && L.nodeRotor[pil.node] < 0) {
-      // gentle settle onto the node (covers post-carry and post-walk)
-      nodeWorld(pil.node, _a)
-      pilgrim.group.position.x = _a.x
-      pilgrim.group.position.z = _a.z
-      pilgrim.group.position.y = _a.y + Math.sin(visT * bobF) * bobA
-    } else if (!pil.walking) {
-      nodeWorld(pil.node, _a)
-      pilgrim.group.position.copy(_a)
-      pilgrim.group.position.y += Math.sin(visT * bobF) * bobA
-    }
-    positionCtls()
-  } else if (game.phase === 'transition') {
-    updateTransition(dt)
-    positionCtls()
-  } else if (game.phase === 'won') {
-    glowK = Math.min(1, glowK + dt * 0.4)
-    frameC.v = Math.min(L.def.view + 1.6, frameC.v + dt * 0.35 * (1 - glowK * 0.6))
-    refreshFrame()
-    if (Math.random() < dt * 2.5) {
-      puffs.spawn(
-        frameC.c.x + (Math.random() - 0.5) * 8,
-        frameC.c.y + Math.random() * 3,
-        frameC.c.z + (Math.random() - 0.5) * 8, 1.4
-      )
-    }
+    updatePilgrim(dt)
+    updateHud()
   }
-
+  game.pathK += ((gateReach || game.inter > 0 ? 1 : 0) - game.pathK) * Math.min(1, dt * 3)
+  animateCells()
   audio.update(dt)
 }
 
-function positionCtls() {
-  const hidden = game.phase !== 'playing'
-  for (let i = 0; i < ctls.length; i++) {
-    const c = ctls[i]
-    toScreen(c.r.pivotV, _s)
-    const x = Math.round(_s.x)
-    const y = Math.round(_s.y + 40)
-    if (x !== c.r.lastX || y !== c.r.lastY) {
-      c.r.lastX = x
-      c.r.lastY = y
-      c.root.style.left = x + 'px'
-      c.root.style.top = y + 'px'
-    }
-    c.root.style.opacity = hidden ? '0' : '1'
-    const busy = c.r.busy || c.r.dragging || pil.walking
-    if (busy !== c.busyState) {
-      c.busyState = busy
-      c.root.classList.toggle('busy', busy)
-    }
-  }
-  if (rotorHintEl && L.rotors.length) {
-    toScreen(L.rotors[0].pivotV, _s)
-    rotorHintEl.style.left = Math.round(_s.x) + 'px'
-    rotorHintEl.style.top = Math.round(_s.y - 46) + 'px'
-  }
+// --- loop -------------------------------------------------------------------------------
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  canvas.width = window.innerWidth * dpr
+  canvas.height = window.innerHeight * dpr
 }
-
-// --- boot + loop ---------------------------------------------------------------------------
-buildLevelState(1)
+window.addEventListener('resize', resize)
+window.addEventListener('orientationchange', resize)
+resize()
+loadLevel(1)
 
 let lastT = performance.now()
 function tick(now) {
   const dt = Math.min((now - lastT) / 1000, 0.05)
   lastT = now
   frame(dt)
-  renderer.render(scene, camera)
+  renderer.draw(game, dt)
   requestAnimationFrame(tick)
 }
 requestAnimationFrame(tick)
 
 // --- test api --------------------------------------------------------------------------------
-function anyRotorBusy() {
-  for (let i = 0; i < L.rotors.length; i++) {
-    if (L.rotors[i].busy || L.rotors[i].dragging) return true
-  }
-  return false
-}
-
 window.__game = {
   begin,
   step(dt = 1 / 60, steps = 1) {
     for (let i = 0; i < steps; i++) frame(Math.min(dt, 0.05))
-    renderer.render(scene, camera)
+    renderer.draw(game, Math.min(dt, 0.05))
   },
   getState() {
-    const rotors = []
-    for (let i = 0; i < L.rotors.length; i++) rotors.push(L.rotors[i].index)
+    const angles = []
+    for (let i = 0; i < game.rotors.length; i++) angles.push(game.rotors[i].rot * 90)
     return {
       phase: game.phase,
       level: game.level,
-      pilgrimNode: L.ids[pil.node],
-      rotors,
-      pathExists: findPath(L.door, false) >= 0,
+      levelName: game.lvl.def.name,
+      rotorAngles: angles,
+      pathConnected: game.connFrac,
+      pilgrimTile: [pil.tile[0], pil.tile[1]],
+      walking: pil.walking,
+      carried: pil.carriedBy >= 0,
+      timeLeft: game.time,
+      taps: stats.taps,
+      steps: stats.steps,
+      gateReachable: gateReach,
+      muted: audio.state.muted,
     }
   },
   forceWin: () => win(),
   forceLose: () => lose(),
-  setLevel: (n) => setLevel(n),
-  rotate: (ri, steps) => rotate(ri, steps),
-  clickNode: (id) => clickNode(id),
-  nodes() {
-    const out = []
-    for (let i = 0; i < L.ids.length; i++) {
-      nodeWorld(i, _a)
-      toScreen(_a, _s)
-      out.push({ id: L.ids[i], screen: [Math.round(_s.x), Math.round(_s.y)], world: [_a.x, _a.y, _a.z] })
+  level: () => game.level,
+  setLevel(n) {
+    if (endCard) {
+      endCard.remove()
+      endCard = null
     }
+    if (game.phase === 'title') titleCard.remove()
+    game.phase = 'playing'
+    loadLevel(n)
+  },
+  rotors() {
+    const out = []
+    for (let i = 0; i < game.rotors.length; i++) out.push(game.rotors[i].rot * 90)
     return out
   },
-  solve() {
-    if (game.phase === 'title') begin()
-    const script = L.def.solve
-    let guard = 0
-    const settle = () => {
-      while (guard < 30000 && (game.phase === 'transition' || pil.walking || anyRotorBusy())) {
-        frame(1 / 60)
-        guard++
-      }
-    }
-    for (let i = 0; i < script.length; i++) {
-      settle()
-      const act = script[i]
-      if (act[0] === 'rotate') rotate(act[1], act[2])
-      else clickNode(act[1])
-      settle()
-    }
-    settle()
-    renderer.render(scene, camera)
-    return this.getState()
-  },
+  rotate: (i, dir = 1) => tapRotor(i | 0, dir),
+  pilgrim: () => ({ tile: [pil.tile[0], pil.tile[1]], walking: pil.walking, carried: pil.carriedBy >= 0 }),
+  setTime(s) { game.time = Math.max(0.01, Math.min(game.lvl.def.time, s)) },
+  pressKey(code, down = true, shift = false) { keyEvent(code, down, shift) },
 }

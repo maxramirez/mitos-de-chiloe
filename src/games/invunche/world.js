@@ -148,6 +148,12 @@ function daylightTexture() {
   grad.addColorStop(1, '#8fa9bf')
   g.fillStyle = grad
   g.fillRect(0, 0, 128, 128)
+  // fine dither so the big radial sweep never bands across the door
+  for (let i = 0; i < 700; i++) {
+    const v = Math.random()
+    g.fillStyle = v > 0.5 ? 'rgba(255,255,255,0.045)' : 'rgba(40,60,80,0.05)'
+    g.fillRect(Math.random() * 128, Math.random() * 128, 1, 1)
+  }
   const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
   return tex
@@ -330,8 +336,8 @@ export function createWorld(scene, wall, layout, rng) {
       bumpMap: floorBump,
       bumpScale: 0.4,
       roughnessMap: puddles,
-      color: 0x47544e,
-      roughness: 1.0, // texel-driven: dry rock matte, puddles near-mirror
+      color: 0x4e5b50, // mossy, a step lighter than the ceiling so the two
+      roughness: 1.0, // planes split at the candle's edge. texel-driven sheen
       metalness: 0.14,
     })
   )
@@ -347,7 +353,9 @@ export function createWorld(scene, wall, layout, rng) {
   ceilBump.repeat.set(18, 18)
   const ceiling = new THREE.Mesh(
     new THREE.PlaneGeometry(SIZE, SIZE),
-    new THREE.MeshStandardMaterial({ map: ceilTex, bumpMap: ceilBump, bumpScale: 0.5, color: 0x39433e, roughness: 0.95 })
+    // colder + darker than the floor: overhead rock dies into the dark a beat
+    // sooner, so the candle edge reads as two different planes, not one grey
+    new THREE.MeshStandardMaterial({ map: ceilTex, bumpMap: ceilBump, bumpScale: 0.62, color: 0x2a3236, roughness: 1.0 })
   )
   ceiling.rotation.x = Math.PI / 2
   ceiling.position.set(SIZE / 2, WALL_H - 0.02, SIZE / 2)
@@ -422,7 +430,17 @@ export function createWorld(scene, wall, layout, rng) {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     fog: false,
-    color: 0xffc070,
+    color: 0xffd28c,
+  })
+  // wide faint warm halo behind each sconce flame: presence at corridor
+  // distance without touching the light budget
+  const haloMat = new THREE.SpriteMaterial({
+    map: flameTex,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+    color: 0xff7a22,
+    opacity: 0.34,
   })
   const sconces = []
   for (let i = 0; i < layout.sconceCells.length; i++) {
@@ -450,15 +468,19 @@ export function createWorld(scene, wall, layout, rng) {
     stub.position.y = 1.8
     grp.add(stub)
     const flame = new THREE.Sprite(flameMat)
-    flame.scale.set(0.17, 0.26, 1)
+    flame.scale.set(0.2, 0.31, 1)
     flame.position.y = 1.98
     grp.add(flame)
+    const halo = new THREE.Sprite(haloMat)
+    halo.scale.set(0.85, 0.95, 1)
+    halo.position.y = 2.0
+    grp.add(halo)
     const light = new THREE.PointLight(0xff9a40, 3, 8, 1.9)
     light.position.y = 1.95
     grp.add(light)
     grp.position.set(px, 0, pz)
     scene.add(grp)
-    sconces.push({ x: px, z: pz, cell: [cx, cz], used: false, light, flame, stub })
+    sconces.push({ x: px, z: pz, cell: [cx, cz], used: false, light, flame, halo, stub })
   }
 
   // --- seals (3 sigil stones in dead ends) ---
@@ -499,7 +521,9 @@ export function createWorld(scene, wall, layout, rng) {
     grp.position.set(px, 0, pz)
     grp.rotation.y = Math.atan2(DX[dOpen], DZ[dOpen])
     scene.add(grp)
-    seals.push({ x: px, z: pz, cell: [cx, cz], collected: false, fade: 1, light, sigilMat, grp })
+    // phase accumulates per-frame so the pulse can quicken near the player
+    // without phase jumps
+    seals.push({ x: px, z: pz, cell: [cx, cz], collected: false, fade: 1, light, sigilMat, sigil, grp, phase: i * 2.1 })
   }
 
   // --- the daylight door ---
@@ -529,20 +553,23 @@ export function createWorld(scene, wall, layout, rng) {
   scene.add(glow)
 
   // explicit seam strips on the maze side of the slab: two jambs + a sill,
-  // cold daylight cracking around the door. Hidden once the door sinks.
+  // cold daylight cracking around the door. Additive so the crack reads as
+  // light (not pale paint) against the warm candle. Hidden once the door sinks.
   const seamMat = new THREE.MeshBasicMaterial({
-    color: 0xcfe6f8,
+    color: 0xa9d7ff,
     fog: false,
     side: THREE.DoubleSide,
     transparent: true,
     opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   })
   const seams = new THREE.Group()
   const perpX = dirZ
   const perpZ = dirX
   const sfx = doorCx - dirX * 0.37
   const sfz = doorCz - dirZ * 0.37
-  const jambGeo = new THREE.PlaneGeometry(0.028, WALL_H - 0.2)
+  const jambGeo = new THREE.PlaneGeometry(0.045, WALL_H - 0.2)
   const jambL = new THREE.Mesh(jambGeo, seamMat)
   jambL.position.set(sfx + perpX * (TILE / 2 - 0.12), (WALL_H - 0.2) / 2, sfz + perpZ * (TILE / 2 - 0.12))
   jambL.rotation.y = yawForDir
@@ -551,13 +578,29 @@ export function createWorld(scene, wall, layout, rng) {
   jambR.position.set(sfx - perpX * (TILE / 2 - 0.12), (WALL_H - 0.2) / 2, sfz - perpZ * (TILE / 2 - 0.12))
   jambR.rotation.y = yawForDir
   seams.add(jambR)
-  const sill = new THREE.Mesh(new THREE.PlaneGeometry(TILE - 0.24, 0.045), seamMat)
+  const sill = new THREE.Mesh(new THREE.PlaneGeometry(TILE - 0.24, 0.07), seamMat)
   sill.position.set(sfx, 0.09, sfz)
   sill.rotation.y = yawForDir
   seams.add(sill)
   scene.add(seams)
 
-  const daylight = new THREE.PointLight(0xbfe2ff, 0.8, 30, 1.6)
+  // cold pool of daylight spilling under the door onto the cave floor —
+  // the icy counterpoint to the warm candle pool you carry. Brightens as
+  // the door sinks.
+  const spillMat = new THREE.MeshBasicMaterial({
+    map: daylightTexture(),
+    transparent: true,
+    opacity: 0.1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  })
+  const spill = new THREE.Mesh(new THREE.PlaneGeometry(TILE * 0.92, TILE * 0.8), spillMat)
+  spill.rotation.x = -Math.PI / 2
+  spill.position.set(doorCx - dirX * (0.37 + TILE * 0.36), 0.015, doorCz - dirZ * (0.37 + TILE * 0.36))
+  scene.add(spill)
+
+  const daylight = new THREE.PointLight(0xa8d4ff, 1.35, 30, 1.6)
   daylight.position.set(doorCx + dirX * 1.1, 2.0, doorCz + dirZ * 1.1)
   scene.add(daylight)
 
@@ -589,8 +632,9 @@ export function createWorld(scene, wall, layout, rng) {
   scene.add(new THREE.AmbientLight(0x16201e, 0.22))
 
   // --- per-frame visual update (allocation-free) ---
-  // candle: { wax01, dieFactor, flare }
-  function update(dt, simT, candle) {
+  // candle: { wax01, dieFactor, flare }; px/pz: player world pos (optional —
+  // drives the seals' near-pulse; omitted means "far")
+  function update(dt, simT, candle, px, pz) {
     // hand candle
     const flick = Math.sin(simT * 11.7) * 0.9 + Math.sin(simT * 23.3) * 0.6 + Math.sin(simT * 5.1) * 0.5
     const gutter = (1 - candle.wax01) * Math.sin(simT * 31.7) * 1.6
@@ -602,32 +646,47 @@ export function createWorld(scene, wall, layout, rng) {
     handFlame.scale.set(0.07 * fs, 0.11 * fs, 1)
     handFlame.material.opacity = Math.min(1, candle.dieFactor * 1.2)
 
-    // sconces
+    // sconces — flame + halo flicker, tiny vertical bob so they feel alive
     for (let i = 0; i < sconces.length; i++) {
       const s = sconces[i]
       if (s.used) continue
       s.light.intensity = 3 + Math.sin(simT * 8.7 + i * 1.71) * 0.7
       const fsc = 1 + 0.14 * Math.sin(simT * 12.3 + i * 2.3)
-      s.flame.scale.set(0.17 * fsc, 0.26 * fsc, 1)
+      s.flame.scale.set(0.2 * fsc, 0.31 * fsc, 1)
+      s.flame.position.y = 1.98 + 0.014 * Math.sin(simT * 9.1 + i * 1.3)
+      const hsc = 1 + 0.1 * Math.sin(simT * 7.7 + i * 2.9)
+      s.halo.scale.set(0.85 * hsc, 0.95 * hsc, 1)
     }
 
-    // seals
+    // seals — slow heartbeat far away; quicker, deeper, brighter as you near
     for (let i = 0; i < seals.length; i++) {
       const s = seals[i]
       if (s.collected && s.fade > 0) {
         s.fade = Math.max(0, s.fade - dt / 1.2)
       }
-      const pulse = 0.72 + 0.28 * Math.sin(simT * 2.1 + i * 2.1)
-      s.sigilMat.opacity = pulse * s.fade
-      s.light.intensity = (2.0 + 0.7 * Math.sin(simT * 2.1 + i * 2.1)) * s.fade
+      let near = 0
+      if (px !== undefined && !s.collected) {
+        const dx = s.x - px
+        const dz = s.z - pz
+        near = 1 - Math.sqrt(dx * dx + dz * dz) / 7
+        if (near < 0) near = 0
+        else if (near > 1) near = 1
+      }
+      s.phase += dt * (2.1 + near * 3.6)
+      const w = 0.5 + 0.5 * Math.sin(s.phase)
+      const amp = 0.26 + 0.48 * near
+      s.sigilMat.opacity = (1 - amp + amp * w) * s.fade
+      s.light.intensity = (1.7 + 0.6 * near + (0.6 + 1.5 * near) * w) * s.fade
+      s.sigil.scale.setScalar(1 + 0.07 * near * w)
     }
 
-    // door + seam breathing
-    seamMat.opacity = 0.55 + 0.18 * Math.sin(simT * 1.3)
+    // door: seam + cold floor spill breathe; both bloom as the slab sinks
+    seamMat.opacity = 0.62 + 0.22 * Math.sin(simT * 1.3)
+    spillMat.opacity = 0.09 + 0.03 * Math.sin(simT * 1.3 + 0.7) + door.openT * 0.26
     if (door.opening && door.openT < 1) {
       door.openT = Math.min(1, door.openT + dt / 2.4)
       doorMesh.position.y = (WALL_H - 0.12) / 2 - door.openT * WALL_H
-      daylight.intensity = 0.8 + door.openT * 9
+      daylight.intensity = 1.35 + door.openT * 9
       if (door.openT > 0.06) seams.visible = false
     }
   }
@@ -640,6 +699,7 @@ export function createWorld(scene, wall, layout, rng) {
     const s = sconces[i]
     s.used = true
     s.flame.visible = false
+    s.halo.visible = false
     s.light.intensity = 0.04
     s.stub.scale.y = 0.3
     s.stub.position.y = 1.75
