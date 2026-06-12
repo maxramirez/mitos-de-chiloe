@@ -1,8 +1,9 @@
-// EL BRUJO DE QUICAVÍ · ui.js — title / win / lose cards, HUD (páginas 0/7),
-// hint + whisper lines, contextual prompt, boat-push hold bar, flash,
-// blackout, and the full-screen STATIC overlay (a low-res noise canvas,
-// redrawn ≤ 24 fps into a reused ImageData — no per-frame allocations).
-// Same dark-storybook card grammar as the rest of the collection.
+// EL BRUJO DE QUICAVÍ · ui.js — title / win / lose cards, HUD (a dim compass
+// dial + páginas 0/7), hint + whisper lines, contextual prompt, boat-push
+// hold bar, flash, blackout, and the full-screen STATIC overlay (a low-res
+// noise canvas, redrawn ≤ 24 fps into a reused ImageData — no per-frame
+// allocations). Same dark-storybook card grammar as the rest of the
+// collection; the compass mirrors the flagship's dial.
 
 const STRINGS = {
   title: 'EL BRUJO DE QUICAVÍ',
@@ -13,7 +14,7 @@ const STRINGS = {
     'negro. Arranca las siete y el bote junto al cerco te sacará de aquí, ' +
     'hacia la luz de la costa. Pero algo cuida las páginas: no camina, ' +
     'simplemente está ahí cuando te das vuelta — y mirarlo demasiado lo deja entrar.',
-  controls: 'WASD moverse · mouse o flechas mirar · Shift correr · E o clic tomar · M sonido',
+  controls: 'WASD moverse · mouse o flechas mirar · Shift correr · E o clic tomar · la brújula busca las páginas · M sonido',
   begin: 'COMENZAR',
   won: {
     charm: '✦',
@@ -46,6 +47,7 @@ const STRINGS = {
 export const ui = {
   root: null,
   hud: null,
+  compassArrow: null,
   pipsEl: null,
   countEl: null,
   hintEl: null,
@@ -68,6 +70,7 @@ export const ui = {
   _noiseSeed: 77,
   _lastDraw: -1,
   _lastOp: -1,
+  _lastDeg: null,
   _lastPrompt: '',
   _lastHold: -1,
 
@@ -79,12 +82,13 @@ export const ui = {
       '<div class="vignette"></div>' +
       '<div id="flash"></div>' +
       '<div id="blackout"></div>' +
-      '<div id="hud"><span class="hud-label">páginas</span> <span id="page-count">0 / 7</span> <span id="page-pips">✧ ✧ ✧ ✧ ✧ ✧ ✧</span></div>' +
+      '<div id="hud"><div id="compass"><div id="compass-arrow"></div></div><div class="hud-pages"><span class="hud-label">páginas</span> <span id="page-count">0 / 7</span> <span id="page-pips">✧ ✧ ✧ ✧ ✧ ✧ ✧</span></div></div>' +
       '<div id="whisper"></div>' +
       '<div id="hint"></div>' +
       '<div id="prompt-block"><div id="prompt"></div><div id="hold-bar"><div id="hold-fill"></div></div></div>' +
       '<div id="toast"></div>'
     this.hud = document.getElementById('hud')
+    this.compassArrow = document.getElementById('compass-arrow')
     this.pipsEl = document.getElementById('page-pips')
     this.countEl = document.getElementById('page-count')
     this.hintEl = document.getElementById('hint')
@@ -163,6 +167,15 @@ export const ui = {
     for (let i = 0; i < 7; i++) s += (i < n ? '✦' : '✧') + (i < 6 ? ' ' : '')
     this.pipsEl.textContent = s
     if (n > 0) this.pipsEl.classList.add('lit')
+  },
+
+  // compass needle, CSS degrees (0 = target dead ahead, clockwise positive).
+  // Cached DOM write: rounded to 3°, the style is only touched on change.
+  compass(deg) {
+    const q = Math.round(deg / 3) * 3
+    if (q === this._lastDeg) return
+    this._lastDeg = q
+    this.compassArrow.style.transform = 'rotate(' + q + 'deg)'
   },
 
   // the static overlay — opacity write gated, noise redrawn ≤ 24 fps by main.

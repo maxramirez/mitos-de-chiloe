@@ -88,7 +88,13 @@ export function createAudio() {
   }
 
   function unlock() {
-    if (ready || !AC) return
+    if (!AC) return
+    if (ready) {
+      // re-entrant: a load-time attempt may have left the context suspended;
+      // a later real gesture (any tap, or BEGIN) lands here and resumes it
+      try { if (ctx && ctx.state === 'suspended') ctx.resume() } catch (e) { /* ignore */ }
+      return
+    }
     ctx = new AC()
     if (ctx.state === 'suspended') ctx.resume()
 

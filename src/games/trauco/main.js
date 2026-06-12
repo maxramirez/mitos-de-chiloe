@@ -124,13 +124,44 @@ for (let i = 0; i <= VINE_TOTAL; i++) {
 }
 
 ui.init()
+
+// --- title narration: the 'begin' line plays over the title card itself -----
+// Autoplay policy usually blocks sound before a gesture, so this is
+// best-effort: try at load (audible where the browser allows it); otherwise
+// the first pointer/key/touch unlocks audio AND starts the line — still
+// before BEGIN. beginGame() must then not restart it (it finishes over
+// gameplay, ducking as usual). Silent no-op without the mp3.
+let introVoiced = false // the begin line started (or was queued): never replay it
+const NARRATION_GESTURES = ['pointerdown', 'keydown', 'touchstart']
+function titleNarrationGesture() {
+  for (const ev of NARRATION_GESTURES) window.removeEventListener(ev, titleNarrationGesture, true)
+  try {
+    audio.unlock() // trusted gesture: resume() sticks this time
+    if (!introVoiced && phase === 'title') {
+      introVoiced = true
+      audio.voice('begin') // narration over the title card, before BEGIN
+    }
+  } catch { /* narration must never break the game */ }
+}
+for (const ev of NARRATION_GESTURES) window.addEventListener(ev, titleNarrationGesture, true)
+try {
+  audio.unlock() // best-effort early start, before any gesture
+  if (audio.state.contextState === 'running') {
+    introVoiced = true
+    audio.voice('begin')
+  }
+} catch { /* blocked: the gesture listeners above take over */ }
+
 ui.showTitle(beginGame)
 
 function beginGame() {
   if (phase !== 'title') return
   phase = 'playing'
   audio.unlock()
-  audio.voice('begin') // "No le sostengas la mirada. Sus ojos son la marea..." — plays once decoded
+  if (!introVoiced) {
+    introVoiced = true
+    audio.voice('begin') // "No le sostengas la mirada..." — old path: speak on BEGIN
+  }
   player.enabled = true
   player.requestLock()
 }

@@ -46,11 +46,25 @@ export function createAudio() {
   let ambTimer = 9
 
   function unlock() {
-    if (ctx) return
+    if (ctx) {
+      /* re-entrant: a load-time attempt may have left the context suspended —
+         a later real gesture (any tap, or Begin) lands here and resumes it */
+      try {
+        if (ctx.state === 'suspended') {
+          const p = ctx.resume()
+          if (p && p.catch) p.catch(() => {})
+        }
+      } catch (e) { /* ignore */ }
+      return
+    }
     try {
       const AC = window.AudioContext || window.webkitAudioContext
       if (!AC) return
       ctx = new AC()
+      if (ctx.state === 'suspended') {
+        const p = ctx.resume()
+        if (p && p.catch) p.catch(() => {})
+      }
       master = ctx.createGain()
       master.gain.value = muted ? 0 : 0.32
       const comp = ctx.createDynamicsCompressor()

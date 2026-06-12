@@ -27,6 +27,7 @@ const GAMES = {
   cuchivilu: { bpm: 96, prompts: [`${BASE}, tidal swaying rhythm, plucked strings, playful but sinister, mud and moonlight`] },
   fiura: { bpm: 78, prompts: [`${BASE}, swampy eerie folk, detuned plucked strings, frog-pond night textures, mischief and threat`] },
   quicavi: { bpm: 48, prompts: [`${BASE}, near-silence dread, faint dissonant drone, rare sparse piano notes, something behind you`] },
+  cesares: { bpm: 70, prompts: [`${BASE}, weightless music-box puzzle garden, soft bells and harp, slow wonder with melancholy, enchanted hidden city`] },
   piuchen: { bpm: 108, prompts: [`${BASE}, tense arcade pulse on folk instruments, staccato strings, swooping danger, starry night`] },
 }
 

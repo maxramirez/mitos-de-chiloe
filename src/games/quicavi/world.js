@@ -2,10 +2,13 @@
 // A fenced ~260×260 m night wood: noise ground, ~600 instanced trees, 14
 // candidate page landmarks (6 pale marked trees · 4 standing stones · 4 ruined
 // hut walls), a derelict rowboat at the south fence (the exit) and a distant
-// shore-light beyond it. Deterministic seeded layout (teleport coords are
-// stable across runs); only WHICH 7 candidates carry pages varies per run
-// (chosen by main). Collision is a static circle-obstacle grid; all queries
-// are allocation-free.
+// shore-light beyond it. Each un-taken page also raises a thin vertical
+// light-seam (additive plane, unfogged) readable over the canopy from afar
+// but faded out within ~12 m — direction help that leaves close-up dread
+// alone. Deterministic seeded layout (teleport coords are stable across
+// runs); only WHICH 7 candidates carry pages varies per run (chosen by
+// main). Collision is a static circle-obstacle grid; all queries are
+// allocation-free.
 
 import * as THREE from 'three'
 import { getTextures } from './textures.js'
@@ -448,10 +451,11 @@ export function createWorld(scene) {
   // silently upgraded by the painted /assets/quicavi/page.png if it loads.
   // emissiveMap = the same parchment, so the ink markings stay legible in the
   // page's faint self-glow (and the dark torn edges do not glow).
+  const pageEmissive = T.parchment ? 0.52 : 0.42 // pulse base — see update()
   const pageMat = new THREE.MeshStandardMaterial({
     color: T.parchment ? 0xffffff : 0xe8dcc0,
     emissive: 0x9a8c60,
-    emissiveIntensity: T.parchment ? 0.52 : 0.42,
+    emissiveIntensity: pageEmissive,
     roughness: 0.9,
     side: THREE.DoubleSide,
   })
@@ -470,6 +474,12 @@ export function createWorld(scene) {
   } catch (e) {
     /* keep the procedural parchment */
   }
+  // light-seams — one thin vertical additive plane (NOT a light) standing
+  // over each un-taken page: tall enough to read over the canopy from ~70 m
+  // (fog: false), faded out by update() within ~12 m so the close-up dread
+  // is untouched. Yaw-billboarded toward the player each frame.
+  const seamGeo = new THREE.PlaneGeometry(0.85, 46)
+  let seamsLive = 0
   function spawnPages(indices) {
     for (let k = 0; k < indices.length; k++) {
       const c = candidates[indices[k]]
@@ -502,7 +512,21 @@ export function createWorld(scene) {
         glow.scale.set(2.4, 2.4, 1)
         group.add(glow)
       }
-      pages.push({ x: px, z: pz, y: py, taken: false, mesh, nail, glow, tilt: mesh.rotation.z, cand: indices[k] })
+      const seamMat = new THREE.MeshBasicMaterial({
+        color: 0xfff2c8,
+        transparent: true,
+        opacity: 0, // distance-driven — see update()
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false, // the whole point: it must carry past the fog wall
+        side: THREE.DoubleSide,
+      })
+      if (glowTex) seamMat.map = glowTex // soft vertical streak, not a hard bar
+      const seam = new THREE.Mesh(seamGeo, seamMat)
+      seam.position.set(px, py + 21, pz)
+      group.add(seam)
+      seamsLive++
+      pages.push({ x: px, z: pz, y: py, taken: false, mesh, nail, glow, seam, seamMat, tilt: mesh.rotation.z, cand: indices[k] })
     }
   }
   function collectPage(i) {
@@ -512,6 +536,13 @@ export function createWorld(scene) {
     p.mesh.visible = false
     p.nail.visible = false
     if (p.glow) p.glow.visible = false
+    if (p.seam) {
+      p.seam.visible = false
+      seamsLive--
+    }
+  }
+  function seamCount() {
+    return seamsLive
   }
 
   // ---------------- obstacle grid ---------------------------------------------
@@ -549,7 +580,12 @@ export function createWorld(scene) {
   }
 
   // ---------------- per-frame breathing (allocation-free) ---------------------
-  function update(dt, t) {
+  // (px, pz) — player position, drives the seam distance fade + billboard
+  function update(dt, t, px, pz) {
+    if (px === undefined) {
+      px = SPAWN.x
+      pz = SPAWN.z
+    }
     for (let i = 0; i < fogSprites.length; i++) {
       const f = fogSprites[i]
       f.s.position.x = f.bx + Math.sin(t * f.sp + f.ph) * 7
@@ -559,8 +595,20 @@ export function createWorld(scene) {
       if (p.taken) continue
       // paper breathing on its nail — a faint flutter, never a flap
       p.mesh.rotation.z = p.tilt + Math.sin(t * 1.6 + i * 2.3) * 0.05
-      if (p.glow) p.glow.material.opacity = 0.12 + 0.05 * Math.sin(t * 1.9 + i * 1.7)
+      if (p.glow) p.glow.material.opacity = 0.18 + 0.07 * Math.sin(t * 1.9 + i * 1.7)
+      if (p.seam) {
+        const dx = px - p.x
+        const dz = pz - p.z
+        const d = Math.sqrt(dx * dx + dz * dz)
+        let k = (d - 4) / 9 // gone by ~4 m, full strength from ~13 m out
+        if (k < 0) k = 0
+        else if (k > 1) k = 1
+        p.seam.rotation.y = Math.atan2(dx, dz) // face the player, edge never seen
+        p.seamMat.opacity = k * (0.24 + 0.05 * Math.sin(t * 1.3 + i * 1.7))
+      }
     }
+    // the parchment pulse — brighter breathing so un-taken pages read farther
+    pageMat.emissiveIntensity = pageEmissive + 0.3 + 0.24 * Math.sin(t * 2.1)
     shoreHaloMat.opacity = (beaconOn ? 0.3 : 0.18) + 0.05 * Math.sin(t * 0.8)
     if (beaconOn) beaconLight.intensity = 12 + Math.sin(t * 7.3) * 2.5
   }
@@ -571,6 +619,7 @@ export function createWorld(scene) {
     pages,
     spawnPages,
     collectPage,
+    seamCount,
     setBeacon,
     isWalkable,
     update,

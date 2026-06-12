@@ -610,12 +610,49 @@ function begin() {
   if (phase !== 'title') return
   ui.closeOverlay() // no-op when begun via the BEGIN click (already closing)
   audio.unlock()
-  audio.voice('begin') // "El pantano calla como un ahogado..."
+  speakIntro() // no-op if the title narration already started; else the old path
   ui.buildHUD()
   phase = 'playing'
 }
 
 ui.showTitle(begin)
+
+// ---------- title narration ----------
+// The 'begin' line ("El pantano calla como un ahogado...") belongs over the
+// title card, not behind BEGIN. Autoplay policies usually keep a no-gesture
+// AudioContext 'suspended', so this is best-effort: try at load; if blocked,
+// the first pointer/key/touch starts it — before BEGIN. BEGIN never restarts
+// a line already out, and still speaks it the old way if nothing managed to
+// start it earlier. Silent no-op without WebAudio or the clip file.
+let introSpoken = false
+function speakIntro() {
+  if (introSpoken) return
+  introSpoken = true
+  untapIntro()
+  audio.voice('begin')
+}
+function untapIntro() {
+  window.removeEventListener('pointerdown', introTap, true)
+  window.removeEventListener('keydown', introTap, true)
+  window.removeEventListener('touchstart', introTap, true)
+}
+function introTap() {
+  untapIntro() // one-time: whatever happens, these taps never fire twice
+  if (introSpoken || phase !== 'title') return
+  try {
+    audio.unlock() // a real gesture — creates or resumes the context
+    speakIntro()
+  } catch (e) { /* narration is flavor — never an error */ }
+}
+try {
+  audio.unlock() // load-time attempt; the policy may keep it suspended
+  if (audio.state().contextState === 'running') speakIntro()
+} catch (e) { /* silent — the gesture taps below cover it */ }
+if (!introSpoken) {
+  window.addEventListener('pointerdown', introTap, true)
+  window.addEventListener('keydown', introTap, true)
+  window.addEventListener('touchstart', introTap, true)
+}
 
 // ---------- TEST API ----------
 window.__game = {

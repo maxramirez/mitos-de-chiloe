@@ -69,7 +69,18 @@ export function createAudio() {
   }
 
   function unlock() {
-    if (ready || !AC) return
+    if (!AC) return
+    if (ready) {
+      // re-entrant: a load-time attempt may have left the context suspended;
+      // a later real gesture (any tap, or BEGIN) lands here and resumes it
+      try {
+        if (ctx && ctx.state === 'suspended') {
+          const p = ctx.resume()
+          if (p && p.catch) p.catch(() => {})
+        }
+      } catch (e) { /* ignore */ }
+      return
+    }
     try {
       ctx = new AC()
       master = ctx.createGain()
@@ -433,6 +444,6 @@ export function createAudio() {
     sfx,
     playVoice,
     endNight,
-    get state() { return { ready, muted } },
+    get state() { return { ready, muted, running: !!(ctx && ctx.state === 'running') } },
   }
 }

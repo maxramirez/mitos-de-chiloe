@@ -259,6 +259,9 @@ body {
 #hud {
   left: 26px;
   bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
   pointer-events: none;
   user-select: none;
   opacity: 0;
@@ -266,6 +269,63 @@ body {
   z-index: 14;
 }
 #hud.visible { opacity: 1; }
+
+/* the compass — a dim dial; the needle seeks the nearest remaining page,
+   and the rowboat once all seven are in your coat (flagship dial grammar) */
+#compass {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background:
+    radial-gradient(circle at 50% 38%,
+      rgba(12, 19, 23, 0.85) 0%,
+      rgba(3, 7, 10, 0.9) 75%);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), inset 0 0 12px rgba(0, 0, 0, 0.65);
+}
+#compass::after {
+  /* center pivot dot */
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgba(232, 220, 192, 0.5);
+}
+#compass-arrow {
+  position: absolute;
+  inset: 0;
+  will-change: transform; /* rotation set inline by ui.compass() */
+}
+#compass-arrow::before {
+  /* needle tip — points up when rotation is 0 (target dead ahead) */
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  margin-left: -5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 11px solid var(--glow);
+  filter: drop-shadow(0 0 4px var(--glow-soft));
+  opacity: 0.85;
+}
+#compass-arrow::after {
+  /* needle tail */
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  margin-left: -1px;
+  width: 2px;
+  height: 11px;
+  background: rgba(232, 220, 192, 0.3);
+}
 
 #page-count {
   margin-left: 8px;

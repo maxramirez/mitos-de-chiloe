@@ -26,7 +26,12 @@ const AMB_LEVEL = 1.0;
 const MUSIC_LEVEL = 0.22; // quiet on purpose: the five shells ARE this game's melody
 
 export function initAudio() {
-  if (ctx) return true;
+  if (ctx) {
+    // already created (maybe by the load-time narration attempt, before any
+    // gesture) — a later trusted call still needs to resume the context
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return true;
+  }
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
@@ -97,6 +102,11 @@ export function toggleMute() {
 
 export function isMuted() {
   return muted;
+}
+
+// context-state hook for the title-narration autoplay attempt (additive)
+export function contextState() {
+  return ctx ? ctx.state : 'none';
 }
 
 function makeNoise(seconds) {

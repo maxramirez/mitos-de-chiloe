@@ -8,12 +8,17 @@
 // Walk up + E or click to take one; the count is whispered ('una… dos…').
 //
 // EL BRUJO never walks. While unobserved he relocates on a timer (8–14 s
-// early, 3–6 s with seven pages) to a spot 25–50 m away in your periphery or
+// early, 3–6 s with seven pages; gentle mercy — his first TWO relocations
+// always use the slow band) to a spot 25–50 m away in your periphery or
 // behind, standing among the trees, facing you. LOOKING at him within ~40 m
 // makes the STATIC rise (noise overlay + crackle + heartbeat), faster the
 // closer he is and the more pages you carry; looking away decays it slowly.
 // After ~2 s of being watched he vanishes — only ever while OFFSCREEN. From
 // page 5 on, some relocations come with a 2 s farol gutter, and closer.
+//
+// Direction help: a dim HUD compass (next to 'páginas 0/7') seeks the
+// nearest remaining page — the rowboat once 7/7 — and each un-taken page
+// raises a thin light-seam over the canopy that dissolves as you close in.
 //
 // WIN  — take 7/7, reach the derelict rowboat at the south fence (the distant
 //        shore-light marks the way) and hold E for 3 s to push off.
@@ -44,6 +49,8 @@
 //   grantPages(n)              — take pages through the REAL handler until n
 //                                are held (whisper, beacon at 7, etc.)
 //   pagePositions()            — [[x,z], …] of the remaining (untaken) pages
+//   pageSeams()                — light-seams still standing (one per un-taken
+//                                page; 0 once all seven are in your coat)
 //   brujoPos()                 — [x,z] while present, else null
 //   forceRelocate(dist = 18)   — immediate relocation IN FRONT of the player
 //                                at `dist` m (visible — stare to raise static)
@@ -137,6 +144,7 @@ let simHold = false // __game.setHold
 
 // brujo direction
 let relocTimer = 0
+let mercyRelocs = 2 // gentle early mercy: his first two waits keep the slow band
 let appearCooldown = 6 // he gives you a few first seconds
 let lookT = 0
 let burned = false
@@ -165,12 +173,49 @@ let lockedPrompt = ''
 let lockedPromptFor = -1
 let wasNearPage = false // edge-detect: parchment flutter on first approach
 
+// ---------------- title narration --------------------------------------------
+// The 'begin' line ("Siete páginas cuelgan del bosque…") belongs over the
+// title card, not behind BEGIN. Autoplay policies usually keep a no-gesture
+// AudioContext 'suspended', so this is best-effort: try at load (below, after
+// setup); if blocked, the first pointer/key/touch starts it — before BEGIN.
+// BEGIN never restarts a line already out, and still speaks it the old way if
+// nothing managed to start it earlier. Silent no-op without WebAudio/the clip.
+let introSpoken = false
+function speakIntro() {
+  if (introSpoken) return
+  introSpoken = true
+  untapIntro()
+  audio.voice('begin')
+}
+function untapIntro() {
+  window.removeEventListener('pointerdown', introTap, true)
+  window.removeEventListener('keydown', introTap, true)
+  window.removeEventListener('touchstart', introTap, true)
+}
+function introTap() {
+  untapIntro() // one-time: whatever happens, these taps never fire twice
+  if (introSpoken || phase !== 'title') return
+  try {
+    audio.unlock() // a real gesture — creates or resumes the context
+    speakIntro()
+  } catch (e) { /* narration is flavor — never an error */ }
+}
+try {
+  audio.unlock() // load-time attempt; the policy may keep it suspended
+  if (audio.state.contextState === 'running') speakIntro()
+} catch (e) { /* silent — the gesture taps below cover it */ }
+if (!introSpoken) {
+  window.addEventListener('pointerdown', introTap, true)
+  window.addEventListener('keydown', introTap, true)
+  window.addEventListener('touchstart', introTap, true)
+}
+
 // ---------------- handlers (real win/lose/begin paths) -----------------------
 function begin() {
   if (phase !== 'title') return
   phase = 'playing'
   audio.unlock()
-  audio.voice('begin') // "Siete páginas cuelgan del bosque, pálidas como la espuma… no lo mires: mirar es abrir una puerta."
+  speakIntro() // no-op if the title narration already started; else the old path
   ui.closeTitle()
   ui.setPages(0)
   player.enabled = true
@@ -283,7 +328,11 @@ function progress() {
 }
 
 function resetRelocTimer() {
-  const base = 11 - 6.4 * progress() // 11 s → 4.6 s
+  let base = 11 - 6.4 * progress() // 11 s → 4.6 s
+  if (mercyRelocs > 0) {
+    mercyRelocs--
+    base = 11 // first two relocations: the slow band, however fast you read
+  }
   relocTimer = base * (0.72 + Math.random() * 0.55) // ≈ 8–14 s early, 3.3–6.3 late
 }
 
@@ -450,6 +499,34 @@ function updatePrompt(nearBoat) {
   ui.prompt(near ? PROMPT_TAKE : '')
 }
 
+// ---------------- the compass (direction help) --------------------------------
+const RAD2DEG = 180 / Math.PI
+function updateCompass() {
+  const px = player.position.x
+  const pz = player.position.z
+  let tx = BOAT.x // 7/7 — the needle turns to the rowboat
+  let tz = BOAT.z
+  if (pagesTaken < PAGES_TOTAL) {
+    let best = Infinity
+    for (let i = 0; i < world.pages.length; i++) {
+      const p = world.pages[i]
+      if (p.taken) continue
+      const dx = p.x - px
+      const dz = p.z - pz
+      const d2 = dx * dx + dz * dz
+      if (d2 < best) {
+        best = d2
+        tx = p.x
+        tz = p.z
+      }
+    }
+  }
+  // signed bearing from facing to target (yaw 0 faces -z) → CSS deg, cw +
+  let rel = Math.atan2(px - tx, pz - tz) - player.yaw
+  rel -= Math.PI * 2 * Math.floor((rel + Math.PI) / (Math.PI * 2)) // wrap [-π, π)
+  ui.compass(-rel * RAD2DEG)
+}
+
 // ---------------- the frame --------------------------------------------------
 function frame(dt) {
   if (dt > 0.05) dt = 0.05
@@ -468,6 +545,7 @@ function frame(dt) {
       const nearBoat = updateBoat(dt)
       if (phase === 'playing') updatePrompt(nearBoat)
     }
+    updateCompass()
     if (gutterT > 0) gutterT -= dt
     if (!slowHintShown && elapsed > 50 && pagesTaken === 0) {
       slowHintShown = true
@@ -479,7 +557,7 @@ function frame(dt) {
   }
 
   // visuals that breathe even under overlays (cheap, deterministic)
-  world.update(dt, simT)
+  world.update(dt, simT, player.position.x, player.position.z)
   brujo.update(dt, simT)
 
   // farol flicker (+ gutter)
@@ -597,6 +675,9 @@ window.__game = {
       if (!world.pages[i].taken) out.push([world.pages[i].x, world.pages[i].z])
     }
     return out
+  },
+  pageSeams() {
+    return world.seamCount()
   },
   brujoPos() {
     return brujo.present ? [brujo.x, brujo.z] : null

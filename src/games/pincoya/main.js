@@ -136,7 +136,10 @@ document.addEventListener('visibilitychange', () => {
 function startGame() {
   if (S.phase !== 'title') return
   audio.unlock()
-  audio.voice('intro') // the old man's opening line — only after the BEGIN gesture
+  if (!introVoiced) {
+    introVoiced = true
+    audio.voice('intro') // narration never started on the title card: speak on BEGIN
+  }
   S.phase = 'playing'
   ui.setHUDVisible(true)
   ui.toast('Cuando ella mire al mar, echa la red — espacio', 'good', 4200)
@@ -351,6 +354,33 @@ const clock = new THREE.Clock()
 renderer.setAnimationLoop(() => {
   frame(Math.min(clock.getDelta(), 0.05))
 })
+
+// --- title narration: the old man's intro line plays over the title card ----
+// Autoplay policy usually blocks sound before a gesture, so this is
+// best-effort: try at load (audible where the browser allows it); otherwise
+// the first pointer/key/touch unlocks audio AND starts the line — still
+// before BEGIN. startGame() must then not restart it (it finishes over
+// gameplay, ducking as usual). Silent no-op without the mp3.
+let introVoiced = false // the intro line started (or was queued): never replay it
+const NARRATION_GESTURES = ['pointerdown', 'keydown', 'touchstart']
+function titleNarrationGesture() {
+  for (const ev of NARRATION_GESTURES) window.removeEventListener(ev, titleNarrationGesture, true)
+  try {
+    audio.unlock() // trusted gesture: resume() sticks this time
+    if (!introVoiced && S.phase === 'title') {
+      introVoiced = true
+      audio.voice('intro') // narration over the title card, before BEGIN
+    }
+  } catch (e) { /* narration must never break the game */ }
+}
+for (const ev of NARRATION_GESTURES) window.addEventListener(ev, titleNarrationGesture, true)
+try {
+  audio.unlock() // best-effort early start, before any gesture
+  if (audio.state.contextState === 'running') {
+    introVoiced = true
+    audio.voice('intro')
+  }
+} catch (e) { /* blocked: the gesture listeners above take over */ }
 
 ui.showTitle(startGame)
 

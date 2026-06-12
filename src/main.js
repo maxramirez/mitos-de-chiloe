@@ -145,9 +145,33 @@ const state = { started: false, won: false, modal: false }
 const fx = createFX(renderer, scene, camera)
 const dread = createDread()
 const audio = createAudio()
-const unlockAudio = () => audio.unlock()
-window.addEventListener('pointerdown', unlockAudio, { once: true })
-window.addEventListener('keydown', unlockAudio, { once: true })
+
+// --- title narration: the intro line plays over the title card itself -------
+// Autoplay policy usually blocks sound before a gesture, so this is
+// best-effort: try at load (audible where the browser allows it); otherwise
+// the first pointer/key/touch unlocks audio AND starts the line — still
+// before BEGIN. beginGame() must then not restart it (it finishes over
+// gameplay, ducking as usual). Silent no-op without the mp3.
+let introVoiced = false // the intro line started (or was queued): never replay it
+const NARRATION_GESTURES = ['pointerdown', 'keydown', 'touchstart']
+const unlockAudio = () => {
+  for (const ev of NARRATION_GESTURES) window.removeEventListener(ev, unlockAudio, true)
+  try {
+    audio.unlock() // trusted gesture: resume() sticks this time
+    if (!introVoiced && !state.started) {
+      introVoiced = true
+      audio.speak('intro') // narration over the title card, before BEGIN
+    }
+  } catch {} // narration must never break the game
+}
+for (const ev of NARRATION_GESTURES) window.addEventListener(ev, unlockAudio, true)
+try {
+  audio.unlock() // best-effort early start, before any gesture
+  if (audio.state.contextState === 'running') {
+    introVoiced = true
+    audio.speak('intro')
+  }
+} catch {} // blocked: the gesture listeners above take over
 
 // --- save / continue ---
 const SAVE_KEY = 'caleuche-save-v1'
@@ -190,7 +214,10 @@ function beginGame() {
   state.started = true
   clearSave()
   audio.unlock()
-  audio.speak('intro') // title-card line, only on the Entrar-en-la-niebla click
+  if (!introVoiced) {
+    introVoiced = true
+    audio.speak('intro') // narration never started on the title card: speak on BEGIN
+  }
   player.enabled = true
   player.requestLock()
 }

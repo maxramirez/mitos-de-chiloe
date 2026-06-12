@@ -43,9 +43,21 @@ export function createAudio() {
   }
 
   function unlock() {
-    if (ready || !AC) return;
+    if (!AC) return;
+    if (ready) {
+      // already built (maybe by the load-time narration attempt, before any
+      // gesture) — a later trusted call still needs to resume the context
+      if (ctx.state === 'suspended') {
+        const p = ctx.resume();
+        if (p && p.catch) p.catch(() => {});
+      }
+      return;
+    }
     ctx = new AC();
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') {
+      const p = ctx.resume();
+      if (p && p.catch) p.catch(() => {});
+    }
     master = ctx.createGain();
     master.gain.value = muted ? 0 : MASTER;
     const comp = ctx.createDynamicsCompressor();
@@ -301,6 +313,8 @@ export function createAudio() {
   return {
     unlock,
     get muted() { return muted; },
+    // context-state hook for the title-narration autoplay attempt (additive)
+    get contextState() { return ctx ? ctx.state : 'none'; },
     toggleMute() {
       muted = !muted;
       if (ready) master.gain.setTargetAtTime(muted ? 0 : MASTER, ctx.currentTime, 0.03);

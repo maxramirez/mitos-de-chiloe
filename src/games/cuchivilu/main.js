@@ -873,13 +873,49 @@ function particlesUpdate(dt) {
 function startGame() {
   if (S.phase !== 'title') return
   audio.unlock()
-  audio.voice('intro') // after the BEGIN gesture, never on page load
+  speakIntro() // no-op if the title narration already started; else the old path
   S.phase = 'playing'
   spawnSchool(10, 360, 170)
   spawnSchool(9, 660, 230)
   countPenned()
   ui.setHUDVisible(true)
   ui.toast('Arrea los cardúmenes hacia la boca del corral — la marea alta la abre', 'good', 4500)
+}
+
+// ---- title narration -------------------------------------------------------------
+// The intro line belongs over the title card, not behind BEGIN. Autoplay policies
+// usually keep a no-gesture AudioContext 'suspended', so this is best-effort:
+// try at load; if blocked, the first pointer/key/touch starts it — before BEGIN.
+// BEGIN never restarts a line already out, and still speaks it the old way if
+// nothing managed to start it earlier. Silent no-op without WebAudio or the clip.
+let introSpoken = false
+function speakIntro() {
+  if (introSpoken) return
+  introSpoken = true
+  untapIntro()
+  audio.voice('intro')
+}
+function untapIntro() {
+  window.removeEventListener('pointerdown', introTap, true)
+  window.removeEventListener('keydown', introTap, true)
+  window.removeEventListener('touchstart', introTap, true)
+}
+function introTap() {
+  untapIntro() // one-time: whatever happens, these taps never fire twice
+  if (introSpoken || S.phase !== 'title') return
+  try {
+    audio.unlock() // a real gesture — creates or resumes the context
+    speakIntro()
+  } catch (e) { /* narration is flavor — never an error */ }
+}
+try {
+  audio.unlock() // load-time attempt; the policy may keep it suspended
+  if (audio.state.contextState === 'running') speakIntro()
+} catch (e) { /* silent — the gesture taps below cover it */ }
+if (!introSpoken) {
+  window.addEventListener('pointerdown', introTap, true)
+  window.addEventListener('keydown', introTap, true)
+  window.addEventListener('touchstart', introTap, true)
 }
 
 function win() {

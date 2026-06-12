@@ -31,7 +31,12 @@ export function createAudio() {
 
   function unlock() {
     if (ready) {
-      try { if (ctx.state === 'suspended') ctx.resume() } catch (e) { /* ignore */ }
+      try {
+        if (ctx.state === 'suspended') {
+          const p = ctx.resume()
+          if (p && p.catch) p.catch(() => {})
+        }
+      } catch (e) { /* ignore */ }
       return
     }
     try {

@@ -311,9 +311,40 @@ requestAnimationFrame(function loop(now) {
 
 // ---------------- input ----------------
 
+// --- title narration: the intro line plays over the title card itself -------
+// Autoplay policy usually blocks sound before a gesture, so this is
+// best-effort: try at load (audible where the browser allows it); otherwise
+// the first pointer/key/touch unlocks audio AND starts the line — still
+// before BEGIN. The BEGIN handler must then not restart it (it finishes over
+// gameplay, ducking as usual). Silent no-op without the mp3.
+let introVoiced = false; // the intro line started (or was queued): never replay it
+const NARRATION_GESTURES = ['pointerdown', 'keydown', 'touchstart'];
+function titleNarrationGesture() {
+  for (const ev of NARRATION_GESTURES) window.removeEventListener(ev, titleNarrationGesture, true);
+  try {
+    // trusted gesture: creates or resumes the context (also covers the
+    // armUnlock() path after a programmatic begin)
+    if (audio.initAudio() && !introVoiced && state.phase === 'title') {
+      introVoiced = true;
+      audio.playVoice('intro'); // narration over the title card, before BEGIN
+    }
+  } catch (e) { /* narration must never break the game */ }
+}
+for (const ev of NARRATION_GESTURES) window.addEventListener(ev, titleNarrationGesture, true);
+try {
+  // best-effort early start, before any gesture
+  if (audio.initAudio() && audio.contextState() === 'running') {
+    introVoiced = true;
+    audio.playVoice('intro');
+  }
+} catch (e) { /* blocked: the gesture listeners above take over */ }
+
 document.getElementById('begin-btn').addEventListener('click', () => {
   audio.initAudio(); // inside the gesture — autoplay-safe
-  audio.playVoice('intro'); // the old man whispers the opening line
+  if (!introVoiced) {
+    introVoiced = true;
+    audio.playVoice('intro'); // narration never started on the title card: speak on BEGIN
+  }
   begin();
 });
 document.getElementById('replay-win').addEventListener('click', () => location.reload());

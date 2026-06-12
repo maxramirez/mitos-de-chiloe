@@ -187,6 +187,12 @@ export function isMuted() {
   return muted;
 }
 
+// true only when the context exists AND the autoplay policy let it run —
+// lets main decide whether the title narration can start without a gesture
+export function audioRunning() {
+  return !!(ctx && ctx.state === 'running');
+}
+
 // --- tiny synth helpers (event-driven only; never in the frame loop) ---
 
 function tone(type, f0, f1, dur, peak, when = 0, dest = null) {
