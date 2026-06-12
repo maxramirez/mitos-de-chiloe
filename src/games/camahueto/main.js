@@ -261,8 +261,10 @@ function render(dtVis) {
   world.player.rotation.z = -vx * 0.045;
   world.player.rotation.x = -0.119 + (grounded ? 0 : vy * 0.014);
   world.player.rotation.y = -vx * 0.02;
+  // 0.55, not 0.9: the full-strength flicker blew the poncho out to a plain
+  // white pyramid; at 0.55 the spectral wash still reads but the bands survive
   world.ponchoMat.emissiveIntensity =
-    invuln > 0 ? (Math.sin(tVis * 32) > 0 ? 0.9 : 0) : 0;
+    invuln > 0 ? (Math.sin(tVis * 32) > 0 ? 0.55 : 0) : 0;
   world.updateRig(simT, tVis, spdN, grounded); // cloth sway / scarf / lantern flame
 
   // camera: behind and above, lagging laterally, shaking when struck

@@ -478,7 +478,39 @@ export function createWorld(scene) {
   // over each un-taken page: tall enough to read over the canopy from ~70 m
   // (fog: false), faded out by update() within ~12 m so the close-up dread
   // is untouched. Yaw-billboarded toward the player each frame.
-  const seamGeo = new THREE.PlaneGeometry(0.85, 46)
+  // A dedicated shaft texture keeps it elegant rather than neon: a thin
+  // bright core feathering to nothing at the sides, strongest just above
+  // the canopy and dissolving upward like light through mist.
+  let seamTex = null
+  try {
+    const cv = document.createElement('canvas')
+    cv.width = 32
+    cv.height = 256
+    const c2 = cv.getContext('2d')
+    // vertical profile (canvas bottom = plane bottom): rises from the page,
+    // peaks low, dissolves long before the plane's top edge
+    const v = c2.createLinearGradient(0, 256, 0, 0)
+    v.addColorStop(0, 'rgba(255,255,255,0)')
+    v.addColorStop(0.1, 'rgba(255,255,255,0.9)')
+    v.addColorStop(0.45, 'rgba(255,255,255,0.5)')
+    v.addColorStop(1, 'rgba(255,255,255,0)')
+    c2.fillStyle = v
+    c2.fillRect(0, 0, 32, 256)
+    // horizontal feather — thin core, soft edges, no hard bar
+    const hm = c2.createLinearGradient(0, 0, 32, 0)
+    hm.addColorStop(0, 'rgba(255,255,255,0)')
+    hm.addColorStop(0.34, 'rgba(255,255,255,0.5)')
+    hm.addColorStop(0.5, 'rgba(255,255,255,1)')
+    hm.addColorStop(0.66, 'rgba(255,255,255,0.5)')
+    hm.addColorStop(1, 'rgba(255,255,255,0)')
+    c2.globalCompositeOperation = 'destination-in'
+    c2.fillStyle = hm
+    c2.fillRect(0, 0, 32, 256)
+    seamTex = new THREE.CanvasTexture(cv)
+  } catch (e) {
+    seamTex = null
+  }
+  const seamGeo = new THREE.PlaneGeometry(0.6, 46)
   let seamsLive = 0
   function spawnPages(indices) {
     for (let k = 0; k < indices.length; k++) {
@@ -513,7 +545,7 @@ export function createWorld(scene) {
         group.add(glow)
       }
       const seamMat = new THREE.MeshBasicMaterial({
-        color: 0xfff2c8,
+        color: 0xe8dcc0, // parchment, not candle-white — a quiet shaft
         transparent: true,
         opacity: 0, // distance-driven — see update()
         blending: THREE.AdditiveBlending,
@@ -521,7 +553,8 @@ export function createWorld(scene) {
         fog: false, // the whole point: it must carry past the fog wall
         side: THREE.DoubleSide,
       })
-      if (glowTex) seamMat.map = glowTex // soft vertical streak, not a hard bar
+      const st = seamTex || glowTex
+      if (st) seamMat.map = st // soft vertical shaft, not a hard bar
       const seam = new THREE.Mesh(seamGeo, seamMat)
       seam.position.set(px, py + 21, pz)
       group.add(seam)
@@ -604,7 +637,7 @@ export function createWorld(scene) {
         if (k < 0) k = 0
         else if (k > 1) k = 1
         p.seam.rotation.y = Math.atan2(dx, dz) // face the player, edge never seen
-        p.seamMat.opacity = k * (0.24 + 0.05 * Math.sin(t * 1.3 + i * 1.7))
+        p.seamMat.opacity = k * (0.2 + 0.04 * Math.sin(t * 1.3 + i * 1.7))
       }
     }
     // the parchment pulse — brighter breathing so un-taken pages read farther

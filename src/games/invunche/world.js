@@ -336,8 +336,8 @@ export function createWorld(scene, wall, layout, rng) {
       bumpMap: floorBump,
       bumpScale: 0.4,
       roughnessMap: puddles,
-      color: 0x4e5b50, // mossy, a step lighter than the ceiling so the two
-      roughness: 1.0, // planes split at the candle's edge. texel-driven sheen
+      color: 0x5e6450, // warm moss, clearly lighter than the ceiling so the
+      roughness: 1.0, // two planes split at the candle's edge. texel sheen
       metalness: 0.14,
     })
   )
@@ -355,7 +355,7 @@ export function createWorld(scene, wall, layout, rng) {
     new THREE.PlaneGeometry(SIZE, SIZE),
     // colder + darker than the floor: overhead rock dies into the dark a beat
     // sooner, so the candle edge reads as two different planes, not one grey
-    new THREE.MeshStandardMaterial({ map: ceilTex, bumpMap: ceilBump, bumpScale: 0.62, color: 0x2a3236, roughness: 1.0 })
+    new THREE.MeshStandardMaterial({ map: ceilTex, bumpMap: ceilBump, bumpScale: 0.62, color: 0x1f2a36, roughness: 1.0 })
   )
   ceiling.rotation.x = Math.PI / 2
   ceiling.position.set(SIZE / 2, WALL_H - 0.02, SIZE / 2)
@@ -430,7 +430,7 @@ export function createWorld(scene, wall, layout, rng) {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     fog: false,
-    color: 0xffd28c,
+    color: 0xffe0a4,
   })
   // wide faint warm halo behind each sconce flame: presence at corridor
   // distance without touching the light budget
@@ -440,7 +440,7 @@ export function createWorld(scene, wall, layout, rng) {
     depthWrite: false,
     fog: false,
     color: 0xff7a22,
-    opacity: 0.34,
+    opacity: 0.46,
   })
   const sconces = []
   for (let i = 0; i < layout.sconceCells.length; i++) {
@@ -468,11 +468,11 @@ export function createWorld(scene, wall, layout, rng) {
     stub.position.y = 1.8
     grp.add(stub)
     const flame = new THREE.Sprite(flameMat)
-    flame.scale.set(0.2, 0.31, 1)
+    flame.scale.set(0.26, 0.4, 1)
     flame.position.y = 1.98
     grp.add(flame)
     const halo = new THREE.Sprite(haloMat)
-    halo.scale.set(0.85, 0.95, 1)
+    halo.scale.set(1.1, 1.2, 1)
     halo.position.y = 2.0
     grp.add(halo)
     const light = new THREE.PointLight(0xff9a40, 3, 8, 1.9)
@@ -556,7 +556,7 @@ export function createWorld(scene, wall, layout, rng) {
   // cold daylight cracking around the door. Additive so the crack reads as
   // light (not pale paint) against the warm candle. Hidden once the door sinks.
   const seamMat = new THREE.MeshBasicMaterial({
-    color: 0xa9d7ff,
+    color: 0x8ecbff,
     fog: false,
     side: THREE.DoubleSide,
     transparent: true,
@@ -569,7 +569,7 @@ export function createWorld(scene, wall, layout, rng) {
   const perpZ = dirX
   const sfx = doorCx - dirX * 0.37
   const sfz = doorCz - dirZ * 0.37
-  const jambGeo = new THREE.PlaneGeometry(0.045, WALL_H - 0.2)
+  const jambGeo = new THREE.PlaneGeometry(0.06, WALL_H - 0.2)
   const jambL = new THREE.Mesh(jambGeo, seamMat)
   jambL.position.set(sfx + perpX * (TILE / 2 - 0.12), (WALL_H - 0.2) / 2, sfz + perpZ * (TILE / 2 - 0.12))
   jambL.rotation.y = yawForDir
@@ -582,6 +582,11 @@ export function createWorld(scene, wall, layout, rng) {
   sill.position.set(sfx, 0.09, sfz)
   sill.rotation.y = yawForDir
   seams.add(sill)
+  // lintel completes the cold outline: the crack of day over the door's head
+  const lintel = new THREE.Mesh(new THREE.PlaneGeometry(TILE - 0.24, 0.055), seamMat)
+  lintel.position.set(sfx, WALL_H - 0.18, sfz)
+  lintel.rotation.y = yawForDir
+  seams.add(lintel)
   scene.add(seams)
 
   // cold pool of daylight spilling under the door onto the cave floor —
@@ -589,8 +594,9 @@ export function createWorld(scene, wall, layout, rng) {
   // the door sinks.
   const spillMat = new THREE.MeshBasicMaterial({
     map: daylightTexture(),
+    color: 0xbfdcff, // cool the spill so the floor pool reads icy, not grey
     transparent: true,
-    opacity: 0.1,
+    opacity: 0.13,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     fog: false,
@@ -600,7 +606,7 @@ export function createWorld(scene, wall, layout, rng) {
   spill.position.set(doorCx - dirX * (0.37 + TILE * 0.36), 0.015, doorCz - dirZ * (0.37 + TILE * 0.36))
   scene.add(spill)
 
-  const daylight = new THREE.PointLight(0xa8d4ff, 1.35, 30, 1.6)
+  const daylight = new THREE.PointLight(0x9cc8ff, 2.1, 30, 1.6)
   daylight.position.set(doorCx + dirX * 1.1, 2.0, doorCz + dirZ * 1.1)
   scene.add(daylight)
 
@@ -650,12 +656,12 @@ export function createWorld(scene, wall, layout, rng) {
     for (let i = 0; i < sconces.length; i++) {
       const s = sconces[i]
       if (s.used) continue
-      s.light.intensity = 3 + Math.sin(simT * 8.7 + i * 1.71) * 0.7
-      const fsc = 1 + 0.14 * Math.sin(simT * 12.3 + i * 2.3)
-      s.flame.scale.set(0.2 * fsc, 0.31 * fsc, 1)
-      s.flame.position.y = 1.98 + 0.014 * Math.sin(simT * 9.1 + i * 1.3)
-      const hsc = 1 + 0.1 * Math.sin(simT * 7.7 + i * 2.9)
-      s.halo.scale.set(0.85 * hsc, 0.95 * hsc, 1)
+      s.light.intensity = 3 + Math.sin(simT * 8.7 + i * 1.71) * 0.9
+      const fsc = 1 + 0.16 * Math.sin(simT * 12.3 + i * 2.3)
+      s.flame.scale.set(0.26 * fsc, 0.4 * fsc, 1)
+      s.flame.position.y = 1.98 + 0.016 * Math.sin(simT * 9.1 + i * 1.3)
+      const hsc = 1 + 0.12 * Math.sin(simT * 7.7 + i * 2.9)
+      s.halo.scale.set(1.1 * hsc, 1.2 * hsc, 1)
     }
 
     // seals — slow heartbeat far away; quicker, deeper, brighter as you near
@@ -672,21 +678,21 @@ export function createWorld(scene, wall, layout, rng) {
         if (near < 0) near = 0
         else if (near > 1) near = 1
       }
-      s.phase += dt * (2.1 + near * 3.6)
+      s.phase += dt * (2.1 + near * 4.8)
       const w = 0.5 + 0.5 * Math.sin(s.phase)
-      const amp = 0.26 + 0.48 * near
+      const amp = 0.26 + 0.62 * near
       s.sigilMat.opacity = (1 - amp + amp * w) * s.fade
-      s.light.intensity = (1.7 + 0.6 * near + (0.6 + 1.5 * near) * w) * s.fade
-      s.sigil.scale.setScalar(1 + 0.07 * near * w)
+      s.light.intensity = (1.7 + 0.7 * near + (0.6 + 2.4 * near) * w) * s.fade
+      s.sigil.scale.setScalar(1 + 0.13 * near * w)
     }
 
     // door: seam + cold floor spill breathe; both bloom as the slab sinks
-    seamMat.opacity = 0.62 + 0.22 * Math.sin(simT * 1.3)
-    spillMat.opacity = 0.09 + 0.03 * Math.sin(simT * 1.3 + 0.7) + door.openT * 0.26
+    seamMat.opacity = 0.78 + 0.2 * Math.sin(simT * 1.3)
+    spillMat.opacity = 0.12 + 0.04 * Math.sin(simT * 1.3 + 0.7) + door.openT * 0.26
     if (door.opening && door.openT < 1) {
       door.openT = Math.min(1, door.openT + dt / 2.4)
       doorMesh.position.y = (WALL_H - 0.12) / 2 - door.openT * WALL_H
-      daylight.intensity = 1.35 + door.openT * 9
+      daylight.intensity = 2.1 + door.openT * 9
       if (door.openT > 0.06) seams.visible = false
     }
   }

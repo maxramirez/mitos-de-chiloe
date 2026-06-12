@@ -675,6 +675,7 @@ function loadLevel(n) {
   pil.t = 0
   planDirty = true
   renderer.clearFx()
+  renderer.reveal(game.visT) // the path assembles out of the fog, stone by stone
   buildDrawList()
   recompute()
   hud.innerHTML = 'nivel <b>' + ROMAN[num - 1] + '/vi</b> — ' + def.name

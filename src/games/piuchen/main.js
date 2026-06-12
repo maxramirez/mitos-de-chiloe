@@ -212,6 +212,7 @@ const game = {
 
 let simTime = 0
 let drainAcc = 0
+let trailAcc = 0 // throttles the spectral motes shed during swoops
 let firstLatch = true
 let firstFeint = true
 let firstSave = true
@@ -577,6 +578,12 @@ function updatePiuchen(dt) {
     pu.x = nx
     pu.y = ny
     shiftTrail(dt)
+    // the swoop sheds glowing motes — the dive reads even at the screen edge
+    trailAcc += dt
+    if (trailAcc >= (pu.state === 'diving' ? 0.05 : 0.1)) {
+      trailAcc = 0
+      renderer.burst(pu.x, pu.y, '#9fffd0', 1, 24, 0.45, 1.4)
+    }
     if (pu.state === 'diving') {
       if (pu.feintAt > 0 && u >= pu.feintAt) startPullup()
       else if (t >= 1) latch()

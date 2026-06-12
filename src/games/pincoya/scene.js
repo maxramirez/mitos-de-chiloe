@@ -581,9 +581,9 @@ export function createWorld(S) {
   // shared geometry for the lantern reflection lanes: anchored at the buoy
   // (z = 0) and stretching toward the camera along local +z
   const streakTex = makeLanternStreakTexture()
-  const streakGeo = new THREE.PlaneGeometry(0.8, 7, 1, 1)
+  const streakGeo = new THREE.PlaneGeometry(0.85, 12, 1, 1)
   streakGeo.rotateX(-Math.PI / 2)
-  streakGeo.translate(0, 0, 3.5)
+  streakGeo.translate(0, 0, 6)
   const buoys = []
   for (let i = 0; i < S.spots.length; i++) {
     const deep = S.spots[i].deep
@@ -625,7 +625,7 @@ export function createWorld(S) {
     streak.renderOrder = 1
     streak.position.y = 0.4
     scene.add(streak)
-    buoys.push({ g, lant, glow, streak, baseScale: deep ? 2.7 : 2.1, streakLen: deep ? 1.3 : 1 })
+    buoys.push({ g, lant, glow, streak, baseScale: deep ? 2.7 : 2.1, streakLen: deep ? 1.45 : 1.15 })
   }
 
   // in-range ring under the nearest buoy
@@ -676,9 +676,13 @@ export function createWorld(S) {
   {
     // woven dress, gradient skin, stranded hair — base colors brightened a
     // touch since the near-white maps multiply in at ~0.85 average
+    // vertexColors carries a vertical light gradient (bright at the shoulders
+    // where her aura catches, dark at the hem) so the dress reads as a lit
+    // figure instead of a flat dark cone at gameplay distance; base color is
+    // brightened to compensate for the ~0.8 gradient average
     dressMat = new THREE.MeshStandardMaterial({
-      color: 0x1b4136, map: clothTex, bumpMap: clothTex, bumpScale: 0.02,
-      emissive: 0x0c241e, emissiveIntensity: 0.5, roughness: 0.85,
+      color: 0x225143, map: clothTex, bumpMap: clothTex, bumpScale: 0.02,
+      emissive: 0x0c241e, emissiveIntensity: 0.5, roughness: 0.85, vertexColors: true,
     })
     const skinMat = new THREE.MeshStandardMaterial({
       color: 0xe4bd9c, map: skinTex, emissive: 0x4a3624, emissiveIntensity: 0.4, roughness: 0.7,
@@ -700,8 +704,26 @@ export function createWorld(S) {
       new THREE.Vector2(0.23, 1.3),
       new THREE.Vector2(0.27, 1.46),
     ]
-    pinDress = new THREE.Mesh(new THREE.LatheGeometry(dressPts, 10), dressMat)
-    const torso = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 8), dressMat)
+    const dressGeo = new THREE.LatheGeometry(dressPts, 10)
+    {
+      // hem→shoulder light ramp (0.5 → 1.15 over y 0..1.46)
+      const p = dressGeo.attributes.position
+      const col = new Float32Array(p.count * 3)
+      for (let i = 0; i < p.count; i++) {
+        const k = 0.5 + 0.65 * Math.pow(Math.min(1, Math.max(0, p.getY(i) / 1.46)), 1.25)
+        col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = k
+      }
+      dressGeo.setAttribute('color', new THREE.BufferAttribute(col, 3))
+    }
+    pinDress = new THREE.Mesh(dressGeo, dressMat)
+    const torsoGeo = new THREE.SphereGeometry(0.27, 10, 8)
+    {
+      // torso shares dressMat (vertexColors): full-bright, it sits in her aura
+      const col = new Float32Array(torsoGeo.attributes.position.count * 3)
+      col.fill(1.15)
+      torsoGeo.setAttribute('color', new THREE.BufferAttribute(col, 3))
+    }
+    const torso = new THREE.Mesh(torsoGeo, dressMat)
     torso.position.y = 1.5
     torso.scale.set(1, 1.25, 0.8)
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), skinMat)
@@ -745,15 +767,15 @@ export function createWorld(S) {
     // dark cone. Children of the meshes they outline, so they inherit every
     // sway for free. Color/opacity are mood-driven in update().
     rimMat = new THREE.MeshBasicMaterial({
-      color: 0xffc87a, side: THREE.BackSide, transparent: true, opacity: 0.4,
+      color: 0xffc87a, side: THREE.BackSide, transparent: true, opacity: 0.55,
       blending: THREE.AdditiveBlending, depthWrite: false,
     })
     hairRimMat = new THREE.MeshBasicMaterial({
-      color: 0xffe0a0, side: THREE.BackSide, transparent: true, opacity: 0.5,
+      color: 0xffe0a0, side: THREE.BackSide, transparent: true, opacity: 0.65,
       blending: THREE.AdditiveBlending, depthWrite: false,
     })
     const dressRim = new THREE.Mesh(pinDress.geometry, rimMat)
-    dressRim.scale.set(1.06, 1.02, 1.06)
+    dressRim.scale.set(1.09, 1.03, 1.09)
     dressRim.renderOrder = 3
     pinDress.add(dressRim)
     const torsoRim = new THREE.Mesh(torso.geometry, rimMat)
@@ -770,11 +792,11 @@ export function createWorld(S) {
     pinHairBack.add(hairBackRim)
     // golden catch-light on her hair — a small glow that rides the dance bob
     headGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowTex, color: 0xffe0a0, transparent: true, opacity: 0.4,
+      map: glowTex, color: 0xffe0a0, transparent: true, opacity: 0.5,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }))
     headGlow.position.set(0, 2.02, -0.04)
-    headGlow.scale.set(1.6, 1.6, 1)
+    headGlow.scale.set(2.4, 2.4, 1)
     pin.add(pinDress, torso, head, hair, pinHairBack, pinStrandL, pinStrandR, crown, armL, armR, headGlow)
   }
   pin.position.set(PIN_X, PIN_BASE_Y, PIN_Z)
@@ -782,14 +804,14 @@ export function createWorld(S) {
   scene.add(pin)
 
   const GOLD = new THREE.Color(0xffc87a)
-  const COLD = new THREE.Color(0x6e8fa8)
+  const COLD = new THREE.Color(0x4f82b8)
   // rim + hair mood targets: warm gold to the sea, unmistakable ice blue to land
   const RIM_GOLD = new THREE.Color(0xffc87a)
-  const RIM_COLD = new THREE.Color(0x5d8fc0)
+  const RIM_COLD = new THREE.Color(0x4a86c8)
   const HAIR_GOLD = new THREE.Color(0xffe0a0)
-  const HAIR_COLD = new THREE.Color(0x8fb0c8)
+  const HAIR_COLD = new THREE.Color(0x7fa9d8)
   const DRESS_EM_WARM = new THREE.Color(0x123028)
-  const DRESS_EM_COLD = new THREE.Color(0x0c1d2c)
+  const DRESS_EM_COLD = new THREE.Color(0x0e2236)
   const pinLight = new THREE.PointLight(0xffc87a, 55, 30, 1.8)
   pinLight.position.set(PIN_X, PIN_BASE_Y + 1.6, PIN_Z)
   scene.add(pinLight)
@@ -816,7 +838,7 @@ export function createWorld(S) {
   sparks.frustumCulled = false
   scene.add(sparks)
   const GOLD_SPARK = new THREE.Color(0xffd9a0)
-  const COLD_SPARK = new THREE.Color(0x7e98aa)
+  const COLD_SPARK = new THREE.Color(0x7fa6cc)
 
   // ---- particle pool ------------------------------------------------------------
   const P_N = 160
@@ -977,7 +999,7 @@ export function createWorld(S) {
       st.rotation.y = Math.atan2(camera.position.x - _v1.x, 23.5 - _v1.z)
       st.scale.z = b.streakLen * (0.9 + 0.12 * Math.sin(tVis * 0.8 + i * 1.9))
       st.scale.x = 0.85 + 0.25 * flick
-      st.material.opacity = (0.1 + 0.26 * flick) * sc * (inR ? 1.25 : 1)
+      st.material.opacity = (0.12 + 0.3 * flick) * sc * (inR ? 1.25 : 1)
     }
 
     // in-range ring
@@ -1029,12 +1051,12 @@ export function createWorld(S) {
     auraColor.lerp(showSea ? GOLD : COLD, damp)
     pinLight.color.copy(auraColor)
     aura.material.color.copy(auraColor)
-    pinLight.intensity += ((showSea ? 75 : 14) - pinLight.intensity) * damp
+    pinLight.intensity += ((showSea ? 75 : 18) - pinLight.intensity) * damp
     auraScale += ((showSea ? 7.4 : 3.4) - auraScale) * damp
     aura.scale.set(auraScale, auraScale, 1)
-    aura.material.opacity = showSea ? 0.55 + Math.sin(tVis * 2.2) * 0.08 : 0.3
+    aura.material.opacity = showSea ? 0.6 + Math.sin(tVis * 2.2) * 0.08 : 0.34
     sparkMat.color.lerp(showSea ? GOLD_SPARK : COLD_SPARK, damp)
-    sparkMat.opacity = showSea ? 0.85 : 0.3
+    sparkMat.opacity = showSea ? 0.85 : 0.45
 
     const targetYaw = facingSea ? SEA_YAW : LAND_YAW
     pinYaw += (targetYaw - pinYaw) * Math.min(1, 4 * dt)
@@ -1051,18 +1073,18 @@ export function createWorld(S) {
     pinStrandL.rotation.z = -0.18 + Math.sin(tVis * 2.6 - 1.4) * 0.09 * amp
     pinStrandR.rotation.z = 0.18 - Math.sin(tVis * 2.6 - 0.9) * 0.09 * amp
     // her hair burns gold when she gives herself to the sea, dims with her back
-    pinHairMat.emissiveIntensity += ((showSea ? 1.15 : 0.45) - pinHairMat.emissiveIntensity) * damp
+    pinHairMat.emissiveIntensity += ((showSea ? 1.45 : 0.6) - pinHairMat.emissiveIntensity) * damp
     // the sargazo crown breathes with the same pulse as her aura
     crownMat.emissiveIntensity = (showSea ? 0.95 : 0.55) + Math.sin(tVis * 2.2) * 0.18 * amp
     // silhouette rim: gold edge facing the sea, cold blue edge facing the land —
     // the figure stays readable (and the mood legible) at full gameplay distance
     rimMat.color.lerp(showSea ? RIM_GOLD : RIM_COLD, damp)
-    rimMat.opacity += ((showSea ? 0.42 : 0.3) - rimMat.opacity) * damp
+    rimMat.opacity += ((showSea ? 0.6 : 0.46) - rimMat.opacity) * damp
     hairRimMat.color.lerp(showSea ? HAIR_GOLD : HAIR_COLD, damp)
-    hairRimMat.opacity += ((showSea ? 0.55 : 0.22) - hairRimMat.opacity) * damp
+    hairRimMat.opacity += ((showSea ? 0.75 : 0.42) - hairRimMat.opacity) * damp
     headGlow.material.color.copy(hairRimMat.color)
     headGlow.material.opacity +=
-      ((showSea ? 0.5 : 0.16) + Math.sin(tVis * 2.2) * 0.05 * amp - headGlow.material.opacity) * damp
+      ((showSea ? 0.68 : 0.3) + Math.sin(tVis * 2.2) * 0.05 * amp - headGlow.material.opacity) * damp
     dressMat.emissive.lerp(showSea ? DRESS_EM_WARM : DRESS_EM_COLD, damp)
 
     // sparkle swirl

@@ -58,6 +58,17 @@ const SHIM = []
 for (let i = 0; i < 70; i++) {
   SHIM.push({ x: 30 + rnd() * 940, y: 30 + rnd() * 640, ph: rnd() * TAU, len: 6 + rnd() * 14 })
 }
+// the moon path: brighter glitter slivers clustered under the moon glint
+// (x ~ 660), running down the water and onto the wet flats
+const GLITTER = []
+for (let i = 0; i < 34; i++) {
+  GLITTER.push({
+    x: 660 + (rnd() + rnd() - 1) * 95, // sum of two rnds ≈ bell around the path
+    y: 20 + rnd() * 980,
+    ph: rnd() * TAU,
+    len: 5 + rnd() * 13,
+  })
+}
 // the stake line (varas) across the corral mouth
 const STAKES = []
 {
@@ -174,17 +185,17 @@ for (let i = 0; i < SEGN; i++) {
     const lx = CX + Math.cos(st.a) * st.r - minX
     const ly = CY + Math.sin(st.a) * st.r - minY
     // contact shadow pooling in the wet mud
-    g.globalAlpha = 0.5
+    g.globalAlpha = 0.55
     g.fillStyle = '#000000'
     g.beginPath()
     g.ellipse(lx + 0.7, ly + st.s * 0.42, st.s * 1.08, st.s * 0.82, 0, 0, TAU)
     g.fill()
-    // body, lit from the moon side (up-left)
+    // body, lit from the moon side (up-left) — pale tops, dark seaward faces
     g.globalAlpha = 1
     const gr = g.createRadialGradient(lx - st.s * 0.42, ly - st.s * 0.5, st.s * 0.12, lx, ly, st.s * 1.14)
-    gr.addColorStop(0, '#4d565b')
-    gr.addColorStop(0.45, st.c > 0.5 ? '#262b2e' : '#202527')
-    gr.addColorStop(1, '#0f1315')
+    gr.addColorStop(0, '#84939b')
+    gr.addColorStop(0.45, st.c > 0.5 ? '#3a4347' : '#333b3f')
+    gr.addColorStop(1, '#0d1113')
     g.fillStyle = gr
     g.beginPath()
     g.arc(lx, ly, st.s, 0, TAU)
@@ -197,12 +208,18 @@ for (let i = 0; i < SEGN; i++) {
       g.arc(lx - st.s * 0.18, ly - st.s * 0.5, st.s * 0.52, 0, TAU)
       g.fill()
     }
-    // moon glint
-    g.globalAlpha = 0.4
-    g.fillStyle = '#79848a'
+    // moon glint cap + a crisp lit crescent along the top edge
+    g.globalAlpha = 0.6
+    g.fillStyle = '#b4c2c8'
     g.beginPath()
-    g.arc(lx - st.s * 0.38, ly - st.s * 0.46, st.s * 0.2, 0, TAU)
+    g.arc(lx - st.s * 0.38, ly - st.s * 0.46, st.s * 0.28, 0, TAU)
     g.fill()
+    g.globalAlpha = 0.5
+    g.strokeStyle = '#c9d6da'
+    g.lineWidth = 1.1
+    g.beginPath()
+    g.arc(lx, ly, st.s * 0.82, -2.7, -0.9)
+    g.stroke()
     // grain specks
     g.fillStyle = '#0a0d0e'
     for (let n = 0; n < 3; n++) {
@@ -437,14 +454,20 @@ function ensureGradients(ctx) {
   sand.addColorStop(1, '#0d0b08')
   G.sand = sand
   const pool = ctx.createRadialGradient(CX, CY, 20, CX, CY, R - 12)
-  pool.addColorStop(0, 'rgba(3,10,14,0.85)')
-  pool.addColorStop(0.75, 'rgba(5,14,18,0.45)')
+  pool.addColorStop(0, 'rgba(3,10,14,0.55)')
+  pool.addColorStop(0.75, 'rgba(5,14,18,0.28)')
   pool.addColorStop(1, 'rgba(8,18,22,0)')
   G.pool = pool
   const glint = ctx.createRadialGradient(660, 220, 10, 660, 220, 330)
-  glint.addColorStop(0, 'rgba(190,225,210,0.07)')
+  glint.addColorStop(0, 'rgba(190,225,210,0.11)')
   glint.addColorStop(1, 'rgba(190,225,210,0)')
   G.glint = glint
+  // the moon path: a soft vertical column of light under the glint (x ~ 660)
+  const moonPath = ctx.createLinearGradient(545, 0, 775, 0)
+  moonPath.addColorStop(0, 'rgba(190,225,205,0)')
+  moonPath.addColorStop(0.5, 'rgba(190,225,205,0.09)')
+  moonPath.addColorStop(1, 'rgba(190,225,205,0)')
+  G.moonPath = moonPath
   const dawn = ctx.createLinearGradient(0, -300, 0, 560)
   dawn.addColorStop(0, 'rgba(255,196,130,0.16)')
   dawn.addColorStop(1, 'rgba(255,196,130,0)')
@@ -474,14 +497,19 @@ function drawWalls(ctx, S, tVis) {
       ctx.ellipse(seg.mx, seg.my, 32, 23, 0, 0, TAU)
       ctx.fill()
       ctx.globalAlpha = 1
-      // rubble in the breach
+      // rubble in the breach — tumbled stones, each catching a sliver of moon
       const rub = RUBBLE[i]
-      ctx.fillStyle = '#181d1f'
-      ctx.globalAlpha = 0.9
       for (let k = 0; k < rub.length; k++) {
         const rb = rub[k]
+        ctx.globalAlpha = 0.9
+        ctx.fillStyle = '#232a2d'
         ctx.beginPath()
         ctx.arc(seg.mx + rb.dx, seg.my + rb.dy, rb.s, 0, TAU)
+        ctx.fill()
+        ctx.globalAlpha = 0.5
+        ctx.fillStyle = '#7e8d94'
+        ctx.beginPath()
+        ctx.arc(seg.mx + rb.dx - rb.s * 0.3, seg.my + rb.dy - rb.s * 0.35, rb.s * 0.4, 0, TAU)
         ctx.fill()
       }
       ctx.globalAlpha = 1
@@ -586,10 +614,12 @@ function drawFish(ctx, S, tVis) {
     ctx.moveTo(f.x - dx * 2.2, f.y - dy * 2.2)
     ctx.lineTo(f.x - dx * 5 + px * flick, f.y - dy * 5 + py * flick)
     ctx.stroke()
-    // a moonlit glint at the head
-    ctx.globalAlpha = a * 0.9
+    // a silver glint pulsing at the head — the school flashes in waves
+    const gk = 0.5 + 0.5 * Math.sin(tVis * 3.1 + f.ph)
+    const gs = 1.2 + 1.4 * gk * gk
+    ctx.globalAlpha = a * (0.55 + 0.45 * gk)
     ctx.fillStyle = '#eef7f2'
-    ctx.fillRect(f.x + dx * 3 - 0.6, f.y + dy * 3 - 0.6, 1.2, 1.2)
+    ctx.fillRect(f.x + dx * 3 - gs * 0.5, f.y + dy * 3 - gs * 0.5, gs, gs)
   }
   ctx.globalAlpha = 1
 }
@@ -618,12 +648,12 @@ function drawSerpent(ctx, S, tVis) {
       ctx.beginPath()
       ctx.arc(sp.ex + 0.9, sp.ey + 1.1, 6.1, 0, TAU)
       ctx.fill()
-      ctx.fillStyle = '#b27d70'
+      ctx.fillStyle = '#c08e80'
       ctx.beginPath()
       ctx.arc(sp.ex, sp.ey, 6, 0, TAU)
       ctx.fill()
-      ctx.globalAlpha = vis * 0.6
-      ctx.fillStyle = '#d4a195' // the moon finds the wet snout
+      ctx.globalAlpha = vis * 0.72
+      ctx.fillStyle = '#e6b6a8' // the moon finds the wet snout
       ctx.beginPath()
       ctx.arc(sp.ex - 1.5, sp.ey - 1.7, 3.6, 0, TAU)
       ctx.fill()
@@ -738,12 +768,12 @@ function drawSerpent(ctx, S, tVis) {
   ctx.beginPath()
   ctx.ellipse(snx + 1, sny + 1.2, 8.2, 6.1, ang, 0, TAU)
   ctx.fill()
-  ctx.fillStyle = '#b27d70'
+  ctx.fillStyle = '#c08e80'
   ctx.beginPath()
   ctx.ellipse(snx, sny, 8, 6, ang, 0, TAU)
   ctx.fill()
-  ctx.globalAlpha = fade * 0.65
-  ctx.fillStyle = '#d4a195'
+  ctx.globalAlpha = fade * 0.75
+  ctx.fillStyle = '#e6b6a8'
   ctx.beginPath()
   ctx.ellipse(snx - 1.4, sny - 1.7, 5.6, 3.9, ang, 0, TAU)
   ctx.fill()
@@ -770,17 +800,39 @@ function drawSerpent(ctx, S, tVis) {
     ctx.arc(ex, ey, 1.6, 0, TAU)
     ctx.fill()
   }
-  // charge wake
-  if (sp.state === 'charge') {
+  // surfaced wake: a diverging V off the snout plus a churned trail behind
+  {
+    const wk = sp.state === 'charge' ? 1 : sp.state === 'feed' ? 0.55 : 0.4
     ctx.strokeStyle = '#9fd4c4'
-    ctx.lineWidth = 1.4
-    ctx.globalAlpha = fade * 0.2
+    ctx.lineCap = 'round'
+    ctx.lineWidth = 1.6
+    ctx.globalAlpha = fade * 0.34 * wk
     ctx.beginPath()
-    ctx.moveTo(sp.x, sp.y)
-    ctx.lineTo(sp.x - sp.dx * 26 - px * 14, sp.y - sp.dy * 26 - py * 14)
-    ctx.moveTo(sp.x, sp.y)
-    ctx.lineTo(sp.x - sp.dx * 26 + px * 14, sp.y - sp.dy * 26 + py * 14)
+    ctx.moveTo(snx + sp.dx * 4, sny + sp.dy * 4)
+    ctx.lineTo(sp.x - sp.dx * 34 - px * 20, sp.y - sp.dy * 34 - py * 20)
+    ctx.moveTo(snx + sp.dx * 4, sny + sp.dy * 4)
+    ctx.lineTo(sp.x - sp.dx * 34 + px * 20, sp.y - sp.dy * 34 + py * 20)
     ctx.stroke()
+    // a fainter outer pair, a beat wider
+    ctx.lineWidth = 1
+    ctx.globalAlpha = fade * 0.16 * wk
+    ctx.beginPath()
+    ctx.moveTo(sp.x + sp.dx * 6, sp.y + sp.dy * 6)
+    ctx.lineTo(sp.x - sp.dx * 48 - px * 30, sp.y - sp.dy * 48 - py * 30)
+    ctx.moveTo(sp.x + sp.dx * 6, sp.y + sp.dy * 6)
+    ctx.lineTo(sp.x - sp.dx * 48 + px * 30, sp.y - sp.dy * 48 + py * 30)
+    ctx.stroke()
+    // foam churn riding the trough behind the body
+    ctx.fillStyle = '#cfe2da'
+    for (let i = 0; i < 4; i++) {
+      const bk = (tVis * 1.7 + i * 0.25) % 1
+      const fx = sp.x - sp.dx * (14 + bk * 44) + px * Math.sin(tVis * 6 + i * 2.4) * 9
+      const fy = sp.y - sp.dy * (14 + bk * 44) + py * Math.cos(tVis * 5 + i * 1.9) * 9
+      ctx.globalAlpha = fade * 0.3 * wk * (1 - bk)
+      ctx.beginPath()
+      ctx.arc(fx, fy, 1.6 + bk * 2.2, 0, TAU)
+      ctx.fill()
+    }
   }
   ctx.globalAlpha = 1
 }
@@ -1024,14 +1076,32 @@ export function draw(ctx, view, S, tVis) {
   ctx.globalAlpha = 0.28
   ctx.fillRect(-900 - w2, -907, 2800, S.shoreY + 900)
   ctx.restore()
+  // the moon path: a column of light down the water, spilling onto the wet flats
+  ctx.fillStyle = G.moonPath
+  ctx.fillRect(545, -900, 230, S.shoreY + 900)
+  ctx.globalAlpha = 0.45
+  ctx.fillRect(545, S.shoreY, 230, 1000 - S.shoreY + 20)
+  ctx.globalAlpha = 1
   // shimmer slivers, brightening into a glitter path under the moon glint
   ctx.strokeStyle = '#9fc8bc'
   ctx.lineWidth = 1
   for (let i = 0; i < SHIM.length; i++) {
     const s = SHIM[i]
     if (s.y > S.shoreY - 24) continue
-    const moonK = 1 + Math.max(0, 1 - Math.abs(s.x - 660) / 140) * 1.7
-    ctx.globalAlpha = (0.035 + 0.04 * (1 + Math.sin(tVis * 0.8 + s.ph))) * moonK
+    const moonK = 1 + Math.max(0, 1 - Math.abs(s.x - 660) / 140) * 2.2
+    ctx.globalAlpha = (0.045 + 0.05 * (1 + Math.sin(tVis * 0.8 + s.ph))) * moonK
+    ctx.beginPath()
+    ctx.moveTo(s.x - s.len * 0.5, s.y)
+    ctx.lineTo(s.x + s.len * 0.5, s.y)
+    ctx.stroke()
+  }
+  // glitter twinkling along the path itself — dimmer once it crosses the tide line
+  ctx.strokeStyle = '#dcefe4'
+  for (let i = 0; i < GLITTER.length; i++) {
+    const s = GLITTER[i]
+    const onFlats = s.y > S.shoreY - 6
+    const tw = 0.5 + 0.5 * Math.sin(tVis * 1.7 + s.ph)
+    ctx.globalAlpha = (0.05 + 0.22 * tw * tw) * (onFlats ? 0.45 : 1)
     ctx.beginPath()
     ctx.moveTo(s.x - s.len * 0.5, s.y)
     ctx.lineTo(s.x + s.len * 0.5, s.y)
@@ -1039,17 +1109,24 @@ export function draw(ctx, view, S, tVis) {
   }
   ctx.globalAlpha = 1
 
-  // tide line foam
+  // tide line: a thin lit crest, then drifting foam dashes
+  ctx.strokeStyle = '#dcefe4'
+  ctx.lineWidth = 1
+  ctx.globalAlpha = 0.2
+  ctx.beginPath()
+  ctx.moveTo(-900, S.shoreY - 1)
+  ctx.lineTo(1900, S.shoreY - 1)
+  ctx.stroke()
   ctx.strokeStyle = '#b8cfc6'
   ctx.lineWidth = 1.6
-  ctx.globalAlpha = 0.22
+  ctx.globalAlpha = 0.42
   ctx.setLineDash(DASH_FOAM)
   ctx.lineDashOffset = -((tVis * 22) % 52)
   ctx.beginPath()
   ctx.moveTo(-900, S.shoreY)
   ctx.lineTo(1900, S.shoreY)
   ctx.stroke()
-  ctx.globalAlpha = 0.1
+  ctx.globalAlpha = 0.18
   ctx.setLineDash(DASH_FOAM2)
   ctx.lineDashOffset = (tVis * 13) % 40
   ctx.beginPath()
@@ -1058,7 +1135,7 @@ export function draw(ctx, view, S, tVis) {
   ctx.stroke()
   ctx.setLineDash(DASH_NONE)
   // wet sheen just below the waterline
-  ctx.globalAlpha = 0.07
+  ctx.globalAlpha = 0.12
   ctx.fillStyle = '#3d5a55'
   ctx.fillRect(-900, S.shoreY, 2800, 26)
   ctx.globalAlpha = 1

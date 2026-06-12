@@ -292,6 +292,22 @@ function wingCanvases() {
   stitchSeam(g, gg, rng, 0, SIZE - 12, SIZE, SIZE - 10)
   /* one diagonal repair seam across the membrane */
   stitchSeam(g, gg, rng, SIZE * 0.12, SIZE * 0.7, SIZE * 0.78, SIZE * 0.18)
+  /* pale glow rim along the trailing scallops (canvas top = v=1):
+     the macuñ's spectral charge gathers at the membrane's free edge,
+     so the wing keeps a faint mint outline in flight */
+  const edge = gg.createLinearGradient(0, 0, 0, 26)
+  edge.addColorStop(0, 'rgba(150,255,200,0.4)')
+  edge.addColorStop(1, 'rgba(150,255,200,0)')
+  gg.fillStyle = edge
+  gg.fillRect(0, 0, SIZE, 26)
+  /* whisper of the same charge at the wingtip edges */
+  for (const [x0, x1] of [[0, 14], [SIZE - 14, SIZE]]) {
+    const tip = gg.createLinearGradient(x0 === 0 ? 14 : SIZE - 14, 0, x0 === 0 ? 0 : SIZE, 0)
+    tip.addColorStop(0, 'rgba(150,255,200,0)')
+    tip.addColorStop(1, 'rgba(150,255,200,0.22)')
+    gg.fillStyle = tip
+    gg.fillRect(x0, 0, x1 - x0, SIZE)
+  }
   return { color: c, glow: gc }
 }
 

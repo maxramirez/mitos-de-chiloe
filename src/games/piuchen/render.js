@@ -133,6 +133,23 @@ function makeWoolTex(seed) {
   return c
 }
 
+function makeAuraTex() {
+  // spectral backlight for the piuchén: a soft 9fffd0 disc drawn once; the
+  // dark winged-serpent silhouette reads against it instead of vanishing
+  // into the night sky
+  const c = document.createElement('canvas')
+  c.width = 200
+  c.height = 200
+  const g = c.getContext('2d')
+  const rg = g.createRadialGradient(100, 100, 6, 100, 100, 98)
+  rg.addColorStop(0, 'rgba(159,255,208,0.16)')
+  rg.addColorStop(0.5, 'rgba(159,255,208,0.07)')
+  rg.addColorStop(1, 'rgba(159,255,208,0)')
+  g.fillStyle = rg
+  g.fillRect(0, 0, 200, 200)
+  return c
+}
+
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d')
 
@@ -140,6 +157,7 @@ export function createRenderer(canvas) {
   const mistTex = makeMistTex()
   const cloudTex = makeCloudTex()
   const woolTex = [makeWoolTex(0), makeWoolTex(1), makeWoolTex(2)]
+  const auraTex = makeAuraTex()
 
   // --- offscreen layers -----------------------------------------------------
   const base = document.createElement('canvas')
@@ -264,6 +282,14 @@ export function createRenderer(canvas) {
       sky.addColorStop(1, '#06090c')
       c.fillStyle = sky
       c.fillRect(0, 0, W, H)
+
+      // fine grain breaks banding on the tall sky gradient (boot-time only)
+      for (let i = 0; i < 1500; i++) {
+        c.globalAlpha = 0.015 + Math.random() * 0.025
+        c.fillStyle = Math.random() < 0.5 ? '#000000' : '#1a2630'
+        c.fillRect(Math.random() * W, Math.random() * 470, 1, 1)
+      }
+      c.globalAlpha = 1
 
       // faint milky-way band, low and slanted like a winter sky
       c.save()
@@ -503,10 +529,15 @@ export function createRenderer(canvas) {
       c.beginPath()
       c.arc(sx, sy, r, 0, TAU)
       c.fill()
-      // moon-side highlight
-      c.fillStyle = 'rgba(232,220,192,0.08)'
+      // moonlit stone top — a pale cap so the fence arc reads at distance
+      c.fillStyle = 'rgba(226,218,190,0.30)'
       c.beginPath()
-      c.arc(sx + r * 0.2, sy - r * 0.45, r * 0.52, 0, TAU)
+      c.ellipse(sx + r * 0.15, sy - r * 0.58, r * 0.62, r * 0.30, -0.2, 0, TAU)
+      c.fill()
+      // softer moon-side falloff under the cap
+      c.fillStyle = 'rgba(232,220,192,0.10)'
+      c.beginPath()
+      c.arc(sx + r * 0.2, sy - r * 0.3, r * 0.55, 0, TAU)
       c.fill()
       // grime specks + moss at the base
       c.fillStyle = 'rgba(8,12,8,0.5)'
@@ -525,9 +556,41 @@ export function createRenderer(canvas) {
       c.fillStyle = tones[(k * 3) % 5]
       c.beginPath(); c.arc(310 - k * 14, 528 + k * 2, 4.5, 0, TAU); c.fill()
       c.beginPath(); c.arc(650 + k * 14, 528 + k * 2, 4.5, 0, TAU); c.fill()
-      c.fillStyle = 'rgba(232,220,192,0.07)'
-      c.beginPath(); c.arc(310 - k * 14 + 1, 526.5 + k * 2, 2.2, 0, TAU); c.fill()
-      c.beginPath(); c.arc(650 + k * 14 + 1, 526.5 + k * 2, 2.2, 0, TAU); c.fill()
+      c.fillStyle = 'rgba(226,218,190,0.26)'
+      c.beginPath(); c.ellipse(310 - k * 14 + 0.6, 525.6 + k * 2, 2.6, 1.2, -0.2, 0, TAU); c.fill()
+      c.beginPath(); c.ellipse(650 + k * 14 + 0.6, 525.6 + k * 2, 2.6, 1.2, -0.2, 0, TAU); c.fill()
+    }
+    // fold lanterns: two spectral lamps hung at the fence-wing posts, and a
+    // slight blue-green lift over the fold ground where their light pools
+    const fl = c.createRadialGradient(480, 524, 16, 480, 524, 195)
+    fl.addColorStop(0, 'rgba(126,210,176,0.07)')
+    fl.addColorStop(1, 'rgba(126,210,176,0)')
+    c.fillStyle = fl
+    c.fillRect(280, 436, 400, 164)
+    const lamps = [[254, 514], [706, 514]]
+    for (let i = 0; i < lamps.length; i++) {
+      const lx = lamps[i][0]
+      const ly = lamps[i][1]
+      // post
+      c.strokeStyle = '#161a14'
+      c.lineWidth = 2
+      c.beginPath(); c.moveTo(lx, ly + 14); c.lineTo(lx, ly - 2); c.stroke()
+      c.strokeStyle = 'rgba(216,210,188,0.14)'
+      c.lineWidth = 1
+      c.beginPath(); c.moveTo(lx + 1, ly + 12); c.lineTo(lx + 1, ly); c.stroke()
+      // glow + flame pip, dimmer than the piuchén's green
+      const lg = c.createRadialGradient(lx, ly - 4, 0.5, lx, ly - 4, 16)
+      lg.addColorStop(0, 'rgba(140,220,184,0.22)')
+      lg.addColorStop(1, 'rgba(140,220,184,0)')
+      c.fillStyle = lg
+      c.fillRect(lx - 16, ly - 20, 32, 32)
+      c.fillStyle = '#0c100c'
+      c.fillRect(lx - 2.4, ly - 8, 4.8, 6)
+      c.fillStyle = 'rgba(178,240,206,0.85)'
+      c.fillRect(lx - 0.8, ly - 6.4, 1.6, 2.6)
+      // light pooling on the grass below
+      c.fillStyle = 'rgba(126,210,176,0.10)'
+      c.beginPath(); c.ellipse(lx, ly + 15, 13, 3.4, 0, 0, TAU); c.fill()
     }
   }
 
@@ -565,6 +628,11 @@ export function createRenderer(canvas) {
       ctx.quadraticCurveTo(-size * 0.52, -size * 0.25 * fw, -size * 0.4, -size * 0.14 * fw - 2)
       ctx.closePath()
       ctx.fill()
+      // faint membrane sheen — moonlight caught in the stretched skin
+      ctx.fillStyle = '#a8c8b8'
+      ctx.globalAlpha = 0.06 + glowA * 0.10
+      ctx.fill()
+      ctx.globalAlpha = 1
       // membrane edge catches the eye-flash green during the telegraph
       ctx.strokeStyle = GLOW
       ctx.lineWidth = 1
@@ -580,7 +648,7 @@ export function createRenderer(canvas) {
       ctx.stroke()
       // moonlight along the leading edge
       ctx.strokeStyle = '#d8d2bc'
-      ctx.globalAlpha = 0.11
+      ctx.globalAlpha = 0.20
       ctx.beginPath()
       ctx.moveTo(2, 1)
       ctx.quadraticCurveTo(-size * 0.3, -size * 0.95 * fw, -size * 0.92, -size * 1.1 * fw)
@@ -603,27 +671,52 @@ export function createRenderer(canvas) {
     const st = pu.state
     let body, flapSpd, flapAmp, eye
     if (st === 'circling') {
-      body = '#0a0f13'; flapSpd = 4.2; flapAmp = 0.8
-      eye = 0.1 + 0.07 * Math.sin(time * 2.1)
+      body = '#0e151c'; flapSpd = 4.2; flapAmp = 0.8
+      eye = 0.32 + 0.12 * Math.sin(time * 2.1)
     } else if (st === 'telegraph') {
-      body = '#0d141a'; flapSpd = 7; flapAmp = 0.9
+      body = '#111a22'; flapSpd = 7; flapAmp = 0.9
       eye = 0.55 + 0.45 * Math.sin(time * 22) // the green flash
     } else if (st === 'diving' || st === 'pullup') {
-      body = '#121c24'; flapSpd = 2.2; flapAmp = 0.3; eye = 0.9
+      body = '#16222c'; flapSpd = 2.2; flapAmp = 0.3; eye = 0.9
     } else if (st === 'latched') {
-      body = '#121c24'; flapSpd = 2.6; flapAmp = 1.05
+      body = '#16222c'; flapSpd = 2.6; flapAmp = 1.05
       eye = 0.7 + 0.3 * Math.sin(time * 10)
     } else { // retreat
-      body = '#0e161c'; flapSpd = 12; flapAmp = 0.8; eye = 0.2
+      body = '#121b22'; flapSpd = 12; flapAmp = 0.8; eye = 0.3
     }
 
     const tr = pu.trail
+    // spectral backlight — he is the star of the night, the brightest thing
+    // after the moon; the silhouette cuts dark against this soft disc
+    let aura
+    if (st === 'circling') aura = 0.34 + 0.10 * Math.sin(time * 1.6)
+    else if (st === 'telegraph') aura = 0.50 + 0.20 * Math.sin(time * 22)
+    else if (st === 'diving' || st === 'pullup') aura = 0.60
+    else if (st === 'latched') aura = 0.40
+    else aura = 0.20
+    ctx.globalAlpha = aura
+    ctx.drawImage(auraTex, tr[0] - 100, tr[1] - 100)
+    ctx.globalAlpha = 1
+    // dive trail: a spectral ribbon the swoop tears across the sky
+    if (st === 'diving' || st === 'pullup') {
+      ctx.strokeStyle = GLOW
+      ctx.lineWidth = 3.5
+      ctx.globalAlpha = st === 'diving' ? 0.10 : 0.05
+      ctx.beginPath()
+      ctx.moveTo(tr[0], tr[1])
+      for (let i = 1; i < pu.trailN; i++) ctx.lineTo(tr[i * 2], tr[i * 2 + 1])
+      ctx.stroke()
+      ctx.lineWidth = 1.4 // brighter core along the same path
+      ctx.globalAlpha = st === 'diving' ? 0.22 : 0.10
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
     // dive wind: speed streaks shed behind the head
     if (st === 'diving' || st === 'pullup') {
       const hx2 = Math.cos(pu.heading)
       const hy2 = Math.sin(pu.heading)
       ctx.strokeStyle = '#d8d2bc'
-      ctx.globalAlpha = st === 'diving' ? 0.13 : 0.07
+      ctx.globalAlpha = st === 'diving' ? 0.18 : 0.09
       ctx.lineWidth = 1
       ctx.beginPath()
       for (let k = 0; k < 3; k++) {
@@ -690,12 +783,12 @@ export function createRenderer(canvas) {
         ctx.arc(x2 - r * 0.22, y2 + r * 0.42, r * 0.58, 0, TAU)
         ctx.fill()
         // moonlit dorsal ridge
-        ctx.fillStyle = 'rgba(206,200,180,0.10)'
+        ctx.fillStyle = 'rgba(206,200,180,0.17)'
         ctx.beginPath()
         ctx.arc(x2 + r * 0.2, y2 - r * 0.45, r * 0.5, 0, TAU)
         ctx.fill()
         // one scale catching the moon (deterministic per coil)
-        ctx.fillStyle = 'rgba(206,200,180,0.16)'
+        ctx.fillStyle = 'rgba(206,200,180,0.22)'
         ctx.fillRect(x2 + ((i * 13) % 5) - 2.5, y2 - ((i * 7) % 4) + 0.5, 1, 1)
       }
     }
@@ -706,7 +799,7 @@ export function createRenderer(canvas) {
     ctx.save()
     ctx.translate(tr[0], tr[1])
     ctx.rotate(pu.heading)
-    ctx.fillStyle = '#18222a'
+    ctx.fillStyle = '#1c2832'
     ctx.beginPath()
     ctx.moveTo(15, 0) // snout tip
     ctx.quadraticCurveTo(8, -4.6, 0, -5.8)
@@ -725,14 +818,14 @@ export function createRenderer(canvas) {
     ctx.moveTo(-3.5, -3.4)
     ctx.quadraticCurveTo(-8.5, -5.8, -12, -4.2)
     ctx.stroke()
-    ctx.strokeStyle = 'rgba(206,200,180,0.16)'
+    ctx.strokeStyle = 'rgba(206,200,180,0.22)'
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(-1.4, -5.4)
     ctx.quadraticCurveTo(-7, -9, -11.5, -7.9)
     ctx.stroke()
     // moonlit brow ridge
-    ctx.strokeStyle = 'rgba(206,200,180,0.18)'
+    ctx.strokeStyle = 'rgba(206,200,180,0.26)'
     ctx.beginPath()
     ctx.moveTo(12, -1.4)
     ctx.quadraticCurveTo(6, -4.4, -1, -5)
@@ -762,11 +855,14 @@ export function createRenderer(canvas) {
     const e = Math.min(1, Math.max(0, eye))
     ctx.fillStyle = GLOW
     ctx.globalAlpha = e
-    ctx.beginPath(); ctx.arc(5, -2.8, 1.5, 0, TAU); ctx.fill()
-    ctx.beginPath(); ctx.arc(5, 2.8, 1.5, 0, TAU); ctx.fill()
-    ctx.globalAlpha = e * 0.3
+    ctx.beginPath(); ctx.arc(5, -2.8, 1.6, 0, TAU); ctx.fill()
+    ctx.beginPath(); ctx.arc(5, 2.8, 1.6, 0, TAU); ctx.fill()
+    ctx.globalAlpha = e * 0.45 // inner halo
     ctx.beginPath(); ctx.arc(5, -2.8, 5, 0, TAU); ctx.fill()
     ctx.beginPath(); ctx.arc(5, 2.8, 5, 0, TAU); ctx.fill()
+    ctx.globalAlpha = e * 0.14 // wide bloom — the eye pair carries at distance
+    ctx.beginPath(); ctx.arc(5, -2.8, 9.5, 0, TAU); ctx.fill()
+    ctx.beginPath(); ctx.arc(5, 2.8, 9.5, 0, TAU); ctx.fill()
     ctx.globalAlpha = 1
     ctx.restore()
 
@@ -1105,7 +1201,7 @@ export function createRenderer(canvas) {
       for (let i = 0; i < g.stones.length; i++) if (!g.stones[i].active) free++
       const ready = g.cooldown <= 0 && free > 0
       ctx.strokeStyle = ready ? GLOW : 'rgba(232,220,192,0.4)'
-      ctx.globalAlpha = ready ? 0.9 : 0.45
+      ctx.globalAlpha = ready ? 0.8 : 0.45 // UI sits under the piuchén's glow
       ctx.lineWidth = 1.2
       ctx.beginPath()
       ctx.arc(mx, my, 8, 0, TAU)

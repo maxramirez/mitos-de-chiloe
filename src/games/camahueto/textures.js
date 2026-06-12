@@ -7,6 +7,24 @@
 
 import * as THREE from 'three';
 
+// ---------- soft round mote: shared sprite map for every Points cloud --------
+// Without a map, gl_POINTS rasterize as hard squares — near the camera the
+// burst debris and gold dust read as confetti cubes. One tiny radial-gradient
+// canvas turns them all into soft round motes. Made once; alpha matters here,
+// so it bypasses makeTex.
+export const moteTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.38)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 32);
+  return new THREE.CanvasTexture(c);
+})();
+
 function makeTex(size, fill) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
@@ -117,11 +135,11 @@ export const ponchoTex = makeColorTex(128, (x, y, k, S, out) => {
   const t = y / S + 0.01 * Math.sin(x * k * 3); // slightly wavy hand-loomed bands
   let r = 92, g = 75, b = 52; // umber ground
   if ((t > 0.50 && t < 0.545) || (t > 0.70 && t < 0.725) || (t > 0.86 && t < 0.885)) {
-    r = 185; g = 168; b = 132; // undyed cream wool
-  } else if (t > 0.56 && t < 0.63) {
-    r = 125; g = 50; b = 36; // madder red
+    r = 205; g = 188; b = 150; // undyed cream wool (bright: bands must read at 6 m)
+  } else if (t > 0.55 && t < 0.645) {
+    r = 140; g = 48; b = 32; // madder red, widened
   } else if ((t > 0.645 && t < 0.675) || (t > 0.93 && t < 0.96)) {
-    r = 50; g = 40; b = 28; // charcoal
+    r = 36; g = 28; b = 20; // charcoal, deepened
   }
   const weave = 5 * Math.sin((x + y) * k * 18) + 5 * Math.sin((x - y) * k * 18 + 1.1);
   const n = (Math.random() - 0.5) * 14;

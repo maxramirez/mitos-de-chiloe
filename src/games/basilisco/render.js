@@ -809,7 +809,7 @@ export function createRenderer(canvas) {
       // body under blanket (chest rises with breath) + knees bump
       ctx.fillStyle = st.lost ? '#262b28' : '#2e3a33'
       ctx.beginPath()
-      ctx.ellipse(-26, 8, baby ? 24 : 34, (baby ? 11 : 15) + breath * 2.6, 0, 0, Math.PI * 2)
+      ctx.ellipse(-26, 8, baby ? 24 : 34, (baby ? 11 : 15) + breath * 3.4, 0, 0, Math.PI * 2)
       ctx.ellipse(baby ? -34 : -42, 5, baby ? 9 : 12, baby ? 7 : 9, 0, 0, Math.PI * 2)
       ctx.fill()
       // the mound IS the blanket — woven texture over the wool form
@@ -817,6 +817,22 @@ export function createRenderer(canvas) {
       ctx.fillStyle = weavePat
       ctx.fill()
       ctx.globalAlpha = st.lost ? 0.35 : 1
+      // chilote stripes woven across the blanket, riding the breath
+      ctx.save()
+      ctx.clip()
+      ctx.strokeStyle = 'rgba(214,196,160,0.20)'
+      ctx.lineWidth = 2.2
+      ctx.beginPath()
+      ctx.moveTo(-54, 2 - breath)
+      ctx.quadraticCurveTo(-26, -2 - breath * 2, 0, 4 - breath)
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(160,68,56,0.26)'
+      ctx.lineWidth = 1.6
+      ctx.beginPath()
+      ctx.moveTo(-54, 8 - breath * 0.5)
+      ctx.quadraticCurveTo(-26, 4 - breath * 1.5, 0, 9 - breath * 0.5)
+      ctx.stroke()
+      ctx.restore()
       // moonlit crest of the mound + heavy shadow where it meets the bed
       ctx.fillStyle = st.lost ? 'rgba(160,170,160,0.05)' : 'rgba(190,210,190,0.10)'
       ctx.beginPath()
@@ -872,10 +888,10 @@ export function createRenderer(canvas) {
         const q = ((ph % (Math.PI * 2)) / (Math.PI * 2) + 0.75) % 1
         const wa = q < 0.12 ? q / 0.12 : Math.max(0, 1 - (q - 0.12) / 0.55)
         if (wa > 0.02) {
-          ctx.fillStyle = 'rgba(232,220,192,' + (0.2 * wa).toFixed(2) + ')'
-          circle2(ctx, s.x + 20 + q * 10, s.y - 6 - q * 9, 1.6 + q * 2.2)
-          ctx.fillStyle = 'rgba(232,220,192,' + (0.09 * wa).toFixed(2) + ')'
-          circle2(ctx, s.x + 23 + q * 13, s.y - 9 - q * 12, 1 + q * 3)
+          ctx.fillStyle = 'rgba(232,220,192,' + (0.28 * wa).toFixed(2) + ')'
+          circle2(ctx, s.x + 20 + q * 10, s.y - 6 - q * 9, 1.8 + q * 2.6)
+          ctx.fillStyle = 'rgba(232,220,192,' + (0.13 * wa).toFixed(2) + ')'
+          circle2(ctx, s.x + 23 + q * 13, s.y - 9 - q * 12, 1.2 + q * 3.4)
         }
       }
       // drain meter
@@ -1235,9 +1251,9 @@ export function createRenderer(canvas) {
     ctx.rect(0, 0, W, H)
     ctx.rect(HOUSE.x0 - 12, HOUSE.y0 - 12, HOUSE.x1 - HOUSE.x0 + 24, HOUSE.y1 - HOUSE.y0 + 24)
     ctx.clip('evenodd')
-    ctx.globalAlpha = 0.55 + Math.sin(time * 0.5) * 0.25
+    ctx.globalAlpha = 0.42 + Math.sin(time * 0.5) * 0.18
     ctx.drawImage(glintTex, 520, 8, 360, 56)
-    ctx.globalAlpha = 0.3 + Math.sin(time * 0.7 + 2) * 0.15
+    ctx.globalAlpha = 0.24 + Math.sin(time * 0.7 + 2) * 0.12
     ctx.drawImage(glintTex, 40, 18, 240, 40)
     for (let k = 0; k < 3; k++) {
       const rx = ((k * 380 + time * (46 + k * 18)) % (W + 320)) - 160

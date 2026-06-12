@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { TRACK_LEN, SLOPE, BANK_X, groundY, mulberry32, clamp01 } from './consts.js';
-import { rockTex, woodTex } from './textures.js';
+import { rockTex, woodTex, moteTex } from './textures.js';
 
 export const T_BOULDER = 0;
 export const T_LOG = 1;
@@ -82,12 +82,12 @@ export function buildCourse(scene, seed = 20260610) {
       fB.fromBufferAttribute(pos, f + 1).sub(fA);
       fC.fromBufferAttribute(pos, f + 2).sub(fA);
       fN.crossVectors(fB, fC).normalize().transformDirection(fM);
-      const v = 0.78 + crng() * 0.34; // facet-to-facet tonal variation
+      const v = 0.72 + crng() * 0.42; // facet-to-facet tonal variation
       let cr = v, cg = v, cb = v;
       const d = fN.dot(MOON_DIR);
-      if (d > 0.45) { // moonlit facet: cold glint, blue-biased
-        const t = (d - 0.45) / 0.55;
-        cr += t * 0.26; cg += t * 0.4; cb += t * 0.6;
+      if (d > 0.35) { // moonlit facet: cold glint, blue-biased
+        const t = (d - 0.35) / 0.65;
+        cr += t * 0.34; cg += t * 0.52; cb += t * 0.78;
       }
       for (let k = 0; k < 3; k++) {
         col[(f + k) * 3] = cr; col[(f + k) * 3 + 1] = cg; col[(f + k) * 3 + 2] = cb;
@@ -149,7 +149,7 @@ export function buildCourse(scene, seed = 20260610) {
     const fGeo = new THREE.BufferGeometry();
     fGeo.setAttribute('position', new THREE.BufferAttribute(fArr, 3));
     const foam = new THREE.Points(fGeo, new THREE.PointsMaterial({
-      color: 0xbfe2f2, size: 0.11, transparent: true, opacity: 0.5,
+      color: 0xbfe2f2, size: 0.14, transparent: true, opacity: 0.5, map: moteTex,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     root.add(foam);

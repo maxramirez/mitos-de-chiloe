@@ -53,7 +53,7 @@ export function makeGroundTextures(repeat) {
     const y = rng() * size
     const r = 18 + rng() * 52
     const dark = rng() < 0.55
-    const a = 0.05 + rng() * 0.07
+    const a = 0.07 + rng() * 0.09
     g.fillStyle = dark ? `rgba(96, 104, 88, ${a})` : `rgba(244, 240, 224, ${a})`
     for (let ox = -1; ox <= 1; ox++)
       for (let oy = -1; oy <= 1; oy++) {
@@ -64,14 +64,14 @@ export function makeGroundTextures(repeat) {
   }
   // leaf-litter speckle — denser and a touch harder so the lantern pool
   // shows real litter at the player's feet instead of a flat wash
-  for (let i = 0; i < 2300; i++) {
+  for (let i = 0; i < 2600; i++) {
     const x = rng() * size
     const y = rng() * size
     const r = 0.6 + rng() * 2.2
     const dark = rng() < 0.6
     g.fillStyle = dark
-      ? `rgba(70, 78, 64, ${0.12 + rng() * 0.15})`
-      : `rgba(238, 232, 210, ${0.09 + rng() * 0.11})`
+      ? `rgba(70, 78, 64, ${0.16 + rng() * 0.17})`
+      : `rgba(238, 232, 210, ${0.12 + rng() * 0.12})`
     g.beginPath()
     g.ellipse((x + size) % size, (y + size) % size, r * (1 + rng()), r, rng() * Math.PI, 0, Math.PI * 2)
     g.fill()
@@ -84,8 +84,8 @@ export function makeGroundTextures(repeat) {
     const ang = rng() * Math.PI
     const len = 5 + rng() * 14
     g.strokeStyle = rng() < 0.7
-      ? `rgba(74, 66, 52, ${0.12 + rng() * 0.12})`
-      : `rgba(230, 222, 198, ${0.08 + rng() * 0.08})`
+      ? `rgba(74, 66, 52, ${0.16 + rng() * 0.14})`
+      : `rgba(230, 222, 198, ${0.11 + rng() * 0.09})`
     g.lineWidth = 0.8 + rng() * 1.1
     g.beginPath()
     g.moveTo(x, y)
@@ -428,22 +428,23 @@ export function makeSkyTexture() {
   c.width = W
   c.height = H
   const g = c.getContext('2d')
-  // top of canvas = top of sky. Brightest band sits just above the canopy
-  // line (canvas y ~0.62–0.74); extremes match scene.background (0x060d16)
-  // so the cylinder edges dissolve invisibly.
+  // top of canvas = top of sky. The cylinder now spans world y -40..180
+  // (220 m tall), so the brightest band — just above the wall-forest canopy
+  // at world y ~8..22 — lives at canvas y ~0.72–0.78. Extremes match
+  // scene.background (0x060d16) so the cylinder edges dissolve invisibly.
   const grad = g.createLinearGradient(0, 0, 0, H)
   grad.addColorStop(0, 'rgb(6, 13, 22)')
-  grad.addColorStop(0.45, 'rgb(10, 18, 28)')
-  grad.addColorStop(0.62, 'rgb(16, 28, 42)')
-  grad.addColorStop(0.74, 'rgb(13, 23, 35)')
-  grad.addColorStop(0.86, 'rgb(7, 12, 18)')
-  grad.addColorStop(1, 'rgb(4, 7, 11)')
+  grad.addColorStop(0.5, 'rgb(11, 20, 32)')
+  grad.addColorStop(0.68, 'rgb(20, 34, 52)')
+  grad.addColorStop(0.76, 'rgb(27, 45, 67)')
+  grad.addColorStop(0.85, 'rgb(12, 21, 32)')
+  grad.addColorStop(1, 'rgb(5, 9, 14)')
   g.fillStyle = grad
   g.fillRect(0, 0, W, H)
-  // soft brightening toward the moon azimuth (cylinder u ≈ 0.34), high up
-  const mg = g.createRadialGradient(0.34 * W, 0.16 * H, 0, 0.34 * W, 0.16 * H, 0.55 * W)
-  mg.addColorStop(0, 'rgba(150, 180, 210, 0.10)')
-  mg.addColorStop(0.5, 'rgba(150, 180, 210, 0.04)')
+  // soft brightening toward the moon azimuth (cylinder u ≈ 0.34, world y ≈ 118)
+  const mg = g.createRadialGradient(0.34 * W, 0.28 * H, 0, 0.34 * W, 0.28 * H, 0.6 * W)
+  mg.addColorStop(0, 'rgba(150, 180, 210, 0.14)')
+  mg.addColorStop(0.5, 'rgba(150, 180, 210, 0.05)')
   mg.addColorStop(1, 'rgba(150, 180, 210, 0)')
   g.fillStyle = mg
   g.fillRect(0, 0, W, H)

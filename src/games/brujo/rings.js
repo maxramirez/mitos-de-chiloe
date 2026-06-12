@@ -19,13 +19,13 @@ export function createRings(scene) {
      and one shared additive halo torus rides whichever ring is active —
      built once at boot, only ever repositioned. */
   const COL_BASE = new THREE.Color(0x9fffd0)
-  const COL_HOT = new THREE.Color(0x9fffd0).multiplyScalar(1.7)
+  const COL_HOT = new THREE.Color(0x9fffd0).multiplyScalar(2.4)
   const halo = new THREE.Mesh(
     new THREE.TorusGeometry(RING_RADIUS, 1.25, 8, 36),
     new THREE.MeshBasicMaterial({
       color: 0x9fffd0,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.2,
       fog: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -76,15 +76,19 @@ export function createRings(scene) {
       const rg = rings[i]
       rg.passed = i < n
       rg.mat.color.copy(i === n ? COL_HOT : COL_BASE)
+      /* the active pillar burns hot too — it is the nav beacon */
+      rg.pmat.color.copy(i === n ? COL_HOT : COL_BASE)
       if (i < n) {
         rg.mat.opacity = 0.05
         rg.pmat.opacity = 0
       } else if (i === n) {
-        rg.mat.opacity = 0.95
-        rg.pmat.opacity = 0.2
+        rg.mat.opacity = 1
+        /* DoubleSide + additive = both cylinder walls stack, so this
+           alpha renders ~2x: keep it mint, not a white-clipped stripe */
+        rg.pmat.opacity = 0.22
       } else if (i === n + 1) {
         rg.mat.opacity = 0.3
-        rg.pmat.opacity = 0.05
+        rg.pmat.opacity = 0.07
       } else {
         rg.mat.opacity = 0.12
         rg.pmat.opacity = 0
@@ -116,12 +120,14 @@ export function createRings(scene) {
     }
     const rg = rings[active]
     if (rg) {
-      const pulse = 0.82 + Math.sin(t * 3.1) * 0.18
+      /* high floor: the active ring never dips into the dim band where
+         passed/future rings live — it stays the brightest mark in view */
+      const pulse = 0.9 + Math.sin(t * 3.1) * 0.1
       rg.mat.opacity = pulse
-      rg.pmat.opacity = 0.18 + Math.sin(t * 2.2) * 0.06
+      rg.pmat.opacity = 0.2 + Math.sin(t * 2.2) * 0.06
       rg.torus.scale.setScalar(1 + Math.sin(t * 3.1) * 0.025)
       halo.scale.setScalar(1 + Math.sin(t * 3.1) * 0.04)
-      halo.material.opacity = 0.14 + (Math.sin(t * 3.1) * 0.5 + 0.5) * 0.12
+      halo.material.opacity = 0.18 + (Math.sin(t * 3.1) * 0.5 + 0.5) * 0.14
     }
   }
 

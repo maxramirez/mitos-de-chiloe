@@ -97,7 +97,7 @@ camera.add(brujo.scareFace)
 const farolPoint = new THREE.PointLight(0xffc379, 60, 34, 1.6)
 farolPoint.position.set(0.3, -0.35, 0.12)
 camera.add(farolPoint)
-const farolSpot = new THREE.SpotLight(0xffd9a0, 90, 55, 0.6, 0.6, 1.4)
+const farolSpot = new THREE.SpotLight(0xffd9a0, 90, 55, 0.62, 0.95, 1.4) // high penumbra: the pool melts into the dark, no hard rim
 farolSpot.position.set(0, -0.1, 0.2)
 camera.add(farolSpot)
 farolSpot.target.position.set(0, -0.18, -1)
@@ -558,7 +558,7 @@ function frame(dt) {
 
   // visuals that breathe even under overlays (cheap, deterministic)
   world.update(dt, simT, player.position.x, player.position.z)
-  brujo.update(dt, simT)
+  brujo.update(dt, simT, brujoDist) // dist drives the distant eye bloom
 
   // farol flicker (+ gutter)
   let f = 0.9 + 0.06 * Math.sin(simT * 11.7) + 0.04 * Math.sin(simT * 23.1 + 1.7)

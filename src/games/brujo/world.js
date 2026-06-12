@@ -150,7 +150,7 @@ export function buildWorld(scene) {
   const cGrass = new THREE.Color(0x202c24)
   const cMoss = new THREE.Color(0x1c2f33) /* cold blue-teal moss patches */
   const cRock = new THREE.Color(0x3c4046)
-  const cMoonlit = new THREE.Color(0xa9c4d4) /* cool rim where the moon grazes */
+  const cMoonlit = new THREE.Color(0xb6d2e4) /* cool rim where the moon grazes */
   const tmpC = new THREE.Color()
   /* grain canvas as map+bump; vertex colors brightened ~1.4x to repay
      the mid-gray map multiply, so overall value stays where it was */
@@ -179,10 +179,14 @@ export function buildWorld(scene) {
       else tmpC.copy(cRock)
       tmpC.multiplyScalar(1.2 + fbm(wx * 0.1, wz * 0.1, 2) * 0.42)
       /* moonlit rim: crowns and moon-facing slopes catch a cool edge,
-         so the islets read as moonlit masses, not flat black holes */
+         so the islets read as moonlit masses, not flat black holes.
+         A height-based crown lift keeps the summit edge readable even
+         where the slope happens to face away from the moon. */
       const drop = h - heightAt(wx + moonAz.x * 3, wz + moonAz.z * 3)
-      const rim = clamp(drop * 0.5, 0, 1) * clamp((h - 1.6) / 5, 0, 1)
-      if (rim > 0) tmpC.lerp(cMoonlit, rim * 0.5)
+      const rim = clamp(drop * 0.85, 0, 1) * clamp((h - 1.4) / 4, 0, 1)
+      const crown = clamp((h / isl.h - 0.62) / 0.38, 0, 1) * 0.22
+      const lit = Math.min(rim * 0.65 + crown, 0.8)
+      if (lit > 0) tmpC.lerp(cMoonlit, lit)
       colors[i * 3] = tmpC.r
       colors[i * 3 + 1] = tmpC.g
       colors[i * 3 + 2] = tmpC.b
@@ -253,8 +257,8 @@ export function buildWorld(scene) {
 
   /* ---- one hut + warm window light per islet ---- */
   const hutMat = new THREE.MeshStandardMaterial({ color: 0x14110d, roughness: 1 })
-  const winMat = new THREE.MeshStandardMaterial({ color: 0x100c08, roughness: 1, emissive: 0xffa050, emissiveIntensity: 3.2 })
-  const winTex = glowTexture('rgba(255,178,92,0.9)', 'rgba(255,150,60,0)')
+  const winMat = new THREE.MeshStandardMaterial({ color: 0x100c08, roughness: 1, emissive: 0xff9a3c, emissiveIntensity: 3.8 })
+  const winTex = glowTexture('rgba(255,168,72,0.95)', 'rgba(255,120,36,0)')
   for (let i = 0; i < ISLETS.length; i++) {
     const isl = ISLETS[i]
     const a = (i * 2.39996) % (Math.PI * 2)
@@ -271,8 +275,8 @@ export function buildWorld(scene) {
     const win = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), winMat)
     win.position.set(x + Math.cos(a) * 2.26, y + 1.4, z + Math.sin(a) * 2.26)
     win.rotation.y = a + Math.PI / 2
-    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: winTex, transparent: true, opacity: 0.55, depthWrite: false }))
-    spr.scale.setScalar(6)
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: winTex, transparent: true, opacity: 0.7, depthWrite: false }))
+    spr.scale.setScalar(7)
     spr.position.set(win.position.x, y + 1.6, win.position.z)
     scene.add(hut, roof, win, spr)
   }

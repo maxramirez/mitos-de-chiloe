@@ -19,9 +19,11 @@ const GLOW = '#9fffd0';
 const GLYPHS = ['✦', '●', '≈', '▲', '◆'];
 const LABELS = ['1 · re', '2 · fa', '3 · sol', '4 · la', '5 · do'];
 const TINTS = ['#8a6f74', '#6f8a73', '#6f7d8a', '#7d6f8a', '#8a836f'];
-// rock silhouette (normalized)
-const ROCK = [-1, 0.16, -0.8, -0.1, -0.52, -0.3, -0.2, -0.43, 0.12, -0.4,
-  0.45, -0.26, 0.75, -0.1, 1, 0.12, 0.8, 0.3, -0.82, 0.32];
+// rock silhouette (normalized) — craggy: spurs and notches so the stone
+// reads as stacked planes instead of a flat lump
+const ROCK = [-1, 0.16, -0.86, -0.02, -0.78, -0.14, -0.6, -0.2, -0.52, -0.32,
+  -0.34, -0.35, -0.2, -0.45, -0.05, -0.37, 0.12, -0.42, 0.27, -0.3,
+  0.45, -0.27, 0.58, -0.16, 0.75, -0.1, 0.9, 0, 1, 0.12, 0.8, 0.3, -0.82, 0.32];
 // arrived-lantern offsets around the ship (xU pairs)
 const LANT = [-30, -10, 16, -6, -10, -18, 28, -16, -44, -2, 4, 2];
 
@@ -214,7 +216,7 @@ export function createScene(canvas) {
     rockW = H * 0.235; // a little more stone under her
     seatX = rockX - rockW * 0.06;
     seatY = rockY - rockW * 0.21;
-    su = rockW * 0.0088; // she reads at gameplay distance now
+    su = rockW * 0.0099; // enlarged: her silhouette must read at gameplay distance
     shipX = W * 0.80;
     shipY = horizon - 2 * U;
     const sr = Math.min(W * 0.07, H * 0.075);
@@ -274,9 +276,9 @@ export function createScene(canvas) {
     const sx = rockW * 0.55;
     const sy = rockW * 0.5;
     rockSw = Math.ceil(sx * 2) + 8;
-    rockSh = Math.ceil(sy * 0.75) + 8;
+    rockSh = Math.ceil(sy * 0.79) + 8;
     rockOx = sx + 4;
-    rockOy = sy * 0.43 + 4;
+    rockOy = sy * 0.45 + 4;
     rockSpr.width = Math.max(1, Math.floor(rockSw * dpr));
     rockSpr.height = Math.max(1, Math.floor(rockSh * dpr));
     const r = rockSpr.getContext('2d');
@@ -302,33 +304,45 @@ export function createScene(canvas) {
     r.drawImage(strataTex, -sx, -sy * 0.5, sx * 2, sy);
     r.globalAlpha = 1;
     // form: a moonlit top plane, a lit flank, crevices — the stone gains planes
-    r.fillStyle = 'rgba(176,206,190,0.07)';
+    r.fillStyle = 'rgba(176,206,190,0.12)';
     r.beginPath();
-    r.moveTo(-sx * 0.52, -sy * 0.3);
-    r.lineTo(-sx * 0.2, -sy * 0.43);
-    r.lineTo(sx * 0.12, -sy * 0.4);
-    r.lineTo(sx * 0.45, -sy * 0.26);
+    r.moveTo(-sx * 0.52, -sy * 0.32);
+    r.lineTo(-sx * 0.2, -sy * 0.45);
+    r.lineTo(sx * 0.12, -sy * 0.42);
+    r.lineTo(sx * 0.45, -sy * 0.27);
     r.lineTo(sx * 0.3, -sy * 0.06);
     r.lineTo(-sx * 0.3, -sy * 0.02);
     r.closePath();
     r.fill();
-    r.fillStyle = 'rgba(159,255,208,0.05)';
+    r.fillStyle = 'rgba(159,255,208,0.09)';
     r.beginPath();
     r.moveTo(-sx, sy * 0.16);
-    r.lineTo(-sx * 0.8, -sy * 0.1);
-    r.lineTo(-sx * 0.52, -sy * 0.3);
+    r.lineTo(-sx * 0.78, -sy * 0.14);
+    r.lineTo(-sx * 0.52, -sy * 0.32);
     r.lineTo(-sx * 0.42, sy * 0.1);
     r.closePath();
     r.fill();
-    r.strokeStyle = 'rgba(0,0,0,0.4)';
-    r.lineWidth = 1.6;
+    // a second, dimmer plane falling away on the dark side
+    r.fillStyle = 'rgba(0,0,0,0.22)';
     r.beginPath();
-    r.moveTo(-sx * 0.2, -sy * 0.43);
+    r.moveTo(sx * 0.45, -sy * 0.27);
+    r.lineTo(sx * 0.75, -sy * 0.1);
+    r.lineTo(sx * 0.9, 0);
+    r.lineTo(sx * 0.62, sy * 0.18);
+    r.lineTo(sx * 0.38, -sy * 0.02);
+    r.closePath();
+    r.fill();
+    r.strokeStyle = 'rgba(0,0,0,0.5)';
+    r.lineWidth = 2;
+    r.beginPath();
+    r.moveTo(-sx * 0.2, -sy * 0.45);
     r.quadraticCurveTo(-sx * 0.16, -sy * 0.1, -sx * 0.08, sy * 0.24);
-    r.moveTo(sx * 0.45, -sy * 0.26);
+    r.moveTo(sx * 0.45, -sy * 0.27);
     r.quadraticCurveTo(sx * 0.42, 0, sx * 0.5, sy * 0.22);
-    r.moveTo(-sx * 0.52, -sy * 0.3);
+    r.moveTo(-sx * 0.52, -sy * 0.32);
     r.quadraticCurveTo(-sx * 0.5, -sy * 0.05, -sx * 0.42, sy * 0.18);
+    r.moveTo(sx * 0.12, -sy * 0.42);
+    r.quadraticCurveTo(sx * 0.16, -sy * 0.18, sx * 0.12, sy * 0.05);
     r.stroke();
     // the mass shades down toward the waterline
     g = r.createLinearGradient(0, sy * 0.02, 0, sy * 0.32);
@@ -339,21 +353,30 @@ export function createScene(canvas) {
     // tide-wet sheen near the waterline
     g = r.createLinearGradient(0, 0, 0, sy * 0.34);
     g.addColorStop(0, 'rgba(159,255,208,0)');
-    g.addColorStop(1, 'rgba(159,255,208,0.08)');
+    g.addColorStop(1, 'rgba(159,255,208,0.10)');
     r.fillStyle = g;
     r.fillRect(-sx, 0, sx * 2, sy * 0.34);
     r.restore();
     // silhouette edge + moonlit facets on her side
-    r.strokeStyle = 'rgba(159,255,208,0.07)';
+    r.strokeStyle = 'rgba(159,255,208,0.09)';
     r.lineWidth = 1;
     rockPath(r, sx, sy);
     r.stroke();
-    r.strokeStyle = 'rgba(196,220,208,0.10)';
+    r.strokeStyle = 'rgba(196,220,208,0.16)';
     r.beginPath();
     r.moveTo(-sx, sy * 0.16);
-    r.lineTo(-sx * 0.8, -sy * 0.1);
-    r.lineTo(-sx * 0.52, -sy * 0.3);
-    r.lineTo(-sx * 0.2, -sy * 0.43);
+    r.lineTo(-sx * 0.78, -sy * 0.14);
+    r.lineTo(-sx * 0.52, -sy * 0.32);
+    r.lineTo(-sx * 0.2, -sy * 0.45);
+    r.stroke();
+    // moonlight grazing the crest spurs
+    r.strokeStyle = 'rgba(196,220,208,0.12)';
+    r.beginPath();
+    r.moveTo(-sx * 0.34, -sy * 0.35);
+    r.lineTo(-sx * 0.2, -sy * 0.45);
+    r.lineTo(-sx * 0.05, -sy * 0.37);
+    r.moveTo(sx * 0.12, -sy * 0.42);
+    r.lineTo(sx * 0.27, -sy * 0.3);
     r.stroke();
   }
 
@@ -429,6 +452,12 @@ export function createScene(canvas) {
     g.addColorStop(1, '#020507');
     b.fillStyle = g;
     b.fillRect(0, horizon, W, H - horizon);
+    // breathe noise over the sea too — kills banding on the long dark gradient
+    b.globalCompositeOperation = 'screen';
+    b.globalAlpha = 0.04;
+    b.drawImage(noiseTex, 0, horizon, W, (H - horizon) * 1.04);
+    b.globalAlpha = 1;
+    b.globalCompositeOperation = 'source-over';
     // water of small tired waves — streak texture in perspective bands,
     // scaled up toward the viewer
     b.save();
@@ -740,7 +769,7 @@ export function createScene(canvas) {
     const hw = Math.sin(t * 0.9) * 2 * u; // hair mass sway
     const hw2 = Math.sin(t * 0.9 - 0.7) * 2.6 * u; // tips lag like kelp in the tide
     const tn = turn;
-    const rimA = 0.15 + singGlow * 0.1; // the moon finds her when she sings
+    const rimA = 0.18 + singGlow * 0.12; // the moon finds her when she sings
     ctx.save();
     ctx.translate(seatX, seatY);
     // tail — sweeps right along the rock, fluke flicking slowly
@@ -810,8 +839,8 @@ export function createScene(canvas) {
     ctx.fillStyle = hairGrad;
     ctx.fill();
     // moonlit edge of the hair mass — the moon rests along her back
-    ctx.strokeStyle = 'rgba(200,225,212,0.15)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(208,230,216,0.24)';
+    ctx.lineWidth = 1.6;
     ctx.globalAlpha = 0.75 + singGlow * 0.4;
     ctx.beginPath();
     ctx.moveTo(hx - u, hy - 7 * u);
@@ -819,8 +848,8 @@ export function createScene(canvas) {
     ctx.stroke();
     ctx.globalAlpha = 1;
     // moonlit strands, freshly combed, trailing the hair mass
-    ctx.lineWidth = 0.8;
-    ctx.strokeStyle = 'rgba(159,255,208,0.13)';
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = 'rgba(159,255,208,0.18)';
     ctx.beginPath();
     for (let k = 0; k < 3; k++) {
       const o = k * 1.8 * u;
@@ -832,8 +861,8 @@ export function createScene(canvas) {
     }
     ctx.stroke();
     // crown sheen where the moon rests on her hair
-    ctx.strokeStyle = 'rgba(200,225,212,0.16)';
-    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = 'rgba(208,230,216,0.24)';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.ellipse(hx, hy, 5.9 * u, 6.9 * u, -0.15 + tn * 0.2, Math.PI * 0.95, Math.PI * 1.5);
     ctx.stroke();
@@ -845,40 +874,46 @@ export function createScene(canvas) {
     ctx.quadraticCurveTo(hx - 6.2 * u, hy - 0.8 * u, hx - 5.0 * u, hy + 0.6 * u);
     ctx.quadraticCurveTo(hx - 5.8 * u, hy + 2.2 * u, hx - 4.4 * u, hy + 3.8 * u);
     ctx.stroke();
-    // combing arm
+    // combing arm — a long visible sweep, crown to shoulder and back
     ctx.strokeStyle = '#03060a';
     ctx.lineCap = 'round';
     ctx.lineWidth = 2.6 * u;
     const ex = 7.5 * u;
-    const ey = -36 * u + comb * 4 * u;
-    const hdx = hx + 6.5 * u - comb * 3.5 * u;
-    const hdy = hy - 9 * u + comb * 13 * u;
+    const ey = -36 * u + comb * 5 * u;
+    const hdx = hx + 7.5 * u - comb * 6 * u;
+    const hdy = hy - 12 * u + comb * 22 * u;
     ctx.beginPath();
     ctx.moveTo(u + tn * 2 * u, -29 * u + breathe);
     ctx.lineTo(ex, ey);
     ctx.lineTo(hdx, hdy);
     ctx.stroke();
     // moonlight along the lifted forearm
-    ctx.strokeStyle = 'rgba(159,255,208,0.08)';
-    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = 'rgba(159,255,208,0.16)';
+    ctx.lineWidth = 1.1;
     ctx.beginPath();
     ctx.moveTo(ex - 0.6 * u, ey - 1.3 * u);
     ctx.lineTo(hdx - 0.6 * u, hdy - 1.3 * u);
     ctx.stroke();
-    // comb teeth, faint parchment
-    ctx.strokeStyle = 'rgba(232,220,192,0.4)';
+    // the comb: a parchment spine with teeth — bright enough to follow
+    ctx.strokeStyle = 'rgba(232,220,192,0.6)';
+    ctx.lineWidth = 0.9 * u;
+    ctx.beginPath();
+    ctx.moveTo(hdx - 2 * u, hdy - 0.3 * u);
+    ctx.lineTo(hdx + 2 * u, hdy + 0.9 * u);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(232,220,192,0.55)';
     ctx.lineWidth = 0.8 * u;
     ctx.beginPath();
     ctx.moveTo(hdx - 1.5 * u, hdy);
-    ctx.lineTo(hdx - 2.5 * u, hdy + 3 * u);
+    ctx.lineTo(hdx - 2.6 * u, hdy + 3.4 * u);
     ctx.moveTo(hdx, hdy + 0.5 * u);
-    ctx.lineTo(hdx - u, hdy + 3.5 * u);
+    ctx.lineTo(hdx - u, hdy + 3.9 * u);
     ctx.moveTo(hdx + 1.5 * u, hdy + u);
-    ctx.lineTo(hdx + 0.5 * u, hdy + 4 * u);
+    ctx.lineTo(hdx + 0.4 * u, hdy + 4.4 * u);
     ctx.stroke();
     // the section she is combing — strands flex under the teeth as it sweeps
-    ctx.strokeStyle = 'rgba(159,255,208,0.10)';
-    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = 'rgba(159,255,208,0.14)';
+    ctx.lineWidth = 0.9;
     ctx.beginPath();
     for (let k = 0; k < 2; k++) {
       ctx.moveTo(hx + 3 * u + k * 1.4 * u, hy - 5 * u);
@@ -1011,14 +1046,14 @@ export function createScene(canvas) {
           if (ek <= 0.02) continue;
           const wx = quadX(ek, x0, cx, x1);
           const wy = quadX(ek, y0, cy, y1);
-          const ww = (10 + k * 4) * U;
-          ctx.globalAlpha = wA * (0.1 - k * 0.016);
-          ctx.fillRect(wx - ww * 0.5, wy + 5 * U, ww, 1.3 * U);
+          const ww = (12 + k * 5) * U;
+          ctx.globalAlpha = wA * (0.15 - k * 0.022);
+          ctx.fillRect(wx - ww * 0.5, wy + 5 * U, ww, 1.4 * U);
         }
         // its light, stretched thin beneath it on the swell
         const px0 = quadX(e, x0, cx, x1);
         const py0 = quadX(e, y0, cy, y1);
-        ctx.globalAlpha = wA * 0.12;
+        ctx.globalAlpha = wA * 0.17;
         ctx.drawImage(glowW, px0 - 5 * U, py0 + 4 * U, 10 * U, 30 * U);
         ctx.globalAlpha = 1;
       }
@@ -1110,7 +1145,7 @@ export function createScene(canvas) {
       ctx.fillText(GLYPHS[i], 0, -r * 0.18);
       ctx.restore();
       // key + note label
-      ctx.fillStyle = 'rgba(232,220,192,0.5)';
+      ctx.fillStyle = 'rgba(232,220,192,0.62)';
       ctx.font = LABEL_FONT;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';

@@ -8,7 +8,7 @@ import {
   TRACK_LEN, SLOPE, BANK_X, CHUNK, N_CHUNKS,
   bankY, groundY, microNoise, mulberry32,
 } from './consts.js';
-import { soilTex, woodTex, clothTex, seaTex, ponchoTex, faceTex, hideTex } from './textures.js';
+import { soilTex, woodTex, clothTex, seaTex, ponchoTex, faceTex, hideTex, moteTex } from './textures.js';
 
 export function createWorld(container) {
   const scene = new THREE.Scene();
@@ -31,8 +31,10 @@ export function createWorld(container) {
   });
 
   // ---------- lights (kept to 3: hemisphere + moon directional + lantern) ----------
-  scene.add(new THREE.HemisphereLight(0x35506a, 0x191008, 1.15));
-  const moonLight = new THREE.DirectionalLight(0xc8dcec, 1.8);
+  // hemisphere up + moon up + lantern way down: the night is cool and the warm
+  // pool is local to the sled, instead of a sepia wash over the whole gully
+  scene.add(new THREE.HemisphereLight(0x35506a, 0x191008, 1.35));
+  const moonLight = new THREE.DirectionalLight(0xc8dcec, 2.1);
   moonLight.position.set(26, 60, -80);
   scene.add(moonLight);
 
@@ -46,10 +48,13 @@ export function createWorld(container) {
   const strataA = new THREE.Color(0x584026); // pale sandy seam in the wall
   const strataB = new THREE.Color(0x16100a); // damp clay layer
   const rimC = new THREE.Color(0x3a4650);    // moon catches the dry rim
+  const heathC = new THREE.Color(0x1c2415);  // dark moor above the rim
+  const orockC = new THREE.Color(0x343c42);  // grey outcrop patches on the moor
   const tmpC = new THREE.Color();
   // one shared ground material: procedural soil grain as map + self-bump
+  // (dithering kills the banding on the big low-light wall gradients)
   const groundMat = new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.95, flatShading: true,
+    vertexColors: true, roughness: 0.95, flatShading: true, dithering: true,
     map: soilTex, bumpMap: soilTex, bumpScale: 0.25,
   });
   const shrubMat = new THREE.MeshStandardMaterial({ color: 0x1c2618, roughness: 1, flatShading: true });
@@ -57,6 +62,17 @@ export function createWorld(container) {
   const rootSegGeo = new THREE.CylinderGeometry(0.05, 0.095, 0.8, 5);
   rootSegGeo.translate(0, 0.38, 0); // pivot at the thick end
   const rootMat = new THREE.MeshStandardMaterial({ color: 0x241710, roughness: 1, flatShading: true });
+  // cosmetic moor undulation above the rim, so the skyline isn't a ruler edge.
+  // zl-periodic over CHUNK => identical chunk edges, no cracks where chunks
+  // meet; gameplay never leaves |x| < HALF_W, so collisions are untouched.
+  const kz = (Math.PI * 2) / CHUNK;
+  const moorHump = (x, zl) => {
+    const a = Math.abs(x);
+    if (a <= 8.9) return 0;
+    const ramp = Math.min(1, (a - 8.9) / 2);
+    return ramp * (Math.sin(zl * kz * 2 + x * 0.7) * 0.5
+                 + Math.sin(zl * kz * 5 + x * 0.23 + 1.7) * 0.28);
+  };
 
   for (let ci = 0; ci < N_CHUNKS; ci++) {
     const geo = new THREE.PlaneGeometry(38, CHUNK, 26, 34);
@@ -67,9 +83,9 @@ export function createWorld(container) {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const zl = pos.getZ(i);
-      pos.setY(i, bankY(x) + zl * SLOPE + microNoise(x, zl));
-      // colour: dark gouged centre -> mossy banks, with torn streaks
       const a = Math.abs(x);
+      pos.setY(i, bankY(x) + zl * SLOPE + microNoise(x, zl) + moorHump(x, zl));
+      // colour: dark gouged centre -> mossy banks, with torn streaks
       let t = (a - 3.5) / 4.5; t = t < 0 ? 0 : t > 1 ? 1 : t;
       tmpC.lerpColors(soilA, soilB, t * t * (3 - 2 * t));
       const wig = Math.sin(zl * 0.21 + ci * 1.7) * 1.6;
@@ -78,10 +94,26 @@ export function createWorld(container) {
       // big dark planes read as cut earth instead of flat card
       if (a > BANK_X) {
         const h = bankY(x);
-        const band = Math.sin(h * 2.4 + Math.sin(zl * 0.23 + ci * 0.8) * 0.55 + ci * 1.1);
-        if (band > 0.25) tmpC.lerp(strataA, 0.62 * (band - 0.25) / 0.75);
-        else if (band < -0.35) tmpC.lerp(strataB, 0.65 * (-band - 0.35) / 0.65);
-        if (h > 7.0) tmpC.lerp(rimC, Math.min(1, (h - 7.0) / 1.8) * 0.55);
+        if (a < 8.9) {
+          // rising face: strata seams, strong enough to survive fog + low light
+          const band = Math.sin(h * 3.0 + Math.sin(zl * 0.23 + ci * 0.8) * 0.7 + ci * 1.1);
+          if (band > 0.15) tmpC.lerp(strataA, 0.8 * (band - 0.15) / 0.85);
+          else if (band < -0.3) tmpC.lerp(strataB, 0.75 * (-band - 0.3) / 0.7);
+          // damp vertical fissures cutting across the seams
+          const fis = Math.sin(zl * 0.51 + ci * 2.3 + Math.sin(h * 1.3) * 0.8);
+          if (fis > 0.82) tmpC.lerp(gougeC, ((fis - 0.82) / 0.18) * 0.7);
+        } else {
+          // moor plateau: big soft heath patches + grey outcrops, kept darkest
+          // in the frame (background dimmest)
+          const patch = Math.sin(x * 0.55 + Math.sin(zl * 0.21 + ci) * 1.4)
+                      * Math.sin(zl * 0.17 + ci * 1.9 + Math.sin(x * 0.33) * 1.2);
+          tmpC.lerp(heathC, 0.45 + 0.3 * patch);
+          if (patch < -0.55) tmpC.lerp(orockC, ((-patch - 0.55) / 0.45) * 0.5);
+        }
+        // moonlit lip: a pale line along the rim itself, fading both ways, so
+        // the gully edge reads as a silhouette against the moor
+        const lip = 1 - Math.min(1, Math.abs(a - 8.66) / 1.4);
+        if (h > 6.5 && lip > 0) tmpC.lerp(rimC, lip * 0.6);
       }
       const dim = 0.85 + 0.15 * Math.sin(x * 12.3 + zl * 7.7);
       colors[i * 3] = tmpC.r * dim;
@@ -103,7 +135,7 @@ export function createWorld(container) {
       const shrub = new THREE.Mesh(shrubGeo, shrubMat);
       const sr = 0.35 + rng() * 0.5; // same rng draw order as before
       shrub.scale.set(sr, h, sr);
-      shrub.position.set(sx, bankY(sx) + sz * SLOPE + h * 0.4, sz);
+      shrub.position.set(sx, bankY(sx) + sz * SLOPE + moorHump(sx, sz) + h * 0.4, sz);
       shrub.rotation.set((rng() - 0.5) * 0.3, rng() * 3.14, (rng() - 0.5) * 0.3);
       mesh.add(shrub);
     }
@@ -119,18 +151,18 @@ export function createWorld(container) {
     const dGeo = new THREE.BufferGeometry();
     dGeo.setAttribute('position', new THREE.BufferAttribute(dArr, 3));
     const dust = new THREE.Points(dGeo, new THREE.PointsMaterial({
-      color: 0xffc658, size: 0.07, transparent: true, opacity: 0.75,
+      color: 0xffc658, size: 0.09, transparent: true, opacity: 0.7, map: moteTex,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     mesh.add(dust);
     // root silhouettes torn loose where the calf gouged the walls
     // (rng draws appended after shrubs+dust, so the existing layout is unchanged)
-    for (let rt = 0; rt < 5; rt++) {
+    for (let rt = 0; rt < 8; rt++) {
       const side = rng() < 0.5 ? -1 : 1;
       const rx = side * (BANK_X + 0.9 + rng() * 2.7); // farther out = higher up the wall (some near the rim)
       const rz = -rng() * CHUNK;
       const rootG = new THREE.Group();
-      rootG.position.set(rx - side * 0.2, bankY(rx) + rz * SLOPE - 0.1, rz);
+      rootG.position.set(rx - side * 0.2, bankY(rx) + rz * SLOPE + moorHump(rx, rz) - 0.1, rz);
       rootG.rotation.y = (rng() - 0.5) * 1.2;
       rootG.rotation.z = side * (Math.PI / 2 + 0.25 + rng() * 0.5); // pokes out and droops
       let parent = rootG;
@@ -178,7 +210,7 @@ export function createWorld(container) {
   const stGeo = new THREE.BufferGeometry();
   stGeo.setAttribute('position', new THREE.BufferAttribute(stArr, 3));
   skyGroup.add(new THREE.Points(stGeo, new THREE.PointsMaterial({
-    color: 0xcfe0ea, size: 1.6, sizeAttenuation: false, fog: false,
+    color: 0xcfe0ea, size: 2.6, sizeAttenuation: false, fog: false, map: moteTex,
     transparent: true, opacity: 0.7, depthWrite: false,
   })));
 
@@ -205,7 +237,7 @@ export function createWorld(container) {
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(700, 360),
     new THREE.MeshStandardMaterial({
-      color: 0x0c1a26, roughness: 0.35, metalness: 0.5,
+      color: 0x0c1a26, roughness: 0.35, metalness: 0.5, dithering: true,
       emissive: 0x07161f, emissiveIntensity: 0.85,
       map: seaTex, emissiveMap: seaTex, bumpMap: seaTex, bumpScale: 0.5,
     })
@@ -378,7 +410,9 @@ export function createWorld(container) {
   const lanternG = new THREE.Group();
   lanternG.position.set(0.52, 1.4, -0.6);
   player.add(lanternG);
-  const lantern = new THREE.PointLight(0xffd9a0, 18, 21, 1.8);
+  // tighter, dimmer pool: at 18/21/1.8 the lantern sepia-washed the whole
+  // midfield and blew the poncho out to white — the calf must out-glow it
+  const lantern = new THREE.PointLight(0xffd9a0, 11, 15, 2);
   lanternG.add(lantern);
   const ironMat = new THREE.MeshStandardMaterial({ color: 0x23262c, roughness: 0.55, metalness: 0.6, flatShading: true });
   const glassMat = new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffb352, emissiveIntensity: 2.3, roughness: 0.4 });
@@ -436,8 +470,8 @@ export function createWorld(container) {
   const hat = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.22, 7), ponchoMat);
   hat.position.set(0, 1.2, -0.12);
   player.add(hat);
-  // wide wool brim under the crown — the silhouette reads at any distance
-  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.33, 0.04, 8), ponchoMat);
+  // wool brim under the crown — sized to read as a hat, not a saucer
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.265, 0.05, 8), ponchoMat);
   brim.position.set(0, 1.15, -0.12);
   brim.rotation.x = -0.1;
   player.add(brim);
@@ -459,7 +493,7 @@ export function createWorld(container) {
     skirt.rotation.x = -0.35 + sway * 0.05;
     scarfG.rotation.x = -(0.2 + spdN * 0.55) + Math.sin(tVis * 11 + 1.7) * (0.1 + 0.2 * spdN);
     scarfG.rotation.z = Math.sin(tVis * 7.3) * 0.16;
-    lantern.intensity = 18 + Math.sin(tVis * 13.7) * 1.3 + Math.sin(tVis * 29.1 + 0.7) * 0.9;
+    lantern.intensity = 11 + Math.sin(tVis * 13.7) * 0.9 + Math.sin(tVis * 29.1 + 0.7) * 0.6;
     // the lantern hangs back with speed and pendulums with the bob; the glass
     // and halo flicker in step with the light
     lanternG.rotation.x = spdN * 0.24 + sway * 0.06;
@@ -482,7 +516,7 @@ export function createWorld(container) {
   pGeo.setAttribute('position', pPosAttr);
   pGeo.setAttribute('color', pColAttr);
   const points = new THREE.Points(pGeo, new THREE.PointsMaterial({
-    size: 0.1, vertexColors: true, transparent: true,
+    size: 0.13, vertexColors: true, transparent: true, map: moteTex,
     blending: THREE.AdditiveBlending, depthWrite: false,
   }));
   points.frustumCulled = false;

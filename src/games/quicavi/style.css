@@ -281,8 +281,8 @@ body {
   border: 1px solid var(--hairline);
   background:
     radial-gradient(circle at 50% 38%,
-      rgba(12, 19, 23, 0.85) 0%,
-      rgba(3, 7, 10, 0.9) 75%);
+      rgba(10, 19, 26, 0.85) 0%,
+      rgba(3, 8, 12, 0.9) 75%);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), inset 0 0 12px rgba(0, 0, 0, 0.65);
 }
 #compass::after {
@@ -295,7 +295,7 @@ body {
   height: 4px;
   margin: -2px 0 0 -2px;
   border-radius: 50%;
-  background: rgba(232, 220, 192, 0.5);
+  background: var(--ink-dim);
 }
 #compass-arrow {
   position: absolute;
@@ -313,7 +313,6 @@ body {
   border-right: 5px solid transparent;
   border-bottom: 11px solid var(--glow);
   filter: drop-shadow(0 0 4px var(--glow-soft));
-  opacity: 0.85;
 }
 #compass-arrow::after {
   /* needle tail */

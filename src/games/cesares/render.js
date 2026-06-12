@@ -162,6 +162,16 @@ export function createRenderer(canvas) {
   let skyGrad = null
   let skyH = -1
 
+  // --- level reveal: the path assembles out of the fog, stone by stone ------
+  // anchored to the sim clock (g.visT) so manual step() drives it like rAF does
+  let revAt = -2 // -2 = re-anchor to the sim clock on the next draw
+  let revT = 9 // seconds since reveal() — 9 = settled
+  function reveal(at) { revAt = at === undefined ? -2 : at }
+  function revK(s) {
+    const k = (revT - 0.1 - s * 0.09) / 0.45
+    return k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k)
+  }
+
   // --- tile -----------------------------------------------------------------
   // draws one tile (top + stone pillar + path strips). ang = extra rotation
   // (radians) applied to the path directions while a rotor grinds.
@@ -192,6 +202,23 @@ export function createRenderer(canvas) {
     ctx.lineTo(cx + HW, cy + drop)
     ctx.closePath()
     ctx.fill()
+    // contact occlusion — a soft dark band just under the top edge seats the
+    // slab on its pillar (wide faint pass, then a tight crease)
+    ctx.lineCap = 'butt'
+    ctx.strokeStyle = 'rgba(0,0,0,0.14)'
+    ctx.lineWidth = 5
+    ctx.beginPath()
+    ctx.moveTo(cx - HW, cy + 3)
+    ctx.lineTo(cx, cy + HH + 3)
+    ctx.lineTo(cx + HW, cy + 3)
+    ctx.stroke()
+    ctx.strokeStyle = 'rgba(0,0,0,0.30)'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(cx - HW, cy + 1)
+    ctx.lineTo(cx, cy + HH + 1)
+    ctx.lineTo(cx + HW, cy + 1)
+    ctx.stroke()
     // top diamond
     ctx.fillStyle = shade > 0.5 ? '#243446' : '#21303f'
     ctx.beginPath()
@@ -244,13 +271,24 @@ export function createRenderer(canvas) {
   function gateArch(gx, gy, z, k, t) {
     const cx = isoX(gx, gy)
     const cy = isoY(gx, gy, z)
+    // the puerta breathes while a path to it exists — slow, alive, inviting
+    const breath = k < 0.03 ? 1 : 0.74 + 0.26 * Math.sin(t * 2.0)
+    const bk = k * breath
     // inner glow on the tile
-    const gr = ctx.createRadialGradient(cx, cy, 2, cx, cy, HW * 0.9)
-    gr.addColorStop(0, 'rgba(255,224,176,' + (0.16 + 0.42 * k).toFixed(3) + ')')
+    const gr = ctx.createRadialGradient(cx, cy, 2, cx, cy, HW * (0.82 + 0.12 * bk))
+    gr.addColorStop(0, 'rgba(255,224,176,' + (0.16 + 0.46 * bk).toFixed(3) + ')')
     gr.addColorStop(1, 'rgba(255,217,160,0)')
     ctx.fillStyle = gr
     ctx.beginPath()
     ctx.ellipse(cx, cy, HW * 0.9, HH * 0.9, 0, 0, 6.283)
+    ctx.fill()
+    // contact shadows seat the pillars on the stone
+    ctx.fillStyle = 'rgba(0,0,0,0.32)'
+    ctx.beginPath()
+    ctx.ellipse(cx - 14, cy - 3, 5.5, 2.5, 0, 0, 6.283)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(cx + 14, cy - 3, 5.5, 2.5, 0, 0, 6.283)
     ctx.fill()
     // two pillars + lintel arc, the puerta on the back corner
     ctx.strokeStyle = '#2c3d4e'
@@ -263,7 +301,18 @@ export function createRenderer(canvas) {
     ctx.moveTo(cx + 14, cy - 4)
     ctx.lineTo(cx + 14, cy - h)
     ctx.stroke()
-    ctx.strokeStyle = 'rgba(255,217,160,' + (0.35 + 0.5 * k).toFixed(3) + ')'
+    // warm rim light on the inner pillar edges while the light breathes
+    if (k > 0.03) {
+      ctx.strokeStyle = 'rgba(255,217,160,' + (0.32 * bk).toFixed(3) + ')'
+      ctx.lineWidth = 1.6
+      ctx.beginPath()
+      ctx.moveTo(cx - 11.5, cy - 5)
+      ctx.lineTo(cx - 11.5, cy - h + 2)
+      ctx.moveTo(cx + 11.5, cy - 5)
+      ctx.lineTo(cx + 11.5, cy - h + 2)
+      ctx.stroke()
+    }
+    ctx.strokeStyle = 'rgba(255,217,160,' + (0.35 + 0.55 * bk).toFixed(3) + ')'
     ctx.lineWidth = 2.4
     ctx.beginPath()
     ctx.moveTo(cx - 14, cy - h)
@@ -272,14 +321,14 @@ export function createRenderer(canvas) {
     // light inside the arch
     if (k > 0.02) {
       const g2 = ctx.createLinearGradient(0, cy - h, 0, cy)
-      g2.addColorStop(0, 'rgba(255,228,180,' + (0.30 * k).toFixed(3) + ')')
-      g2.addColorStop(1, 'rgba(255,228,180,' + (0.06 * k).toFixed(3) + ')')
+      g2.addColorStop(0, 'rgba(255,228,180,' + (0.34 * bk).toFixed(3) + ')')
+      g2.addColorStop(1, 'rgba(255,228,180,' + (0.07 * bk).toFixed(3) + ')')
       ctx.fillStyle = g2
       ctx.fillRect(cx - 12, cy - h, 24, h - 3)
-      // beam to the sky
+      // beam to the sky, swelling with the same breath
       const g3 = ctx.createLinearGradient(0, cy - h - 150, 0, cy - h)
       g3.addColorStop(0, 'rgba(255,228,180,0)')
-      g3.addColorStop(1, 'rgba(255,228,180,' + (0.16 * k * (0.8 + 0.2 * Math.sin(t * 2.7))).toFixed(3) + ')')
+      g3.addColorStop(1, 'rgba(255,228,180,' + (0.20 * bk).toFixed(3) + ')')
       ctx.fillStyle = g3
       ctx.fillRect(cx - 10, cy - h - 150, 20, 150)
     }
@@ -309,6 +358,48 @@ export function createRenderer(canvas) {
     ctx.beginPath()
     ctx.ellipse(cx, cy, R * 0.62, ry * 0.62, 0, 0, 6.283)
     ctx.stroke()
+    // engraved quarter grooves + pip glyphs (1..4 pips) telegraphing the four
+    // positions — read them against the fixed keystone at the top of the rim
+    for (let i = 0; i < 4; i++) {
+      const a = r.angVis + i * 1.5708
+      const ca = Math.cos(a)
+      const sa = Math.sin(a)
+      ctx.strokeStyle = 'rgba(4,7,10,0.55)'
+      ctx.lineWidth = 2.4
+      ctx.beginPath()
+      ctx.moveTo(cx + ca * R * 0.30, cy + sa * ry * 0.30)
+      ctx.lineTo(cx + ca * R * 0.52, cy + sa * ry * 0.52)
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(232,220,192,0.10)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(cx + ca * R * 0.30, cy + 1.1 + sa * ry * 0.30)
+      ctx.lineTo(cx + ca * R * 0.52, cy + 1.1 + sa * ry * 0.52)
+      ctx.stroke()
+      const px = cx + ca * R * 0.68
+      const py = cy + sa * ry * 0.68
+      const tx = -sa * 5.4
+      const ty = ca * 5.4 * ry / R
+      for (let p = 0; p <= i; p++) {
+        const o = p - i / 2
+        ctx.fillStyle = 'rgba(4,7,10,0.5)'
+        ctx.beginPath()
+        ctx.ellipse(px + tx * o, py + ty * o + 0.9, 2.2, 1.4, 0, 0, 6.283)
+        ctx.fill()
+        ctx.fillStyle = busy ? 'rgba(255,217,160,0.6)' : 'rgba(232,220,192,0.26)'
+        ctx.beginPath()
+        ctx.ellipse(px + tx * o, py + ty * o, 2.0, 1.3, 0, 0, 6.283)
+        ctx.fill()
+      }
+    }
+    // fixed keystone — the still point the engravings turn beneath
+    ctx.fillStyle = 'rgba(232,220,192,' + (busy ? 0.5 : 0.3).toFixed(2) + ')'
+    ctx.beginPath()
+    ctx.moveTo(cx - 3.6, cy - ry - 7)
+    ctx.lineTo(cx + 3.6, cy - ry - 7)
+    ctx.lineTo(cx, cy - ry + 0.5)
+    ctx.closePath()
+    ctx.fill()
     // notches rotating with the disc
     ctx.strokeStyle = busy ? 'rgba(255,217,160,0.5)' : 'rgba(232,220,192,0.22)'
     ctx.lineWidth = 2
@@ -339,32 +430,48 @@ export function createRenderer(canvas) {
   function drawPilgrim(p, t) {
     const cx = isoX(p.gx, p.gy)
     const cy = isoY(p.gx, p.gy, p.gz)
+    const bob = p.walking ? Math.sin(p.bobT * 13) * 1.8 : Math.sin(t * 1.7) * 0.8
+    const y = cy + bob - 1
+    const f = p.face // -1 | 1, which way the staff side points
+    const flick = 0.8 + 0.2 * Math.sin(t * 7.1) * Math.sin(t * 3.3 + 1.7)
+    const lx = cx + 8 * f
+    const ly = y - 25
     // shadow on the tile
     ctx.fillStyle = 'rgba(0,0,0,0.30)'
     ctx.beginPath()
     ctx.ellipse(cx, cy + 1, 10, 4.4, 0, 0, 6.283)
     ctx.fill()
-    const bob = p.walking ? Math.sin(p.bobT * 13) * 1.8 : Math.sin(t * 1.7) * 0.8
-    const y = cy + bob - 1
-    const f = p.face // -1 | 1, which way the staff side points
-    // staff + lantern
+    // warm pool the lantern casts on the stone — the path walks inside it
+    const lp = ctx.createRadialGradient(lx, cy + 1, 1, lx, cy + 1, 24)
+    lp.addColorStop(0, 'rgba(255,190,120,' + (0.15 * flick).toFixed(3) + ')')
+    lp.addColorStop(1, 'rgba(255,190,120,0)')
+    ctx.fillStyle = lp
+    ctx.beginPath()
+    ctx.ellipse(lx, cy + 1, 24, 10, 0, 0, 6.283)
+    ctx.fill()
+    // staff + lantern — the warmest point on the board
     ctx.strokeStyle = '#574734'
     ctx.lineWidth = 2
     ctx.lineCap = 'round'
     ctx.beginPath()
-    ctx.moveTo(cx + 8 * f, y - 27)
+    ctx.moveTo(lx, y - 27)
     ctx.lineTo(cx + 6 * f, y + 1)
     ctx.stroke()
-    const lg = ctx.createRadialGradient(cx + 8 * f, y - 25, 0.5, cx + 8 * f, y - 25, 13)
-    lg.addColorStop(0, 'rgba(255,228,170,' + (0.75 + 0.15 * Math.sin(t * 7.1)).toFixed(3) + ')')
-    lg.addColorStop(1, 'rgba(255,228,170,0)')
+    const lg = ctx.createRadialGradient(lx, ly, 0.5, lx, ly, 15)
+    lg.addColorStop(0, 'rgba(255,238,200,' + (0.95 * flick).toFixed(3) + ')')
+    lg.addColorStop(0.35, 'rgba(255,196,120,' + (0.45 * flick).toFixed(3) + ')')
+    lg.addColorStop(1, 'rgba(255,170,90,0)')
     ctx.fillStyle = lg
     ctx.beginPath()
-    ctx.arc(cx + 8 * f, y - 25, 13, 0, 6.283)
+    ctx.arc(lx, ly, 15, 0, 6.283)
     ctx.fill()
-    ctx.fillStyle = '#ffe6b0'
+    ctx.fillStyle = '#ffc878'
     ctx.beginPath()
-    ctx.arc(cx + 8 * f, y - 25, 1.8, 0, 6.283)
+    ctx.arc(lx, ly, 2.6, 0, 6.283)
+    ctx.fill()
+    ctx.fillStyle = '#fff3d8'
+    ctx.beginPath()
+    ctx.arc(lx, ly, 1.4, 0, 6.283)
     ctx.fill()
     // cloak
     ctx.fillStyle = '#2a2233'
@@ -410,6 +517,9 @@ export function createRenderer(canvas) {
       const h = b.h * s
       ctx.fillStyle = 'rgba(34,44,58,' + (a * 0.9).toFixed(3) + ')'
       ctx.fillRect(x - w / 2, baseY - h, w, h)
+      // darken the base so the towers sit in the mist instead of on it
+      ctx.fillStyle = 'rgba(6,9,12,' + (a * 0.5).toFixed(3) + ')'
+      ctx.fillRect(x - w / 2, baseY - h * 0.18, w, h * 0.18)
       if (b.type === 1) {
         ctx.beginPath()
         ctx.arc(x, baseY - h, w * 0.62, Math.PI, 0)
@@ -500,8 +610,18 @@ export function createRenderer(canvas) {
     }
     ctx.setTransform(fit.sc, 0, 0, fit.sc, fit.ox + sx, fit.oy + sy)
 
+    // level reveal clock, driven by the sim time
+    if (revAt === -2) revAt = t
+    revT = Math.max(0, Math.min(9, t - revAt))
+
     // rotor discs (below everything on the board)
-    for (let i = 0; i < g.rotors.length; i++) disc(g.rotors[i], t)
+    for (let i = 0; i < g.rotors.length; i++) {
+      const dk = revK(g.rotors[i].cx + g.rotors[i].cy)
+      if (dk <= 0) continue
+      ctx.globalAlpha = dk
+      disc(g.rotors[i], t)
+    }
+    ctx.globalAlpha = 1
 
     // tiles + pilgrim, painter's order
     const items = g.drawList
@@ -523,18 +643,33 @@ export function createRenderer(canvas) {
     for (let i = 0; i < items.length; i++) {
       const it = items[i]
       if (it.kind === 2) {
-        drawPilgrim(g.pil, t)
+        const pk = revK(g.pil.gx + g.pil.gy)
+        if (pk > 0) {
+          ctx.globalAlpha = pk
+          drawPilgrim(g.pil, t)
+          ctx.globalAlpha = 1
+        }
         continue
       }
-      tile(it.gx, it.gy, it.gz, it.mask, it.ang, it.conn, g.pathK, it.shade, t)
-      if (it.gate) gateArch(it.gx, it.gy, it.gz, g.pathK, t)
+      // each stone condenses out of the fog: fades in while rising into place
+      const rk = revK(it.gx + it.gy)
+      if (it.revP !== undefined && it.revP < 1 && rk >= 1) {
+        burst(it.gx, it.gy, it.gz, '#8fa3b5', 2, 26, 10, 0.4)
+      }
+      it.revP = rk
+      if (rk <= 0) continue
+      const gz = it.gz - (1 - rk) * 0.55
+      ctx.globalAlpha = rk
+      tile(it.gx, it.gy, gz, it.mask, it.ang, it.conn, g.pathK, it.shade, t)
+      if (it.gate) gateArch(it.gx, it.gy, gz, g.pathK, t)
       if (it.start) {
         ctx.strokeStyle = 'rgba(159,255,208,0.30)'
         ctx.lineWidth = 1.6
         ctx.beginPath()
-        ctx.ellipse(isoX(it.gx, it.gy), isoY(it.gx, it.gy, it.gz), HW * 0.55, HH * 0.55, 0, 0, 6.283)
+        ctx.ellipse(isoX(it.gx, it.gy), isoY(it.gx, it.gy, gz), HW * 0.55, HH * 0.55, 0, 0, 6.283)
         ctx.stroke()
       }
+      ctx.globalAlpha = 1
     }
 
     // particles (world space)
@@ -587,6 +722,21 @@ export function createRenderer(canvas) {
       ctx.fillStyle = gr
       ctx.fillRect(fx - fr, fy - fr, fr * 2, fr * 2)
     }
+    // reveal choreography: two fog banks part sideways as the stones assemble
+    if (revT < 1.5) {
+      const vk = 1 - revT / 1.5
+      const vy = fit.oy + ((g.lvl.bounds.y0 + g.lvl.bounds.y1) / 2) * fit.sc
+      for (let i = 0; i < 2; i++) {
+        const dir = i === 0 ? -1 : 1
+        const fx = cw / 2 + dir * (0.14 + (1 - vk) * 0.5) * cw
+        const fr = cw * (0.30 + 0.22 * vk)
+        const gr = ctx.createRadialGradient(fx, vy, fr * 0.1, fx, vy, fr)
+        gr.addColorStop(0, 'rgba(26,40,54,' + (0.5 * vk).toFixed(3) + ')')
+        gr.addColorStop(1, 'rgba(26,40,54,0)')
+        ctx.fillStyle = gr
+        ctx.fillRect(fx - fr, vy - fr, fr * 2, fr * 2)
+      }
+    }
     for (let i = 0; i < rips.length; i++) {
       const r = rips[i]
       if (!r.on) continue
@@ -611,5 +761,5 @@ export function createRenderer(canvas) {
     }
   }
 
-  return { draw, project, burst, popup, ripple, shake, pulse, clearFx, get scale() { return fit.sc } }
+  return { draw, project, burst, popup, ripple, shake, pulse, clearFx, reveal, get scale() { return fit.sc } }
 }

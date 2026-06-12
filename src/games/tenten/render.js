@@ -25,11 +25,11 @@ const TOPS = ['#23291f', '#33402c', '#415138', '#566346', '#6e7a52', '#8d9465'];
 // per-variant whisper tints so no two neighbouring faces read flat-identical:
 // mossy, neutral, dry straw, cool damp, peaty
 const FACE_TINT = [
-  'rgba(124, 152, 96, 0.055)',
+  'rgba(124, 152, 96, 0.09)',
   'rgba(0, 0, 0, 0)',
-  'rgba(196, 178, 110, 0.05)',
-  'rgba(110, 150, 150, 0.05)',
-  'rgba(96, 78, 58, 0.055)',
+  'rgba(196, 178, 110, 0.08)',
+  'rgba(110, 150, 150, 0.075)',
+  'rgba(96, 78, 58, 0.09)',
 ];
 const DIGIT_COLOR = 'rgba(232, 220, 192, 0.34)';
 const WATER_FILL = '#0e2c38';
@@ -235,7 +235,7 @@ export function createRenderer(canvas) {
     const cx = HW + PAD;
     const cy = HH + PAD; // top diamond centre
     const by = cy + h * TZ; // base diamond centre
-    const f = 1 + (v - 2) * 0.034;
+    const f = 1 + (v - 2) * 0.045;
     const base = TOPS[h];
     srand(h * 733 + v * 131 + 17);
     if (h > 0) {
@@ -321,7 +321,7 @@ export function createRenderer(canvas) {
       const my2 = cy - HH + rnd() * HH * 2;
       const mr = 7 + rnd() * 9;
       const mg = b.createRadialGradient(mx2, my2, 0, mx2, my2, mr);
-      mg.addColorStop(0, rnd() < 0.5 ? 'rgba(0, 0, 0, 0.08)' : 'rgba(236, 240, 208, 0.06)');
+      mg.addColorStop(0, rnd() < 0.5 ? 'rgba(0, 0, 0, 0.12)' : 'rgba(236, 240, 208, 0.09)');
       mg.addColorStop(1, 'rgba(0, 0, 0, 0)');
       b.fillStyle = mg;
       b.fillRect(mx2 - mr, my2 - mr, mr * 2, mr * 2);
@@ -809,6 +809,9 @@ export function createRenderer(canvas) {
   // one dyed accent per villager — madder, indigo, moss, ochre, mauve, alerce —
   // small enough to whisper, saturated enough to tell figures apart at distance
   const BAND = ['#8f4634', '#46618c', '#6f7c3e', '#9a6630', '#7c4a70', '#3c7060'];
+  // the same dyes lifted toward the moon — for the wool cap, where a saturated
+  // accent against dark hair finally reads at gameplay distance
+  const BAND_LIT = ['#c06a50', '#6d88b8', '#97a45c', '#c08a4a', '#a8709a', '#5c9c86'];
 
   function drawVillagerFigure(sx, sy, bob, alpha, id = 0, walkP = -1, lean = 0) {
     ctx.globalAlpha = alpha;
@@ -849,7 +852,7 @@ export function createRenderer(canvas) {
     ctx.fill();
     // woven stripe — a dyed chilote manta band across the chest
     ctx.strokeStyle = BAND[id % BAND.length];
-    ctx.lineWidth = 1.1;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(hx - 2.1, sy - 7.5 - bob * 0.85);
     ctx.lineTo(hx + 2.3, sy - 7.1 - bob * 0.85);
@@ -878,6 +881,12 @@ export function createRenderer(canvas) {
     ctx.beginPath();
     ctx.arc(hx, sy - 12.4 - bob, 2.1, 0, Math.PI * 2);
     ctx.fill();
+    // gorro chilote — a dyed wool cap, each villager their own colour
+    ctx.fillStyle = BAND_LIT[id % BAND_LIT.length];
+    ctx.beginPath();
+    ctx.arc(hx, sy - 12.6 - bob, 2.0, Math.PI * 0.98, Math.PI * 2.02);
+    ctx.closePath();
+    ctx.fill();
     ctx.fillStyle = lit;
     ctx.beginPath();
     ctx.arc(hx + 0.5, sy - 12 - bob, 1.5, 0, Math.PI * 2);
@@ -898,9 +907,12 @@ export function createRenderer(canvas) {
     if (sp > 0 && sp < 1) {
       const fade = 1 - sp;
       srand(617 + id * 131);
+      // thin central plume, the first water thrown upward
       ctx.fillStyle = FOAM;
-      for (let k = 0; k < 9; k++) {
-        const a = (k / 9) * Math.PI + (rnd() - 0.5) * 0.35;
+      ctx.globalAlpha = fade * 0.7;
+      ctx.fillRect(sx - 0.6, sy + 2 - sp * 17, 1.2, 3.5 + sp * 3);
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI + (rnd() - 0.5) * 0.35;
         const v0 = 16 + rnd() * 18;
         const px = sx + Math.cos(a) * v0 * sp;
         const py = sy + 3 - Math.sin(a) * v0 * sp + 30 * sp * sp;
@@ -916,7 +928,7 @@ export function createRenderer(canvas) {
       // foam crown — brighter and quicker than the travel ripple below
       ctx.strokeStyle = FOAM;
       ctx.lineWidth = 1.2;
-      ctx.globalAlpha = fade * 0.5;
+      ctx.globalAlpha = fade * 0.62;
       ctx.beginPath();
       ctx.ellipse(sx, sy + 4, 3 + sp * 13, 1.3 + sp * 4.5, 0, 0, Math.PI * 2);
       ctx.stroke();
@@ -1136,8 +1148,11 @@ export function createRenderer(canvas) {
         const bx = BX[bI];
         const ty = BY[bI] - sim.heights[bI] * TZ;
         const pulse = 0.5 + 0.5 * Math.sin(animT * 2.2);
+        // pool of light where the pillar meets the land — anchors the eye
+        ctx.globalAlpha = 0.16 + pulse * 0.08;
+        ctx.drawImage(headGlow, bx - 26, ty - 13, 52, 26);
         // light pillar
-        ctx.globalAlpha = 0.1 + pulse * 0.08;
+        ctx.globalAlpha = 0.12 + pulse * 0.09;
         ctx.fillStyle = GLOW;
         ctx.fillRect(bx - 5, ty - 92, 10, 88);
         ctx.globalAlpha = 1;

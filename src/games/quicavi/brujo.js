@@ -383,6 +383,7 @@ export function createBrujo(isOpen) {
 
   // a faint cold haze behind him — the black figure silhouettes against it
   let hazeMat = null
+  let eyeHaloMat = null
   try {
     const cv = document.createElement('canvas')
     cv.width = cv.height = 64
@@ -393,8 +394,9 @@ export function createBrujo(isOpen) {
     grad.addColorStop(1, 'rgba(255,255,255,0)')
     c2.fillStyle = grad
     c2.fillRect(0, 0, 64, 64)
+    const glowTexture = new THREE.CanvasTexture(cv)
     hazeMat = new THREE.SpriteMaterial({
-      map: new THREE.CanvasTexture(cv),
+      map: glowTexture,
       color: 0x42585f,
       transparent: true,
       opacity: 0.09,
@@ -405,8 +407,29 @@ export function createBrujo(isOpen) {
     haze.position.set(0, 1.55, -0.4)
     haze.scale.set(6, 7.5, 1)
     group.add(haze)
+    // eye bloom — a subtle spectral halo around each eye that only blooms
+    // at distance (two points hanging in the dark); update() fades it to
+    // nothing up close, where the bare emissive eyes are dread enough.
+    // One shared material: both eyes breathe with the same flicker.
+    eyeHaloMat = new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: 0x9fffd0,
+      transparent: true,
+      opacity: 0, // distance-driven — see update()
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+    const haloL = new THREE.Sprite(eyeHaloMat)
+    haloL.position.set(-0.05, 2.35, 0.13)
+    haloL.scale.set(0.38, 0.38, 1)
+    group.add(haloL)
+    const haloR = new THREE.Sprite(eyeHaloMat)
+    haloR.position.set(0.05, 2.35, 0.13)
+    haloR.scale.set(0.38, 0.38, 1)
+    group.add(haloR)
   } catch (e) {
     hazeMat = null
+    eyeHaloMat = null
   }
 
   group.position.set(0, -80, 0)
@@ -494,7 +517,8 @@ export function createBrujo(isOpen) {
     group.position.y = -80
   }
 
-  function update(dt, t) {
+  // playerDist (optional, meters) drives the distant eye bloom
+  function update(dt, t, playerDist) {
     // the catch close-up shivers while it fills the frame (cheap, in-place)
     if (scareFace.visible && pupilL) {
       const p = 1 + 0.22 * Math.sin(t * 37)
@@ -502,6 +526,15 @@ export function createBrujo(isOpen) {
       pupilR.scale.setScalar(1 + 0.22 * Math.sin(t * 41 + 1.3))
     }
     if (!present) return
+    // eye bloom halo: nothing inside ~9 m, fully bloomed past ~25 m, and it
+    // breathes in phase with the eyes' own emissive flicker
+    if (eyeHaloMat) {
+      const d = playerDist === undefined ? 30 : playerDist
+      let k = (d - 9) / 16
+      if (k < 0) k = 0
+      else if (k > 1) k = 1
+      eyeHaloMat.opacity = k * (0.13 + 0.09 * (0.5 + 0.5 * Math.sin(t * 3.9)))
+    }
     // body sway, with the cloth lagging behind it (secondary motion)
     const sway = Math.sin(t * 0.7)
     group.rotation.z = sway * 0.012

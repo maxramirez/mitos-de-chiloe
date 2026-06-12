@@ -76,6 +76,12 @@ function makeLayer0() {
     g.ellipse(x, y, w / 2, 9 + rng() * 14, 0, 0, Math.PI * 2)
     g.fill()
   }
+  // micro-dither so the big sky gradient never bands (one-time boot cost)
+  for (let i = 0; i < 1500; i++) {
+    const a = 0.012 + rng() * 0.02
+    g.fillStyle = rng() < 0.5 ? 'rgba(255,255,255,' + a.toFixed(3) + ')' : 'rgba(0,0,0,' + a.toFixed(3) + ')'
+    g.fillRect(rng() * LAYER_W, rng() * LAYER_H, 1, 1)
+  }
   return c
 }
 
@@ -389,6 +395,17 @@ export function createRender(canvas, refs) {
   // garment weaves — traveler's mended poncho, la Fiura's red rag dress
   const ponchoWeave = ctx.createPattern(makeWeave(515, 'rgba(0,0,0,0.30)', 'rgba(190,210,180,0.10)'), 'repeat')
   const ragWeave = ctx.createPattern(makeWeave(929, 'rgba(40,4,2,0.38)', 'rgba(255,150,110,0.12)'), 'repeat')
+
+  // la Fiura's red dress deepens to a hotter, more saturated red as she
+  // inhales — quantized lerp strings prebuilt so draw() never builds colors
+  // (body: #6e1f14 -> #9f150c · front fold: #a93620 -> #d63e18)
+  const DRESS_BODY = []
+  const DRESS_FOLD = []
+  for (let q = 0; q <= 10; q++) {
+    const k = q / 10
+    DRESS_BODY.push('rgb(' + ((110 + 49 * k) | 0) + ',' + ((31 - 10 * k) | 0) + ',' + ((20 - 8 * k) | 0) + ')')
+    DRESS_FOLD.push('rgb(' + ((169 + 45 * k) | 0) + ',' + ((54 + 8 * k) | 0) + ',' + ((32 - 8 * k) | 0) + ')')
+  }
 
   // swamp atmosphere — fixed mote/mist fields, drifted by pure functions of t
   // (zero allocation per frame; positions are world-space so parallax is real)
@@ -734,19 +751,54 @@ export function createRender(canvas, refs) {
     ctx.globalAlpha = 1
     ctx.fillStyle = 'rgba(255,180,110,0.25)'
     ctx.fillRect(x - w * 0.3, base - hh * 0.62, 0.5 * ppm, 0.5 * ppm)
-    // the door — dark until all herbs are carried
+    // the door — its lintel lamp burns all night (the beacon you walk
+    // toward); the doorway itself stays dark until all herbs are carried
     const doorW = 0.95 * ppm
     const doorH = 1.6 * ppm
     const ready = refs.fx.hutOpen
+    const lampFlick = 0.9 + 0.1 * Math.sin(t * 5.1) * Math.sin(t * 2.3)
+    const lgs = 1.5 * ppm * lampFlick
+    ctx.globalAlpha = 0.55
+    ctx.drawImage(glowWarm, x - lgs / 2, base - doorH - 0.18 * ppm - lgs / 2, lgs, lgs)
+    ctx.globalAlpha = 1
+    ctx.fillStyle = '#0e0c08' // little tin lamp on the lintel
+    ctx.fillRect(x - 3, base - doorH - 0.3 * ppm, 6, 9)
+    ctx.fillStyle = '#ffd9a0'
+    ctx.fillRect(x - 1.5, base - doorH - 0.26 * ppm, 3, 5)
     if (ready > 0.01) {
       const gs = 4.2 * ppm * ready * (0.9 + 0.1 * Math.sin(t * 3))
       ctx.drawImage(glowWarm, x - gs / 2, base - doorH * 0.5 - gs / 2, gs, gs)
+      // light spilling upward — a soft beacon column once the door opens
+      ctx.globalAlpha = 0.3 * ready
+      ctx.drawImage(glowWarm, x - 0.9 * ppm, base - doorH - 3.6 * ppm, 1.8 * ppm, 4.4 * ppm)
+      ctx.globalAlpha = 1
     }
     ctx.fillStyle = ready > 0.5 ? '#ffd9a0' : '#07070a'
     ctx.fillRect(x - doorW / 2, base - doorH, doorW, doorH)
     ctx.strokeStyle = 'rgba(232,220,192,0.18)'
     ctx.lineWidth = 1
     ctx.strokeRect(x - doorW / 2, base - doorH, doorW, doorH)
+  }
+
+  // the hut's warm light bleeding over the reeds long before the hut itself —
+  // pinned near the right screen edge while the hut is still beyond it, so
+  // from the last checkpoint lantern the goal already glows on the horizon
+  function drawHutBeacon(t) {
+    const x = sx(HUT_X)
+    if (x < W - 60) return // hut (nearly) on screen — its real lamps take over
+    const dist = HUT_X - cx
+    if (dist > 85) return
+    const near = Math.min(1, (85 - dist) / 45)
+    const ex = Math.min(x, W - 36)
+    const ey = sy(1.1)
+    const flick = 0.9 + 0.1 * Math.sin(t * 2.3)
+    const gs = (3.5 + 3 * near) * ppm // wide warm haze low over the water
+    ctx.globalAlpha = 0.22 * near * flick
+    ctx.drawImage(glowWarm, ex - gs / 2, ey - gs * 0.3, gs, gs * 0.6)
+    ctx.globalAlpha = 0.35 + 0.45 * near // the pinprick of the door lamp
+    ctx.fillStyle = '#ffd9a0'
+    ctx.fillRect(ex - 1, ey - 1, 3, 3)
+    ctx.globalAlpha = 1
   }
 
   function drawHerb(i, t) {
@@ -822,8 +874,10 @@ export function createRender(canvas, refs) {
     ctx.fillStyle = '#241008'
     ctx.fillRect(-0.16 * ppm + kick * 2, 0.16 * ppm, 4, 3)
     ctx.fillRect(0.11 * ppm - kick * 2, 0.15 * ppm, 4, 3)
-    // red dress — seated mass with a ragged hem, flutter offset from the rock
-    ctx.fillStyle = '#6e1f14'
+    // red dress — seated mass with a ragged hem, flutter offset from the rock;
+    // the red saturates with her inhale (prebuilt quantized ramp)
+    const dq = Math.min(10, (inh * 11) | 0)
+    ctx.fillStyle = DRESS_BODY[dq]
     ctx.beginPath()
     ctx.moveTo(-0.44 * ppm, 0)
     ctx.quadraticCurveTo(-0.34 * ppm, -0.6 * ppm, 0, -0.72 * ppm)
@@ -849,8 +903,8 @@ export function createRender(canvas, refs) {
     ctx.quadraticCurveTo(0.2 * ppm, -0.4 * ppm, 0.1 * ppm, -0.7 * ppm)
     ctx.closePath()
     ctx.fill()
-    // warm fold highlight down the front
-    ctx.fillStyle = '#a93620'
+    // warm fold highlight down the front — heats up with the inhale too
+    ctx.fillStyle = DRESS_FOLD[dq]
     ctx.beginPath()
     ctx.moveTo(-0.2 * ppm, 0)
     ctx.quadraticCurveTo(-0.12 * ppm, -0.5 * ppm, 0.04 * ppm, -0.64 * ppm)
@@ -982,17 +1036,32 @@ export function createRender(canvas, refs) {
       const y = sy(r.y)
       const rp = r.r * ppm
       const fade = 1 - r.r / 6.6
+      // wide spectral halo riding the wave
+      ctx.strokeStyle = '#9fffd0'
+      ctx.globalAlpha = 0.2 * fade
+      ctx.lineWidth = 8
+      ctx.beginPath()
+      ctx.arc(x, y, rp, 0, Math.PI * 2)
+      ctx.stroke()
+      // trailing spectral fringe — the cold inner edge of the charm
+      ctx.globalAlpha = 0.45 * fade
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(x, y, Math.max(1, rp - 4), 0, Math.PI * 2)
+      ctx.stroke()
+      // hot core ring
       ctx.strokeStyle = '#ff7a50'
       ctx.globalAlpha = 0.5 * fade + 0.15
       ctx.lineWidth = 3
       ctx.beginPath()
       ctx.arc(x, y, rp, 0, Math.PI * 2)
       ctx.stroke()
-      ctx.strokeStyle = '#9fffd0'
-      ctx.globalAlpha = 0.22 * fade
-      ctx.lineWidth = 7
+      // leading warm-bright edge — chromatic fringe at the front of the wave
+      ctx.strokeStyle = '#ffd9a0'
+      ctx.globalAlpha = 0.65 * fade
+      ctx.lineWidth = 1.5
       ctx.beginPath()
-      ctx.arc(x, y, rp, 0, Math.PI * 2)
+      ctx.arc(x, y, rp + 2.5, 0, Math.PI * 2)
       ctx.stroke()
       ctx.globalAlpha = 1
     }
@@ -1262,6 +1331,7 @@ export function createRender(canvas, refs) {
     for (let i = 0; i < PLATFORMS.length; i++) drawPlatform(i, t)
     drawMotes(t)
     for (let i = 1; i < CHECKPOINTS.length; i++) drawLantern(i, t)
+    drawHutBeacon(t)
     drawHut(t)
     for (let i = 0; i < HERBS.length; i++) drawHerb(i, t)
     for (let i = 0; i < AMBUSHES.length; i++) drawFiura(i, t)

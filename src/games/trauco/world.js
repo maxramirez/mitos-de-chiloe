@@ -77,20 +77,24 @@ export function buildWorld(scene, rng) {
   scene.fog = new THREE.FogExp2(0x060d16, 0.034)
 
   // ---------- environment light ----------
-  const hemi = new THREE.HemisphereLight(0x2e4050, 0x04060a, 0.34)
+  // audit: "forest reads almost black" — lifted sky/moon so near crowns and
+  // trunks render as readable shapes, still well below the lantern/vines
+  const hemi = new THREE.HemisphereLight(0x36506b, 0x060a10, 0.5)
   scene.add(hemi)
-  const moonDir = new THREE.DirectionalLight(0x93b8d8, 0.46)
+  const moonDir = new THREE.DirectionalLight(0x93b8d8, 0.72)
   moonDir.position.set(60, 90, -40)
   scene.add(moonDir)
 
   // ---------- sky: faint moonlit band behind the trunk line ----------
   // open cylinder, fog-immune, no depth write — everything draws over it,
   // so the wall-forest crowns cut clean silhouettes against the gradient
+  // taller cylinder: the old 140 m one ended at y=110, whose rim cut a dark
+  // arc across the top of the screen at level pitch (70° FOV reaches ~35° up)
   const sky = new THREE.Mesh(
-    new THREE.CylinderGeometry(170, 170, 140, 48, 1, true),
+    new THREE.CylinderGeometry(170, 170, 220, 48, 1, true),
     new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false })
   )
-  sky.position.y = 40
+  sky.position.y = 70
   sky.renderOrder = -1
   scene.add(sky)
 
@@ -196,9 +200,9 @@ export function buildWorld(scene, rng) {
     const m = vnoise(x * 0.11 + 31.7, z * 0.11 + 8.2)
     const p = vnoise(x * 0.045 + 77.7, z * 0.045 + 21.2)
     const f = vnoise(x * 0.16 + 5.1, z * 0.16 + 60.3) - 0.5 // fine moss/dirt patchiness — reads inside the lantern pool
-    gCol[i * 3] = 0.03 + 0.03 * p + 0.012 * m + 0.018 * f
-    gCol[i * 3 + 1] = 0.045 + 0.038 * (1 - p) + 0.015 * m + 0.026 * f
-    gCol[i * 3 + 2] = 0.03 + 0.02 * (1 - p) + 0.012 * f
+    gCol[i * 3] = 0.032 + 0.03 * p + 0.012 * m + 0.028 * f
+    gCol[i * 3 + 1] = 0.048 + 0.038 * (1 - p) + 0.015 * m + 0.04 * f
+    gCol[i * 3 + 2] = 0.032 + 0.02 * (1 - p) + 0.018 * f
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(gCol, 3))
   groundGeo.computeVertexNormals()
@@ -209,7 +213,7 @@ export function buildWorld(scene, rng) {
       roughness: 1,
       map: groundTex.map, // near-white mottle — modulates the vertex colors
       bumpMap: groundTex.bumpMap,
-      bumpScale: 0.62, // leaf-litter relief the hand-lantern can rake across
+      bumpScale: 0.85, // leaf-litter relief the hand-lantern can rake across
     })
   )
   scene.add(ground)
@@ -250,10 +254,10 @@ export function buildWorld(scene, rng) {
       let y = fp.getY(i)
       if (y < 0) y = 0
       else if (y > 1) y = 1
-      const t = Math.pow(y, 2.4)
-      fc[i * 3] = 0.75 + t * 0.85 // -> 1.60 at the tip
-      fc[i * 3 + 1] = 0.78 + t * 1.07 // -> 1.85
-      fc[i * 3 + 2] = 0.76 + t * 1.29 // -> 2.05 — blue-shifted moonlight
+      const t = Math.pow(y, 2.1)
+      fc[i * 3] = 0.58 + t * 1.72 // -> 2.30 at the tip
+      fc[i * 3 + 1] = 0.62 + t * 2.18 // -> 2.80
+      fc[i * 3 + 2] = 0.63 + t * 2.77 // -> 3.40 — blue-shifted moonlight
     }
     folGeo.setAttribute('color', new THREE.BufferAttribute(fc, 3))
   }
@@ -294,14 +298,14 @@ export function buildWorld(scene, rng) {
       dummy.scale.set(h * 0.3, h * 0.78, h * 0.3)
       dummy.updateMatrix()
       foliage.setMatrixAt(fi, dummy.matrix)
-      tint.setHex(0x17281e).multiplyScalar(0.7 + rng() * 0.55)
+      tint.setHex(0x1d3025).multiplyScalar(0.7 + rng() * 0.55)
       foliage.setColorAt(fi, tint)
       fi++
       dummy.position.set(x, gy + h * 0.62, z)
       dummy.scale.set(h * 0.17, h * 0.46, h * 0.17)
       dummy.updateMatrix()
       foliage.setMatrixAt(fi, dummy.matrix)
-      tint.setHex(0x1b2d22).multiplyScalar(0.7 + rng() * 0.55)
+      tint.setHex(0x223829).multiplyScalar(0.7 + rng() * 0.55)
       foliage.setColorAt(fi, tint)
       fi++
     } else {
